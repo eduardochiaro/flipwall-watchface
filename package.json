@@ -51,6 +51,15 @@
           "file": "menu_icon.png"
         },
         {
+          "type": "raw",
+          "name": "FONT_MONTSERRAT_FFONT",
+          "file": "fonts/montserrat.ffont",
+          "targetPlatforms": [
+            "chalk",
+            "gabbro"
+          ]
+        },
+        {
           "type": "font",
           "name": "FONT_NUM_44",
           "file": "fonts/Montserrat-Bold.ttf",
@@ -88,39 +97,11 @@
         },
         {
           "type": "font",
-          "name": "FONT_NUM_56",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9]",
-          "targetPlatforms": [
-            "chalk"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_TXT_32",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z]",
-          "targetPlatforms": [
-            "chalk"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_TXT_24",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z]",
-          "targetPlatforms": [
-            "chalk"
-          ]
-        },
-        {
-          "type": "font",
           "name": "FONT_NUM_64",
           "file": "fonts/Montserrat-Bold.ttf",
           "characterRegex": "[0-9]",
           "targetPlatforms": [
-            "emery",
-            "gabbro"
+            "emery"
           ]
         },
         {
@@ -129,8 +110,7 @@
           "file": "fonts/Montserrat-Bold.ttf",
           "characterRegex": "[0-9A-Za-z]",
           "targetPlatforms": [
-            "emery",
-            "gabbro"
+            "emery"
           ]
         },
         {
@@ -139,8 +119,7 @@
           "file": "fonts/Montserrat-Bold.ttf",
           "characterRegex": "[0-9A-Za-z]",
           "targetPlatforms": [
-            "emery",
-            "gabbro"
+            "emery"
           ]
         },
         {
@@ -149,8 +128,7 @@
           "file": "fonts/Montserrat-Bold.ttf",
           "characterRegex": "[A-Za-z]",
           "targetPlatforms": [
-            "emery",
-            "gabbro"
+            "emery"
           ]
         },
         {
@@ -159,7 +137,6 @@
           "file": "fonts/Montserrat-Bold.ttf",
           "characterRegex": "[A-Za-z]",
           "targetPlatforms": [
-            "chalk",
             "aplite",
             "basalt",
             "diorite",
@@ -170,6 +147,11 @@
     }
   },
   "dependencies": {
-    "@rebble/clay": "^1.0.10"
+    "@rebble/clay": "^1.0.10",
+    "pebble-fctx": "^1.6.5"
+  },
+  "devDependencies": {
+    "opentype.js": "^2.0.0",
+    "pebble-fctx-compiler": "^1.2.2"
   }
 }

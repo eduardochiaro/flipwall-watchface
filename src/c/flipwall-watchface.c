@@ -1,4 +1,8 @@
 #include <pebble.h>
+#if defined(PBL_ROUND)
+#include <pebble-fctx/fctx.h>
+#include <pebble-fctx/ffont.h>
+#endif
 
 // ---------------------------------------------------------------------------
 // Flip-wall-clock watchface
@@ -72,17 +76,22 @@ static Window *s_window;
 static Layer  *s_main_layer;
 static struct tm s_now;
 
+#if defined(PBL_ROUND)
+static FFont *s_ffont;     // vector font (fctx) for the rotated round face
+#else
 // All text uses bundled Montserrat Bold so the design is consistent across
 // platforms; sizes are picked per screen tier in prv_window_load().
 static GFont s_font_num;   // big day number
 static GFont s_font_txt;   // month
 static GFont s_font_txt_sm; // year, day-of-week
 static GFont s_font_sml;   // AM/PM indicator
+#endif
 
 // ---------------------------------------------------------------------------
 // Drawing helpers
 // ---------------------------------------------------------------------------
 
+#if !defined(PBL_ROUND)
 // Draw text optically centred inside a rect. Pebble fonts carry internal
 // leading (padding above the caps), so a plain box-centre leaves the glyphs
 // sitting low; nudge up by a fraction of the line height to compensate.
@@ -127,7 +136,6 @@ static void draw_ampm(GContext *ctx, GRect r, const char *txt, bool top,
 // Individual blocks
 // ---------------------------------------------------------------------------
 
-#if !defined(PBL_ROUND)
 // The year sits in a horizontal band but the panel itself is only a little
 // wider than the "2020" text (not full width), centred in that band. The
 // panel fills the band's height (which the caller sizes to the text).
@@ -318,81 +326,121 @@ static void main_layer_update(Layer *layer, GContext *ctx) {
 // ---------------------------------------------------------------------------
 // Round face (chalk / gabbro)
 //
-// A large analog clock fills the centre of the circle, ringed by four small
-// flip chips: DoW | Day on top, Month | Year on the bottom. Everything is
-// derived from the layer radius so it adapts to any round screen size (each
-// platform still supplies its own font sizes). The grid-arrangement and
-// year-position settings don't apply to this layout; the colour and
-// show-seconds settings still do.
+// The analog clock sits in the centre; the four date blocks are placed at the
+// 45/135/225/315 diagonals and rotated to the tangent so they wrap around the
+// dial. Rotated panels and anti-aliased text are drawn with the pebble-fctx
+// vector library (the stock APIs can't rotate text). Each block's transform is
+// pivot=0, rotation=tangent angle, offset=its point on the circle, so plotting
+// shapes/text around the local origin lands them centred and rotated in place.
+//
+// The grid-arrangement and year-position settings don't apply to this layout;
+// the colour and show-seconds settings still do.
 // ---------------------------------------------------------------------------
-static void draw_chip(GContext *ctx, GRect r, const char *txt, GFont font,
-                      GColor bg) {
-  draw_panel(ctx, r, bg);
-  draw_centered(ctx, r, txt, font, s_text_fg, GTextAlignmentCenter);
-  draw_seam(ctx, r);
+
+// A rounded rectangle centred on the local origin, half-extents hw/hh, corner
+// radius r. k is the cubic-bezier handle length for a quarter-circle (~0.55r).
+static void fctx_round_rect(FContext *f, int hw, int hh, int r) {
+  int k = r * 55 / 100;
+  fctx_move_to (f, FPointI(-hw + r, -hh));
+  fctx_line_to (f, FPointI( hw - r, -hh));
+  fctx_curve_to(f, FPointI( hw - r + k, -hh), FPointI( hw, -hh + r - k), FPointI( hw, -hh + r));
+  fctx_line_to (f, FPointI( hw,  hh - r));
+  fctx_curve_to(f, FPointI( hw,  hh - r + k), FPointI( hw - r + k,  hh), FPointI( hw - r,  hh));
+  fctx_line_to (f, FPointI(-hw + r,  hh));
+  fctx_curve_to(f, FPointI(-hw + r - k,  hh), FPointI(-hw,  hh - r + k), FPointI(-hw,  hh - r));
+  fctx_line_to (f, FPointI(-hw, -hh + r));
+  fctx_curve_to(f, FPointI(-hw, -hh + r - k), FPointI(-hw + r - k, -hh), FPointI(-hw + r, -hh));
+  fctx_close_path(f);
+}
+
+static void fctx_box(FContext *f, int hw, int hh) {
+  fctx_move_to(f, FPointI(-hw, -hh));
+  fctx_line_to(f, FPointI( hw, -hh));
+  fctx_line_to(f, FPointI( hw,  hh));
+  fctx_line_to(f, FPointI(-hw,  hh));
+  fctx_close_path(f);
+}
+
+// Draw a string centred at the point `radius` out from c along `ang`, rotated
+// to that angle. Radial offsets shift text along the block's local vertical.
+static void round_text(FContext *f, GPoint c, int32_t ang, int radius,
+                       const char *txt, int cap_h, GColor color) {
+  GPoint p = hand_point(c, ang, radius);
+  fctx_set_pivot(f, FPointI(0, 0));
+  fctx_set_offset(f, FPointI(p.x, p.y));
+  fctx_set_rotation(f, ang);
+  fctx_set_fill_color(f, color);
+  fctx_set_text_cap_height(f, s_ffont, cap_h);
+  fctx_begin_fill(f);
+  fctx_draw_string(f, txt, s_ffont, GTextAlignmentCenter, FTextAnchorCapMiddle);
+  fctx_end_fill(f);
+}
+
+static void round_block(FContext *f, GPoint c, int32_t ang, int rr, int bw,
+                        int bh, const char *txt, GColor bg, bool is_dow) {
+  GPoint p = hand_point(c, ang, rr);
+  int hw = bw / 2, hh = bh / 2;
+
+  // Panel (identity scale so path units are pixels).
+  fctx_set_pivot(f, FPointI(0, 0));
+  fctx_set_offset(f, FPointI(p.x, p.y));
+  fctx_set_rotation(f, ang);
+  fctx_set_scale(f, FPointI(1, 1), FPointI(1, 1));
+  fctx_set_fill_color(f, bg);
+  fctx_begin_fill(f);
+  fctx_round_rect(f, hw, hh, 6);
+  fctx_end_fill(f);
+
+  // Seam line across the middle.
+  fctx_set_fill_color(f, SEAM_COLOR);
+  fctx_begin_fill(f);
+  fctx_box(f, hw - 3, 1);
+  fctx_end_fill(f);
+
+  if (is_dow) {
+    // Day name above centre, active AM/PM marker below it (radially inward).
+    round_text(f, c, ang, rr + bh / 6, txt, bh * 40 / 100, s_text_fg);
+    bool is_pm = s_now.tm_hour >= 12;
+    round_text(f, c, ang, rr - bh * 28 / 100, is_pm ? "PM" : "AM",
+               bh * 24 / 100, s_text_fg);
+  } else {
+    round_text(f, c, ang, rr, txt, bh * 52 / 100, s_text_fg);
+  }
 }
 
 static void main_layer_update(Layer *layer, GContext *ctx) {
   GRect b = layer_get_bounds(layer);
-
-  graphics_context_set_fill_color(ctx, s_face_bg);
-  graphics_fill_rect(ctx, b, 0, GCornerNone);
-
   GPoint c = grect_center_point(&b);
   int R = (b.size.w < b.size.h ? b.size.w : b.size.h) / 2;
 
-  const int gap = 3;
-  int chip_h = R * 28 / 100;
-  int chip_w = R * 13 / 10;            // ~1.3R; stays inside the top/bottom arcs
-  int left_x = c.x - chip_w / 2;
+  int bw = R * 66 / 100;
+  int bh = R * 30 / 100;
+  int gap = R * 4 / 100;             // small breathing space dial <-> blocks
+  int rr = R * 76 / 100;             // block centres pushed out near the rim
+  // The dial fills the centre up to the blocks' inner edge (at rr - bh/2).
+  int dial_r = rr - bh / 2 - gap;
 
-  // The text chips need an uneven split: the four-digit year and the
-  // day-of-week (which also carries the AM/PM marker) get the wider half;
-  // the day number and short month name fit comfortably in the narrow half.
-  int wide   = (chip_w - gap) * 58 / 100;
-  int narrow = (chip_w - gap) - wide;
+  // Background + central dial first (stock graphics), then the fctx overlay.
+  graphics_context_set_fill_color(ctx, s_face_bg);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+  draw_clock(ctx, GRect(c.x - dial_r, c.y - dial_r, dial_r * 2, dial_r * 2));
 
-  // The two chip rows sit a fixed fraction in from the top/bottom of the
-  // circle, where the chord is still wide enough to hold them.
-  int top_y = (c.y - R) + R * 26 / 100;
-  int bot_y = (c.y + R) - R * 26 / 100 - chip_h;
-
-  // The dial fills the gap between the rows, centred in the circle.
-  int dial_top = top_y + chip_h + gap;
-  int dial_bot = bot_y - gap;
-  int dial_r   = (dial_bot - dial_top) / 2;
-  if (dial_r > R - 2) dial_r = R - 2;
-  int dial_cy  = (dial_top + dial_bot) / 2;
-  draw_clock(ctx, GRect(c.x - dial_r, dial_cy - dial_r, dial_r * 2, dial_r * 2));
+  FContext f;
+  fctx_init_context(&f, ctx);
 
   char buf[8];
-
-  // Top row: day-of-week (wide, left) with AM top-right / PM bottom-right (the
-  // active one bright), and the day-of-month (narrow, right).
   strftime(buf, sizeof(buf), "%a", &s_now);
   bool weekend = (s_now.tm_wday == 0 || s_now.tm_wday == 6);
-  GRect dow_r = GRect(left_x, top_y, wide, chip_h);
-  draw_panel(ctx, dow_r, weekend ? s_weekend_bg : s_panel_bg);
-  GRect name_r = dow_r;
-  name_r.origin.x += 4;
-  name_r.size.w  -= 4;
-  draw_centered(ctx, name_r, buf, s_font_txt_sm, s_text_fg, GTextAlignmentLeft);
-  bool is_pm = s_now.tm_hour >= 12;
-  draw_ampm(ctx, dow_r, "AM", true,  is_pm ? DIM_FG : s_text_fg);
-  draw_ampm(ctx, dow_r, "PM", false, is_pm ? s_text_fg : DIM_FG);
-  draw_seam(ctx, dow_r);
-
+  round_block(&f, c, DEG_TO_TRIGANGLE(315), rr, bw, bh, buf,
+              weekend ? s_weekend_bg : s_panel_bg, true);
   snprintf(buf, sizeof(buf), "%d", s_now.tm_mday);
-  draw_chip(ctx, GRect(left_x + wide + gap, top_y, narrow, chip_h), buf,
-            s_font_txt_sm, s_panel_bg);
-
-  // Bottom row: month (narrow, left) and year (wide, right).
+  round_block(&f, c, DEG_TO_TRIGANGLE(45), rr, bw, bh, buf, s_panel_bg, false);
   strftime(buf, sizeof(buf), "%b", &s_now);
-  draw_chip(ctx, GRect(left_x, bot_y, narrow, chip_h), buf, s_font_txt_sm,
-            s_panel_bg);
+  round_block(&f, c, DEG_TO_TRIGANGLE(135), rr, bw, bh, buf, s_panel_bg, false);
   strftime(buf, sizeof(buf), "%Y", &s_now);
-  draw_chip(ctx, GRect(left_x + narrow + gap, bot_y, wide, chip_h), buf,
-            s_font_txt_sm, s_panel_bg);
+  round_block(&f, c, DEG_TO_TRIGANGLE(225), rr, bw, bh, buf, s_panel_bg, false);
+
+  fctx_deinit_context(&f);
 }
 #endif  // PBL_ROUND
 
@@ -492,21 +540,15 @@ static void prv_window_load(Window *window) {
   layer_set_update_proc(s_main_layer, main_layer_update);
   layer_add_child(root, s_main_layer);
 
-#if defined(PBL_PLATFORM_EMERY)
+#if defined(PBL_ROUND)
+  // The round face draws everything through fctx, so it only needs the vector
+  // font; skipping the stock raster fonts keeps RAM free for the fctx buffer.
+  s_ffont = ffont_create_from_resource(RESOURCE_ID_FONT_MONTSERRAT_FFONT);
+#elif defined(PBL_PLATFORM_EMERY)
   s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_64));
   s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_36));
   s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_26));
   s_font_sml = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SML_10));
-#elif defined(PBL_PLATFORM_GABBRO)
-  s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_64));
-  s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_36));
-  s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_36));
-  s_font_sml = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SML_10));
-#elif defined(PBL_PLATFORM_CHALK)
-  s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_56));
-  s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_32));
-  s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_24));
-  s_font_sml = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SML_8));
 #else
   s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_44));
   s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_26));
@@ -519,10 +561,14 @@ static void prv_window_load(Window *window) {
 }
 
 static void prv_window_unload(Window *window) {
+#if defined(PBL_ROUND)
+  ffont_destroy(s_ffont);
+#else
   fonts_unload_custom_font(s_font_num);
   fonts_unload_custom_font(s_font_txt);
   fonts_unload_custom_font(s_font_sml);
   fonts_unload_custom_font(s_font_txt_sm);
+#endif
   layer_destroy(s_main_layer);
 }
 
