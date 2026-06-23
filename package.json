@@ -45,6 +45,12 @@
     "resources": {
       "media": [
         {
+          "menuIcon": "true",
+          "type": "png",
+          "name": "MENU_ICON",
+          "file": "menu_icon.png"
+        },
+        {
           "type": "font",
           "name": "FONT_NUM_44",
           "file": "fonts/Montserrat-Bold.ttf",
@@ -86,8 +92,7 @@
           "file": "fonts/Montserrat-Bold.ttf",
           "characterRegex": "[0-9]",
           "targetPlatforms": [
-            "chalk",
-            "gabbro"
+            "chalk"
           ]
         },
         {
@@ -96,8 +101,7 @@
           "file": "fonts/Montserrat-Bold.ttf",
           "characterRegex": "[0-9A-Za-z]",
           "targetPlatforms": [
-            "chalk",
-            "gabbro"
+            "chalk"
           ]
         },
         {
@@ -106,8 +110,7 @@
           "file": "fonts/Montserrat-Bold.ttf",
           "characterRegex": "[0-9A-Za-z]",
           "targetPlatforms": [
-            "chalk",
-            "gabbro"
+            "chalk"
           ]
         },
         {
@@ -116,7 +119,8 @@
           "file": "fonts/Montserrat-Bold.ttf",
           "characterRegex": "[0-9]",
           "targetPlatforms": [
-            "emery"
+            "emery",
+            "gabbro"
           ]
         },
         {
@@ -125,7 +129,8 @@
           "file": "fonts/Montserrat-Bold.ttf",
           "characterRegex": "[0-9A-Za-z]",
           "targetPlatforms": [
-            "emery"
+            "emery",
+            "gabbro"
           ]
         },
         {
@@ -134,7 +139,8 @@
           "file": "fonts/Montserrat-Bold.ttf",
           "characterRegex": "[0-9A-Za-z]",
           "targetPlatforms": [
-            "emery"
+            "emery",
+            "gabbro"
           ]
         },
         {
@@ -143,7 +149,8 @@
           "file": "fonts/Montserrat-Bold.ttf",
           "characterRegex": "[A-Za-z]",
           "targetPlatforms": [
-            "emery"
+            "emery",
+            "gabbro"
           ]
         },
         {
@@ -153,7 +160,6 @@
           "characterRegex": "[A-Za-z]",
           "targetPlatforms": [
             "chalk",
-            "gabbro",
             "aplite",
             "basalt",
             "diorite",

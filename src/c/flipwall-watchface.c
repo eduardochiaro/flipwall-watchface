@@ -411,7 +411,12 @@ static void prv_window_load(Window *window) {
   s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_36));
   s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_26));
   s_font_sml = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SML_10));
-#elif defined(PBL_PLATFORM_CHALK) || defined(PBL_PLATFORM_GABBRO)
+#elif defined(PBL_PLATFORM_GABBRO)
+  s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_64));
+  s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_36));
+  s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_36));
+  s_font_sml = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SML_10));
+#elif defined(PBL_PLATFORM_CHALK)
   s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_56));
   s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_32));
   s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_24));
