@@ -111,10 +111,23 @@ static void draw_panel(GContext *ctx, GRect r, GColor bg) {
   graphics_fill_rect(ctx, r, 4, GCornersAll);
 }
 
+// Small AM/PM label tucked into a top or bottom corner of the DoW block, in
+// the empty row above/below the vertically-centred word (so it never collides).
+static void draw_ampm(GContext *ctx, GRect r, const char *txt, bool top,
+                      GColor color) {
+  const int h = 14;
+  int y = top ? r.origin.y + 2 : r.origin.y + r.size.h - h + 1;
+  graphics_context_set_text_color(ctx, color);
+  graphics_draw_text(ctx, txt, s_font_sml,
+                     GRect(r.origin.x, y, r.size.w - 3, h),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+}
+
 // ---------------------------------------------------------------------------
 // Individual blocks
 // ---------------------------------------------------------------------------
 
+#if !defined(PBL_ROUND)
 // The year sits in a horizontal band but the panel itself is only a little
 // wider than the "2020" text (not full width), centred in that band. The
 // panel fills the band's height (which the caller sizes to the text).
@@ -153,18 +166,6 @@ static void draw_month(GContext *ctx, GRect r) {
   draw_seam(ctx, r);
 }
 
-// Small AM/PM label tucked into a top or bottom corner of the DoW block, in
-// the empty row above/below the vertically-centred word (so it never collides).
-static void draw_ampm(GContext *ctx, GRect r, const char *txt, bool top,
-                      GColor color) {
-  const int h = 14;
-  int y = top ? r.origin.y +2 : r.origin.y + r.size.h - h + 1;
-  graphics_context_set_text_color(ctx, color);
-  graphics_draw_text(ctx, txt, s_font_sml,
-                     GRect(r.origin.x, y, r.size.w - 3, h),
-                     GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
-}
-
 static void draw_dow(GContext *ctx, GRect r) {
   char buf[8];
   strftime(buf, sizeof(buf), "%a", &s_now);     // title case "Mon" (matches "Jun")
@@ -184,6 +185,7 @@ static void draw_dow(GContext *ctx, GRect r) {
 
   draw_seam(ctx, r);
 }
+#endif  // !PBL_ROUND (flip-block helpers)
 
 static GPoint hand_point(GPoint c, int32_t angle, int length) {
   return GPoint(c.x + length * sin_lookup(angle) / TRIG_MAX_RATIO,
@@ -231,6 +233,7 @@ static void draw_clock(GContext *ctx, GRect r) {
   graphics_fill_circle(ctx, c, 2);
 }
 
+#if !defined(PBL_ROUND)
 static void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
   switch (blk) {
     case BLK_DOW:   draw_dow(ctx, r);   break;
@@ -309,6 +312,89 @@ static void main_layer_update(Layer *layer, GContext *ctx) {
                GRect(x, area.origin.y + top_h + GUTTER, col_w, bot_h));
   }
 }
+#endif  // !PBL_ROUND (2x2 grid layout)
+
+#if defined(PBL_ROUND)
+// ---------------------------------------------------------------------------
+// Round face (chalk / gabbro)
+//
+// A large analog clock fills the centre of the circle, ringed by four small
+// flip chips: DoW | Day on top, Month | Year on the bottom. Everything is
+// derived from the layer radius so it adapts to any round screen size (each
+// platform still supplies its own font sizes). The grid-arrangement and
+// year-position settings don't apply to this layout; the colour and
+// show-seconds settings still do.
+// ---------------------------------------------------------------------------
+static void draw_chip(GContext *ctx, GRect r, const char *txt, GFont font,
+                      GColor bg) {
+  draw_panel(ctx, r, bg);
+  draw_centered(ctx, r, txt, font, s_text_fg, GTextAlignmentCenter);
+  draw_seam(ctx, r);
+}
+
+static void main_layer_update(Layer *layer, GContext *ctx) {
+  GRect b = layer_get_bounds(layer);
+
+  graphics_context_set_fill_color(ctx, s_face_bg);
+  graphics_fill_rect(ctx, b, 0, GCornerNone);
+
+  GPoint c = grect_center_point(&b);
+  int R = (b.size.w < b.size.h ? b.size.w : b.size.h) / 2;
+
+  const int gap = 3;
+  int chip_h = R * 28 / 100;
+  int chip_w = R * 13 / 10;            // ~1.3R; stays inside the top/bottom arcs
+  int left_x = c.x - chip_w / 2;
+
+  // The text chips need an uneven split: the four-digit year and the
+  // day-of-week (which also carries the AM/PM marker) get the wider half;
+  // the day number and short month name fit comfortably in the narrow half.
+  int wide   = (chip_w - gap) * 58 / 100;
+  int narrow = (chip_w - gap) - wide;
+
+  // The two chip rows sit a fixed fraction in from the top/bottom of the
+  // circle, where the chord is still wide enough to hold them.
+  int top_y = (c.y - R) + R * 26 / 100;
+  int bot_y = (c.y + R) - R * 26 / 100 - chip_h;
+
+  // The dial fills the gap between the rows, centred in the circle.
+  int dial_top = top_y + chip_h + gap;
+  int dial_bot = bot_y - gap;
+  int dial_r   = (dial_bot - dial_top) / 2;
+  if (dial_r > R - 2) dial_r = R - 2;
+  int dial_cy  = (dial_top + dial_bot) / 2;
+  draw_clock(ctx, GRect(c.x - dial_r, dial_cy - dial_r, dial_r * 2, dial_r * 2));
+
+  char buf[8];
+
+  // Top row: day-of-week (wide, left) with AM top-right / PM bottom-right (the
+  // active one bright), and the day-of-month (narrow, right).
+  strftime(buf, sizeof(buf), "%a", &s_now);
+  bool weekend = (s_now.tm_wday == 0 || s_now.tm_wday == 6);
+  GRect dow_r = GRect(left_x, top_y, wide, chip_h);
+  draw_panel(ctx, dow_r, weekend ? s_weekend_bg : s_panel_bg);
+  GRect name_r = dow_r;
+  name_r.origin.x += 4;
+  name_r.size.w  -= 4;
+  draw_centered(ctx, name_r, buf, s_font_txt_sm, s_text_fg, GTextAlignmentLeft);
+  bool is_pm = s_now.tm_hour >= 12;
+  draw_ampm(ctx, dow_r, "AM", true,  is_pm ? DIM_FG : s_text_fg);
+  draw_ampm(ctx, dow_r, "PM", false, is_pm ? s_text_fg : DIM_FG);
+  draw_seam(ctx, dow_r);
+
+  snprintf(buf, sizeof(buf), "%d", s_now.tm_mday);
+  draw_chip(ctx, GRect(left_x + wide + gap, top_y, narrow, chip_h), buf,
+            s_font_txt_sm, s_panel_bg);
+
+  // Bottom row: month (narrow, left) and year (wide, right).
+  strftime(buf, sizeof(buf), "%b", &s_now);
+  draw_chip(ctx, GRect(left_x, bot_y, narrow, chip_h), buf, s_font_txt_sm,
+            s_panel_bg);
+  strftime(buf, sizeof(buf), "%Y", &s_now);
+  draw_chip(ctx, GRect(left_x + narrow + gap, bot_y, wide, chip_h), buf,
+            s_font_txt_sm, s_panel_bg);
+}
+#endif  // PBL_ROUND
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   s_now = *tick_time;
