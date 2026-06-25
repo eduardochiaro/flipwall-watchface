@@ -31,7 +31,8 @@ module.exports = [
           "(Chalk / Gabbro) use a fixed dial layout; only the colours and " +
           "seconds hand apply there."
       }
-    ]
+    ],
+    capabilities: ["RECT"]
   },
 
   {
@@ -79,7 +80,8 @@ module.exports = [
           "(Clock / Day of month) with a short one (Day of week / Month) " +
           "in each column for the intended look."
       }
-    ]
+    ],
+    capabilities: ["RECT"]
   },
 
   {
