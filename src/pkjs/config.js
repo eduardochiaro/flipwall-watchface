@@ -21,18 +21,8 @@ module.exports = [
     type: "section",
     items: [
       { type: "heading", defaultValue: "Preview" },
-      // Live mock-up of the face, redrawn by clayCustomFn (see index.js) as the
-      // layout, colours and seconds settings change. No messageKey -> not saved.
       { type: "text", id: "PREVIEW", label: "", defaultValue: "" },
-      {
-        type: "text",
-        defaultValue:
-          "Preview shows the rectangular layout. Round watches " +
-          "(Chalk / Gabbro) use a fixed dial layout; only the colours and " +
-          "seconds hand apply there."
-      }
-    ],
-    capabilities: ["RECT"]
+    ]
   },
 
   {
@@ -80,8 +70,7 @@ module.exports = [
           "(Clock / Day of month) with a short one (Day of week / Month) " +
           "in each column for the intended look."
       }
-    ],
-    capabilities: ["RECT"]
+    ]
   },
 
   {

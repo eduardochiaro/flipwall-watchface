@@ -1,8 +1,4 @@
 #include <pebble.h>
-#if defined(PBL_ROUND)
-#include <pebble-fctx/fctx.h>
-#include <pebble-fctx/ffont.h>
-#endif
 
 // ---------------------------------------------------------------------------
 // Flip-wall-clock watchface
@@ -64,9 +60,18 @@ typedef enum {
 #define GUTTER 3   // gap between panels (shows the face background)
 #define MARGIN 3   // gap around the whole face
 
-// Emery (Pebble Time 2) is physically wider; give the grid a bit more breathing
-// room on the left/right so the panels don't run to the very edge.
-#if defined(PBL_PLATFORM_EMERY)
+// Round faces (chalk / gabbro) clip the corners of the rectangular grid, so
+// pull the whole layout in from the sides until the panels clear the circle.
+// Emery (Pebble Time 2) is physically wider; give it a smaller nudge so the
+// panels don't run to the very edge.
+// Chalk gets a smaller side margin than gabbro because the vertical nudge in
+// main_layer_update (year-top group shifted up) pulls the full-width grid edge
+// back toward the centre, freeing up corner room for wider blocks.
+#if defined(PBL_PLATFORM_GABBRO)
+#define SIDE_MARGIN 30
+#elif defined(PBL_PLATFORM_CHALK)
+#define SIDE_MARGIN 22
+#elif defined(PBL_PLATFORM_EMERY)
 #define SIDE_MARGIN 10
 #else
 #define SIDE_MARGIN 0
@@ -76,22 +81,17 @@ static Window *s_window;
 static Layer  *s_main_layer;
 static struct tm s_now;
 
-#if defined(PBL_ROUND)
-static FFont *s_ffont;     // vector font (fctx) for the rotated round face
-#else
 // All text uses bundled Montserrat Bold so the design is consistent across
 // platforms; sizes are picked per screen tier in prv_window_load().
 static GFont s_font_num;   // big day number
 static GFont s_font_txt;   // month
 static GFont s_font_txt_sm; // year, day-of-week
 static GFont s_font_sml;   // AM/PM indicator
-#endif
 
 // ---------------------------------------------------------------------------
 // Drawing helpers
 // ---------------------------------------------------------------------------
 
-#if !defined(PBL_ROUND)
 // Draw text optically centred inside a rect. Pebble fonts carry internal
 // leading (padding above the caps), so a plain box-centre leaves the glyphs
 // sitting low; nudge up by a fraction of the line height to compensate.
@@ -125,7 +125,14 @@ static void draw_panel(GContext *ctx, GRect r, GColor bg) {
 static void draw_ampm(GContext *ctx, GRect r, const char *txt, bool top,
                       GColor color) {
   const int h = 14;
-  int y = top ? r.origin.y + 2 : r.origin.y + r.size.h - h + 1;
+  // On the taller gabbro block the bottom (PM) label sits a touch low; lift it.
+#if defined(PBL_PLATFORM_GABBRO)
+  const int bottom_lift = 6;
+#else
+  const int bottom_lift = 0;
+#endif
+  int y = top ? r.origin.y + 2
+              : r.origin.y + r.size.h - h + 1 - bottom_lift;
   graphics_context_set_text_color(ctx, color);
   graphics_draw_text(ctx, txt, s_font_sml,
                      GRect(r.origin.x, y, r.size.w - 3, h),
@@ -193,7 +200,6 @@ static void draw_dow(GContext *ctx, GRect r) {
 
   draw_seam(ctx, r);
 }
-#endif  // !PBL_ROUND (flip-block helpers)
 
 static GPoint hand_point(GPoint c, int32_t angle, int length) {
   return GPoint(c.x + length * sin_lookup(angle) / TRIG_MAX_RATIO,
@@ -241,7 +247,6 @@ static void draw_clock(GContext *ctx, GRect r) {
   graphics_fill_circle(ctx, c, 2);
 }
 
-#if !defined(PBL_ROUND)
 static void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
   switch (blk) {
     case BLK_DOW:   draw_dow(ctx, r);   break;
@@ -288,6 +293,15 @@ static void main_layer_update(Layer *layer, GContext *ctx) {
   int group_h = year_h + GUTTER + col_h;
   int top = inner.origin.y + (inner.size.h - group_h) / 2;
 
+  // Round faces nudge the whole group up when the year banner is on top (and
+  // down when it's at the bottom) so the full-width grid edge sits closer to
+  // the centre and clears the circular bezel.
+#if defined(PBL_PLATFORM_GABBRO)
+  top += s_year_top ? -20 : 20;
+#elif defined(PBL_PLATFORM_CHALK)
+  top += s_year_top ? -10 : 10;
+#endif
+
   GRect band, area;
   if (s_year_top) {
     band = GRect(inner.origin.x, top, inner.size.w, year_h);
@@ -320,129 +334,6 @@ static void main_layer_update(Layer *layer, GContext *ctx) {
                GRect(x, area.origin.y + top_h + GUTTER, col_w, bot_h));
   }
 }
-#endif  // !PBL_ROUND (2x2 grid layout)
-
-#if defined(PBL_ROUND)
-// ---------------------------------------------------------------------------
-// Round face (chalk / gabbro)
-//
-// The analog clock sits in the centre; the four date blocks are placed at the
-// 45/135/225/315 diagonals and rotated to the tangent so they wrap around the
-// dial. Rotated panels and anti-aliased text are drawn with the pebble-fctx
-// vector library (the stock APIs can't rotate text). Each block's transform is
-// pivot=0, rotation=tangent angle, offset=its point on the circle, so plotting
-// shapes/text around the local origin lands them centred and rotated in place.
-//
-// The grid-arrangement and year-position settings don't apply to this layout;
-// the colour and show-seconds settings still do.
-// ---------------------------------------------------------------------------
-
-// A rounded rectangle centred on the local origin, half-extents hw/hh, corner
-// radius r. k is the cubic-bezier handle length for a quarter-circle (~0.55r).
-static void fctx_round_rect(FContext *f, int hw, int hh, int r) {
-  int k = r * 55 / 100;
-  fctx_move_to (f, FPointI(-hw + r, -hh));
-  fctx_line_to (f, FPointI( hw - r, -hh));
-  fctx_curve_to(f, FPointI( hw - r + k, -hh), FPointI( hw, -hh + r - k), FPointI( hw, -hh + r));
-  fctx_line_to (f, FPointI( hw,  hh - r));
-  fctx_curve_to(f, FPointI( hw,  hh - r + k), FPointI( hw - r + k,  hh), FPointI( hw - r,  hh));
-  fctx_line_to (f, FPointI(-hw + r,  hh));
-  fctx_curve_to(f, FPointI(-hw + r - k,  hh), FPointI(-hw,  hh - r + k), FPointI(-hw,  hh - r));
-  fctx_line_to (f, FPointI(-hw, -hh + r));
-  fctx_curve_to(f, FPointI(-hw, -hh + r - k), FPointI(-hw + r - k, -hh), FPointI(-hw + r, -hh));
-  fctx_close_path(f);
-}
-
-static void fctx_box(FContext *f, int hw, int hh) {
-  fctx_move_to(f, FPointI(-hw, -hh));
-  fctx_line_to(f, FPointI( hw, -hh));
-  fctx_line_to(f, FPointI( hw,  hh));
-  fctx_line_to(f, FPointI(-hw,  hh));
-  fctx_close_path(f);
-}
-
-// Draw a string centred at the point `radius` out from c along `ang`, rotated
-// to that angle. Radial offsets shift text along the block's local vertical.
-static void round_text(FContext *f, GPoint c, int32_t ang, int radius,
-                       const char *txt, int cap_h, GColor color) {
-  GPoint p = hand_point(c, ang, radius);
-  fctx_set_pivot(f, FPointI(0, 0));
-  fctx_set_offset(f, FPointI(p.x, p.y));
-  fctx_set_rotation(f, ang);
-  fctx_set_fill_color(f, color);
-  fctx_set_text_cap_height(f, s_ffont, cap_h);
-  fctx_begin_fill(f);
-  fctx_draw_string(f, txt, s_ffont, GTextAlignmentCenter, FTextAnchorCapMiddle);
-  fctx_end_fill(f);
-}
-
-static void round_block(FContext *f, GPoint c, int32_t ang, int rr, int bw,
-                        int bh, const char *txt, GColor bg, bool is_dow) {
-  GPoint p = hand_point(c, ang, rr);
-  int hw = bw / 2, hh = bh / 2;
-
-  // Panel (identity scale so path units are pixels).
-  fctx_set_pivot(f, FPointI(0, 0));
-  fctx_set_offset(f, FPointI(p.x, p.y));
-  fctx_set_rotation(f, ang);
-  fctx_set_scale(f, FPointI(1, 1), FPointI(1, 1));
-  fctx_set_fill_color(f, bg);
-  fctx_begin_fill(f);
-  fctx_round_rect(f, hw, hh, 6);
-  fctx_end_fill(f);
-
-  // Seam line across the middle.
-  fctx_set_fill_color(f, SEAM_COLOR);
-  fctx_begin_fill(f);
-  fctx_box(f, hw - 3, 1);
-  fctx_end_fill(f);
-
-  if (is_dow) {
-    // Day name above centre, active AM/PM marker below it (radially inward).
-    round_text(f, c, ang, rr + bh / 6, txt, bh * 40 / 100, s_text_fg);
-    bool is_pm = s_now.tm_hour >= 12;
-    round_text(f, c, ang, rr - bh * 28 / 100, is_pm ? "PM" : "AM",
-               bh * 24 / 100, s_text_fg);
-  } else {
-    round_text(f, c, ang, rr, txt, bh * 52 / 100, s_text_fg);
-  }
-}
-
-static void main_layer_update(Layer *layer, GContext *ctx) {
-  GRect b = layer_get_bounds(layer);
-  GPoint c = grect_center_point(&b);
-  int R = (b.size.w < b.size.h ? b.size.w : b.size.h) / 2;
-
-  int bw = R * 66 / 100;
-  int bh = R * 30 / 100;
-  int gap = R * 4 / 100;             // small breathing space dial <-> blocks
-  int rr = R * 76 / 100;             // block centres pushed out near the rim
-  // The dial fills the centre up to the blocks' inner edge (at rr - bh/2).
-  int dial_r = rr - bh / 2 - gap;
-
-  // Background + central dial first (stock graphics), then the fctx overlay.
-  graphics_context_set_fill_color(ctx, s_face_bg);
-  graphics_fill_rect(ctx, b, 0, GCornerNone);
-  draw_clock(ctx, GRect(c.x - dial_r, c.y - dial_r, dial_r * 2, dial_r * 2));
-
-  FContext f;
-  fctx_init_context(&f, ctx);
-
-  char buf[8];
-  strftime(buf, sizeof(buf), "%a", &s_now);
-  bool weekend = (s_now.tm_wday == 0 || s_now.tm_wday == 6);
-  round_block(&f, c, DEG_TO_TRIGANGLE(315), rr, bw, bh, buf,
-              weekend ? s_weekend_bg : s_panel_bg, true);
-  snprintf(buf, sizeof(buf), "%d", s_now.tm_mday);
-  round_block(&f, c, DEG_TO_TRIGANGLE(45), rr, bw, bh, buf, s_panel_bg, false);
-  strftime(buf, sizeof(buf), "%b", &s_now);
-  round_block(&f, c, DEG_TO_TRIGANGLE(135), rr, bw, bh, buf, s_panel_bg, false);
-  strftime(buf, sizeof(buf), "%Y", &s_now);
-  round_block(&f, c, DEG_TO_TRIGANGLE(225), rr, bw, bh, buf, s_panel_bg, false);
-
-  fctx_deinit_context(&f);
-}
-#endif  // PBL_ROUND
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   s_now = *tick_time;
@@ -540,15 +431,24 @@ static void prv_window_load(Window *window) {
   layer_set_update_proc(s_main_layer, main_layer_update);
   layer_add_child(root, s_main_layer);
 
-#if defined(PBL_ROUND)
-  // The round face draws everything through fctx, so it only needs the vector
-  // font; skipping the stock raster fonts keeps RAM free for the fctx buffer.
-  s_ffont = ffont_create_from_resource(RESOURCE_ID_FONT_MONTSERRAT_FFONT);
-#elif defined(PBL_PLATFORM_EMERY)
+#if defined(PBL_PLATFORM_EMERY)
   s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_64));
   s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_36));
   s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_26));
   s_font_sml = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SML_10));
+#elif defined(PBL_PLATFORM_GABBRO)
+  // 260x260 round: blocks are ~95px, so the fonts are bumped above even emery's.
+  s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_64));
+  s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_38));
+  s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_26));
+  s_font_sml = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SML_12));
+#elif defined(PBL_PLATFORM_CHALK)
+  // 180x180 round with a wide side margin: blocks are ~55px, smaller than
+  // basalt's, so the fonts step down a tier.
+  s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_40));
+  s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_24));
+  s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_17));
+  s_font_sml = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SML_8));
 #else
   s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_44));
   s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_26));
@@ -561,14 +461,10 @@ static void prv_window_load(Window *window) {
 }
 
 static void prv_window_unload(Window *window) {
-#if defined(PBL_ROUND)
-  ffont_destroy(s_ffont);
-#else
   fonts_unload_custom_font(s_font_num);
   fonts_unload_custom_font(s_font_txt);
   fonts_unload_custom_font(s_font_sml);
   fonts_unload_custom_font(s_font_txt_sm);
-#endif
   layer_destroy(s_main_layer);
 }
 
