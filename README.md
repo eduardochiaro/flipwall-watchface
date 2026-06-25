@@ -1,36 +1,37 @@
-# flipwall-watchface
+# Flip Wal
 
-A Pebble watchapp/watchface written in C using the Pebble SDK.
+A digital watchface for Pebble smartwatches based on flip clock design.
 
-## Building & running
+## Screenshots
+### Pebble Classic/Steel/Pebble 2/Duo
+![Aplite 1](assets/aplite_1.png)
+![Aplite 2](assets/aplite_2.png)
 
-```sh
-pebble build                          # build for all targetPlatforms
-pebble install --emulator emery       # install on the emery emulator
-pebble install --phone <ip>           # install to a paired phone
-```
+### Pebble Time/Time Steel
+![Basalt 6](assets/basalt_0.png)
+![Basalt 1](assets/basalt_1.png)
+![Basalt 2](assets/basalt_2.png)
+![Basalt 3](assets/basalt_3.png)
+![Basalt 5](assets/basalt_4.png)
 
-## Target platforms
+### Pebble Time Round
+![Chalk 1](assets/chalk_1.png)
+![Chalk 2](assets/chalk_2.png)
 
-`targetPlatforms` in `package.json` controls which watches you build for. The
-modern Pebble hardware is **emery** (Pebble Time 2), **gabbro** (Pebble Round
-2), and **flint** (Pebble 2 Duo); the original Pebble platforms (aplite,
-basalt, chalk, diorite) are included by default for backwards compatibility.
+### Pebble Time 2
+![Emery 1](assets/emery_1.png)
+![Emery 2](assets/emery_2.png)
 
-## Project layout
+### Pebble Time Round 2
+![Gabbro 1](assets/gabbro_1.png)
+![Gabbro 2](assets/gabbro_2.png)
 
-```
-src/c/           C source for the watchapp
-src/pkjs/        PebbleKit JS (phone-side) source, if any
-worker_src/c/    Background worker source, if any
-resources/       Images, fonts, and other bundled resources
-package.json     Project metadata (UUID, platforms, resources, message keys)
-wscript          Build rules — usually no need to edit
-```
+## Store
+[Rebble App Store](https://apps.rebble.io/en_US/application/)
+[Pebble App Store](https://apps.repebble.com/)
 
-By default this project is configured as a watchapp. To make it a watchface,
-set `pebble.watchapp.watchface` to `true` in `package.json`.
+## Support
+For issues, questions, or suggestions, please open an issue on GitHub.
 
-## Documentation
-
-Full SDK docs, tutorials, and API reference: <https://developer.repebble.com>
+## License
+MIT License - feel free to modify and share!

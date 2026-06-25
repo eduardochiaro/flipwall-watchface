@@ -1,9 +1,12 @@
 {
-  "name": "flipwall-watchface",
-  "author": "MakeAwesomeHappen",
+  "name": "wall-flip",
+  "author": "Eduardo Chiaro",
   "version": "1.0.0",
   "keywords": [
-    "pebble-app"
+    "pebble-watchface",
+    "flip",
+    "wall",
+    "configurable"
   ],
   "private": true,
   "scripts": {
@@ -14,7 +17,7 @@
     "logs": "pebble logs"
   },
   "pebble": {
-    "displayName": "flipwall-watchface",
+    "displayName": "Wall Flip",
     "uuid": "8d530349-f7cc-4337-b077-e2af3337783e",
     "sdkVersion": "3",
     "enableMultiJS": true,
@@ -31,16 +34,16 @@
       "watchface": true
     },
     "messageKeys": [
-      "YearTop",
-      "BlockTopLeft",
-      "BlockTopRight",
-      "BlockBottomLeft",
-      "BlockBottomRight",
-      "FaceColor",
-      "PanelColor",
-      "WeekendColor",
-      "TextColor",
-      "ShowSeconds"
+      "YEAR_TOP",
+      "BLOCK_TOP_LEFT",
+      "BLOCK_TOP_RIGHT",
+      "BLOCK_BOTTOM_LEFT",
+      "BLOCK_BOTTOM_RIGHT",
+      "FACE_COLOR",
+      "PANEL_COLOR",
+      "WEEKEND_COLOR",
+      "TEXT_COLOR",
+      "SHOW_SECONDS"
     ],
     "resources": {
       "media": [

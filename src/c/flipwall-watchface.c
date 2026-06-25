@@ -512,20 +512,20 @@ static void apply_color(DictionaryIterator *iter, uint32_t msg_key,
 
 // Clay forwards every messageKey when the config page is saved.
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
-  apply_bool(iter, MESSAGE_KEY_YearTop, PK_YEAR_TOP, &s_year_top);
+  apply_bool(iter, MESSAGE_KEY_YEAR_TOP, PK_YEAR_TOP, &s_year_top);
 
-  apply_block(iter, MESSAGE_KEY_BlockTopLeft,     PK_BLOCK_TL, &s_grid[0][0]);
-  apply_block(iter, MESSAGE_KEY_BlockTopRight,    PK_BLOCK_TR, &s_grid[0][1]);
-  apply_block(iter, MESSAGE_KEY_BlockBottomLeft,  PK_BLOCK_BL, &s_grid[1][0]);
-  apply_block(iter, MESSAGE_KEY_BlockBottomRight, PK_BLOCK_BR, &s_grid[1][1]);
+  apply_block(iter, MESSAGE_KEY_BLOCK_TOP_LEFT,     PK_BLOCK_TL, &s_grid[0][0]);
+  apply_block(iter, MESSAGE_KEY_BLOCK_TOP_RIGHT,    PK_BLOCK_TR, &s_grid[0][1]);
+  apply_block(iter, MESSAGE_KEY_BLOCK_BOTTOM_LEFT,  PK_BLOCK_BL, &s_grid[1][0]);
+  apply_block(iter, MESSAGE_KEY_BLOCK_BOTTOM_RIGHT, PK_BLOCK_BR, &s_grid[1][1]);
 
-  apply_color(iter, MESSAGE_KEY_FaceColor,    PK_FACE_COLOR,    &s_face_bg);
-  apply_color(iter, MESSAGE_KEY_PanelColor,   PK_PANEL_COLOR,   &s_panel_bg);
-  apply_color(iter, MESSAGE_KEY_WeekendColor, PK_WEEKEND_COLOR, &s_weekend_bg);
-  apply_color(iter, MESSAGE_KEY_TextColor,    PK_TEXT_COLOR,    &s_text_fg);
+  apply_color(iter, MESSAGE_KEY_FACE_COLOR,    PK_FACE_COLOR,    &s_face_bg);
+  apply_color(iter, MESSAGE_KEY_PANEL_COLOR,   PK_PANEL_COLOR,   &s_panel_bg);
+  apply_color(iter, MESSAGE_KEY_WEEKEND_COLOR, PK_WEEKEND_COLOR, &s_weekend_bg);
+  apply_color(iter, MESSAGE_KEY_TEXT_COLOR,    PK_TEXT_COLOR,    &s_text_fg);
 
   bool was_seconds = s_show_seconds;
-  apply_bool(iter, MESSAGE_KEY_ShowSeconds, PK_SHOW_SECONDS, &s_show_seconds);
+  apply_bool(iter, MESSAGE_KEY_SHOW_SECONDS, PK_SHOW_SECONDS, &s_show_seconds);
   if (s_show_seconds != was_seconds) {
     apply_tick_interval();
   }

@@ -20,37 +20,54 @@ module.exports = [
   {
     type: "section",
     items: [
+      { type: "heading", defaultValue: "Preview" },
+      // Live mock-up of the face, redrawn by clayCustomFn (see index.js) as the
+      // layout, colours and seconds settings change. No messageKey -> not saved.
+      { type: "text", id: "PREVIEW", label: "", defaultValue: "" },
+      {
+        type: "text",
+        defaultValue:
+          "Preview shows the rectangular layout. Round watches " +
+          "(Chalk / Gabbro) use a fixed dial layout; only the colours and " +
+          "seconds hand apply there."
+      }
+    ]
+  },
+
+  {
+    type: "section",
+    items: [
       { type: "heading", defaultValue: "Layout" },
       {
         type: "toggle",
-        messageKey: "YearTop",
+        messageKey: "YEAR_TOP",
         label: "Year band at top",
         defaultValue: true
       },
       {
         type: "select",
-        messageKey: "BlockTopLeft",
+        messageKey: "BLOCK_TOP_LEFT",
         label: "Top-left block",
         defaultValue: 0,
         options: BLOCK_OPTIONS
       },
       {
         type: "select",
-        messageKey: "BlockTopRight",
+        messageKey: "BLOCK_TOP_RIGHT",
         label: "Top-right block",
         defaultValue: 1,
         options: BLOCK_OPTIONS
       },
       {
         type: "select",
-        messageKey: "BlockBottomLeft",
+        messageKey: "BLOCK_BOTTOM_LEFT",
         label: "Bottom-left block",
         defaultValue: 2,
         options: BLOCK_OPTIONS
       },
       {
         type: "select",
-        messageKey: "BlockBottomRight",
+        messageKey: "BLOCK_BOTTOM_RIGHT",
         label: "Bottom-right block",
         defaultValue: 3,
         options: BLOCK_OPTIONS
@@ -71,28 +88,28 @@ module.exports = [
       { type: "heading", defaultValue: "Colours" },
       {
         type: "color",
-        messageKey: "FaceColor",
+        messageKey: "FACE_COLOR",
         label: "Face background",
         defaultValue: "FF5500",
         sunlight: false
       },
       {
         type: "color",
-        messageKey: "PanelColor",
+        messageKey: "PANEL_COLOR",
         label: "Panel background",
         defaultValue: "000000",
         sunlight: false
       },
       {
         type: "color",
-        messageKey: "WeekendColor",
+        messageKey: "WEEKEND_COLOR",
         label: "Weekend / accent",
         defaultValue: "FF0000",
         sunlight: false
       },
       {
         type: "color",
-        messageKey: "TextColor",
+        messageKey: "TEXT_COLOR",
         label: "Text",
         defaultValue: "FFFFFF",
         sunlight: false
@@ -106,7 +123,7 @@ module.exports = [
       { type: "heading", defaultValue: "Clock" },
       {
         type: "toggle",
-        messageKey: "ShowSeconds",
+        messageKey: "SHOW_SECONDS",
         label: "Show seconds hand",
         defaultValue: false
       }
