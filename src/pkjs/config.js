@@ -14,7 +14,7 @@ var BLOCK_OPTIONS = [
 module.exports = [
   {
     type: "heading",
-    defaultValue: "Flip-Wall Settings"
+    defaultValue: "Wall Flip Settings"
   },
 
   {
