@@ -1,4 +1,4 @@
-# Flip Wal
+# Wall Flip
 
 A digital watchface for Pebble smartwatches based on flip clock design.
 
