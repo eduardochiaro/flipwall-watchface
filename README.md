@@ -31,8 +31,8 @@ A digital watchface for Pebble smartwatches based on flip clock design.
 ![Gabbro 3](assets/gabbro_3.png)
 
 ## Store
-[Rebble App Store](https://apps.rebble.io/en_US/application/)
-[Pebble App Store](https://apps.repebble.com/)
+[Rebble App Store](https://apps.rebble.io/en_US/application/6a3d4248cd52370009862b05)
+[Pebble App Store](https://apps.repebble.com/6a3d4248cd52370009862b05)
 
 ## Support
 For issues, questions, or suggestions, please open an issue on GitHub.
