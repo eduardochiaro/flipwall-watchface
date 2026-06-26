@@ -57,7 +57,11 @@ typedef enum {
   PK_SHOW_SECONDS,
 } PersistKey;
 
+#if defined(PBL_PLATFORM_EMERY)
+#define GUTTER 6   // emery is bigger; wider gap reads better
+#else
 #define GUTTER 3   // gap between panels (shows the face background)
+#endif
 #define MARGIN 3   // gap around the whole face
 
 // Round faces (chalk / gabbro) clip the corners of the rectangular grid, so
@@ -72,7 +76,7 @@ typedef enum {
 #elif defined(PBL_PLATFORM_CHALK)
 #define SIDE_MARGIN 22
 #elif defined(PBL_PLATFORM_EMERY)
-#define SIDE_MARGIN 10
+#define SIDE_MARGIN 4
 #else
 #define SIDE_MARGIN 0
 #endif
