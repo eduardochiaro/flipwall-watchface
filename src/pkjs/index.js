@@ -58,10 +58,20 @@ function clayCustomFn() {
   // Sample data shown in the mock-up. Sunday so the weekend/accent colour is
   // visible; 10:09 -> AM active.
   var SAMPLE = { dow: 'Sun', day: '26', month: 'Jun', year: '2020',
+                 steps: '8.2K', dist: '8.2km', batt: '82%',
                  weekend: true, isPM: false, hour: 10, min: 9, sec: 30 };
 
-  // Block ids match the QuadBlock enum: 0 DoW, 1 Day, 2 Clock, 3 Month.
-  function isShort(v) { return v === 0 || v === 3; }
+  // Block ids match the QuadBlock enum: 0 DoW, 1 Day, 2 Clock, 3 Month,
+  // 4 Steps, 5 Distance, 6 Battery, 7 Year. Only Day/Clock are big.
+  function isShort(v) { return v !== 1 && v !== 2; }
+
+  // Display text for the data blocks (steps / distance / battery / year).
+  function valueText(v) {
+    if (v === 4) { return SAMPLE.steps; }
+    if (v === 5) { return SAMPLE.dist; }
+    if (v === 6) { return SAMPLE.batt; }
+    return SAMPLE.year;
+  }
 
   function px(n) { return (n * SCALE).toFixed(2) + 'px'; }
 
@@ -142,21 +152,22 @@ function clayCustomFn() {
         ampm('PM', false, SAMPLE.isPM ? c.text : DIM) + seam(w, h);
       return panelDiv(x, y, w, h, bg, inner);
     }
-    var txt = v === 1 ? SAMPLE.day : SAMPLE.month;   // day number / month name
+    // day number (big), month name, or a data readout (steps/km/battery).
+    var txt = v === 1 ? SAMPLE.day : (v === 3 ? SAMPLE.month : valueText(v));
     var font = v === 1 ? Math.round(h * 0.6) : Math.round(h * 0.5);
     return panelDiv(x, y, w, h, c.panel,
       textDiv(txt, c.text, font, 'center', 0) + seam(w, h));
   }
 
-  function yearBand(x, y, w, h, c) {
+  function bandBlock(v, x, y, w, h, c) {
     var pw = Math.round(h * 1.9);
     var px0 = x + Math.floor((w - pw) / 2);
     return panelDiv(px0, y, pw, h, c.panel,
-      textDiv(SAMPLE.year, c.text, Math.round(h * 0.62), 'center', 0) +
+      textDiv(valueText(v), c.text, Math.round(h * 0.62), 'center', 0) +
       seam(pw, h));
   }
 
-  // cfg: { yearTop, blocks:[tl,tr,bl,br], face, panel, weekend, text,
+  // cfg: { yearTop, band, blocks:[tl,tr,bl,br], face, panel, weekend, text,
   //        showSeconds }. Mirrors main_layer_update() in the C source.
   function build(cfg) {
     var innerW = W - 2 * MARGIN, innerH = H - 2 * MARGIN;
@@ -177,7 +188,7 @@ function clayCustomFn() {
       px(H) + ';margin:8px auto;background:' + cfg.face + ';border-radius:' +
       px(6) + ';overflow:hidden;font-family:Arial,Helvetica,sans-serif;">';
 
-    html += yearBand(MARGIN, bandY, innerW, yearH, c);
+    html += bandBlock(cfg.band, MARGIN, bandY, innerW, yearH, c);
 
     for (var col = 0; col < 2; col++) {
       var topBlk = cfg.blocks[col];        // tl / tr
@@ -221,6 +232,7 @@ function clayCustomFn() {
     if (!item) { return; }
     item.set(PREVIEW.build({
       yearTop: clayConfig.getItemByMessageKey('YEAR_TOP').get(),
+      band: blockVal('BLOCK_BAND'),
       blocks: [
         blockVal('BLOCK_TOP_LEFT'), blockVal('BLOCK_TOP_RIGHT'),
         blockVal('BLOCK_BOTTOM_LEFT'), blockVal('BLOCK_BOTTOM_RIGHT')
@@ -258,7 +270,7 @@ function clayCustomFn() {
     link('BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_RIGHT');
 
     // Draw once, then redraw whenever any setting that affects the face changes.
-    var watched = ['YEAR_TOP', 'BLOCK_TOP_LEFT', 'BLOCK_TOP_RIGHT',
+    var watched = ['YEAR_TOP', 'BLOCK_BAND', 'BLOCK_TOP_LEFT', 'BLOCK_TOP_RIGHT',
       'BLOCK_BOTTOM_LEFT', 'BLOCK_BOTTOM_RIGHT', 'FACE_COLOR', 'PANEL_COLOR',
       'WEEKEND_COLOR', 'TEXT_COLOR', 'SHOW_SECONDS'];
     watched.forEach(function(key) {
@@ -292,6 +304,12 @@ function writeValue(settings, key, value) {
 }
 
 function sanitize(settings) {
+  // Banner select also serialises as a string; ship it as an int. Default 7 (Year).
+  if (readValue(settings, 'BLOCK_BAND') !== undefined) {
+    writeValue(settings, 'BLOCK_BAND',
+               parseInt(readValue(settings, 'BLOCK_BAND'), 10) || 7);
+  }
+
   COLUMNS.forEach(function(col) {
     var topKey = col[0];
     var botKey = col[1];

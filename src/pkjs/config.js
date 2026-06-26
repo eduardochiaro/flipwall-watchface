@@ -1,14 +1,27 @@
 // Clay configuration for the flip-wall watchface.
 //
 // Block selector values map to the QuadBlock enum on the C side:
-//   0 = Day of week, 1 = Day of month, 2 = Clock, 3 = Month.
+//   0 = Day of week, 1 = Day of month, 2 = Clock, 3 = Month,
+//   4 = Steps, 5 = Distance, 6 = Battery, 7 = Year (banner only).
 // Defaults mirror the hard-coded layout/colours in flipwall-watchface.c.
+// Only Day of month and Clock are "big"; everything else is "small".
 
 var BLOCK_OPTIONS = [
-  { label: "Day of week", value: 0 },
-  { label: "Day of month", value: 1 },
-  { label: "Clock", value: 2 },
-  { label: "Month", value: 3 }
+  { label: "Day of week (small)", value: 0 },
+  { label: "Day of month (big)", value: 1 },
+  { label: "Clock (big)", value: 2 },
+  { label: "Month (small)", value: 3 },
+  { label: "Steps (small)", value: 4 },
+  { label: "Distance (small)", value: 5 },
+  { label: "Battery (small)", value: 6 }
+];
+
+// The banner is a single short block: year or one of the data readouts.
+var BAND_OPTIONS = [
+  { label: "Year", value: 7 },
+  { label: "Steps", value: 4 },
+  { label: "Distance", value: 5 },
+  { label: "Battery", value: 6 }
 ];
 
 module.exports = [
@@ -30,45 +43,52 @@ module.exports = [
     items: [
       { type: "heading", defaultValue: "Layout" },
       {
+        type: "select",
+        messageKey: "BLOCK_BAND",
+        label: "Banner block",
+        defaultValue: 7,
+        options: BAND_OPTIONS
+      },
+      {
         type: "toggle",
         messageKey: "YEAR_TOP",
-        label: "Year band at top",
+        label: "Banner at top",
         defaultValue: true
       },
       {
         type: "select",
         messageKey: "BLOCK_TOP_LEFT",
-        label: "Top-left block",
+        label: "Top-left block (big or small)",
         defaultValue: 0,
         options: BLOCK_OPTIONS
       },
       {
         type: "select",
         messageKey: "BLOCK_TOP_RIGHT",
-        label: "Top-right block",
+        label: "Top-right block (big or small)",
         defaultValue: 1,
         options: BLOCK_OPTIONS
       },
       {
         type: "select",
         messageKey: "BLOCK_BOTTOM_LEFT",
-        label: "Bottom-left block",
+        label: "Bottom-left block (big or small)",
         defaultValue: 2,
         options: BLOCK_OPTIONS
       },
       {
         type: "select",
         messageKey: "BLOCK_BOTTOM_RIGHT",
-        label: "Bottom-right block",
+        label: "Bottom-right block (big or small)",
         defaultValue: 3,
         options: BLOCK_OPTIONS
       },
       {
         type: "text",
         defaultValue:
-          "Tip: each block should be used once. Pair a tall block " +
-          "(Clock / Day of month) with a short one (Day of week / Month) " +
-          "in each column for the intended look."
+          "Tip: each column pairs one big block (Clock / Day of month) " +
+          "with one small block (Day of week / Month / Steps / Distance / " +
+          "Battery). Picking two of the same size auto-swaps the other."
       }
     ]
   },

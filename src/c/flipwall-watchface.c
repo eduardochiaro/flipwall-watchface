@@ -12,16 +12,28 @@
 // ---------------------------------------------------------------------------
 
 typedef enum {
-  BLK_DOW,    // day of week (with AM/PM strip)
-  BLK_DAY,    // day of month (big number)
-  BLK_CLOCK,  // analog clock
-  BLK_MONTH,  // month name
+  BLK_DOW,      // day of week (with AM/PM strip)
+  BLK_DAY,      // day of month (big number)
+  BLK_CLOCK,    // analog clock
+  BLK_MONTH,    // month name
+  BLK_STEPS,    // step count (Health)
+  BLK_KM,       // distance walked (Health)
+  BLK_BATTERY,  // battery level %
+  BLK_YEAR,     // year (banner-only block)
 } QuadBlock;
+
+// Grid blocks span BLK_DOW..BLK_BATTERY; the banner adds BLK_YEAR. Only Day and
+// Clock are "big" (square); everything else is a "short" half-height block.
+static bool block_valid_grid(int v) { return v >= BLK_DOW && v <= BLK_BATTERY; }
+static bool block_valid_band(int v) {
+  return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY);
+}
 
 // --- Configuration ---------------------------------------------------------
 // These are seeded from the defaults below and then overwritten by anything
 // the companion (Clay) settings page has persisted. See settings_load().
 static bool s_year_top = true;
+static QuadBlock s_band_block = BLK_YEAR;   // banner content (year by default)
 static QuadBlock s_grid[2][2] = {
   { BLK_DOW,   BLK_DAY   },   // top row
   { BLK_CLOCK, BLK_MONTH },   // bottom row
@@ -55,6 +67,7 @@ typedef enum {
   PK_WEEKEND_COLOR,
   PK_TEXT_COLOR,
   PK_SHOW_SECONDS,
+  PK_BAND_BLOCK,
 } PersistKey;
 
 #if defined(PBL_PLATFORM_EMERY)
@@ -147,12 +160,65 @@ static void draw_ampm(GContext *ctx, GRect r, const char *txt, bool top,
 // Individual blocks
 // ---------------------------------------------------------------------------
 
-// The year sits in a horizontal band but the panel itself is only a little
-// wider than the "2020" text (not full width), centred in that band. The
-// panel fills the band's height (which the caller sizes to the text).
-static void draw_year(GContext *ctx, GRect band) {
-  char buf[8];
-  strftime(buf, sizeof(buf), "%Y", &s_now);
+// Compact value text for the data blocks (year / steps / km / battery). Health
+// metrics fall back to "--" on platforms without Health (e.g. aplite).
+static void block_text(QuadBlock blk, char *buf, size_t n) {
+  switch (blk) {
+    case BLK_YEAR:
+      strftime(buf, n, "%Y", &s_now);
+      break;
+    case BLK_STEPS: {
+#if defined(PBL_HEALTH)
+      int s = (int)health_service_sum_today(HealthMetricStepCount);
+      // 2 digits then K past 1000 so the short block never overflows.
+      if (s < 1000)       snprintf(buf, n, "%d", s);
+      else if (s < 10000) snprintf(buf, n, "%d.%dK", s / 1000, (s % 1000) / 100);
+      else                snprintf(buf, n, "%dK", s / 1000);
+#else
+      snprintf(buf, n, "--");
+#endif
+      break;
+    }
+    case BLK_KM: {
+#if defined(PBL_HEALTH)
+      int m = (int)health_service_sum_today(HealthMetricWalkedDistanceMeters);
+      if (health_service_get_measurement_system_for_display(
+              HealthMetricWalkedDistanceMeters) == MeasurementSystemImperial) {
+        int t = (m * 10 + 804) / 1609;   // miles * 10, rounded
+        snprintf(buf, n, "%d.%dmi", t / 10, t % 10);
+      } else {
+        int t = (m + 50) / 100;          // km * 10, rounded
+        snprintf(buf, n, "%d.%dkm", t / 10, t % 10);
+      }
+#else
+      snprintf(buf, n, "--");
+#endif
+      break;
+    }
+    case BLK_BATTERY:
+      snprintf(buf, n, "%d%%", battery_state_service_peek().charge_percent);
+      break;
+    default:
+      buf[0] = '\0';
+      break;
+  }
+}
+
+// A plain centred short block (steps / km / battery), same look as the month.
+static void draw_value_block(GContext *ctx, GRect r, QuadBlock blk) {
+  char buf[12];
+  block_text(blk, buf, sizeof(buf));
+  draw_panel(ctx, r, s_panel_bg);
+  draw_centered(ctx, r, buf, s_font_txt_sm, s_text_fg, GTextAlignmentCenter);
+  draw_seam(ctx, r);
+}
+
+// The banner sits in a horizontal band but the panel itself is only a little
+// wider than the text (not full width), centred in that band. The panel fills
+// the band's height (which the caller sizes to the text).
+static void draw_band(GContext *ctx, GRect band) {
+  char buf[12];
+  block_text(s_band_block, buf, sizeof(buf));
   GFont font = s_font_txt_sm;
   GSize sz = graphics_text_layout_get_content_size(
       buf, font, band, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);
@@ -257,6 +323,7 @@ static void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_DAY:   draw_day(ctx, r);   break;
     case BLK_CLOCK: draw_clock(ctx, r); break;
     case BLK_MONTH: draw_month(ctx, r); break;
+    default:        draw_value_block(ctx, r, blk); break;  // steps / km / battery
   }
 }
 
@@ -264,9 +331,9 @@ static void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
 // Layout + main update
 // ---------------------------------------------------------------------------
 
-// Day and Clock are "tall" blocks; Month and DoW are "short" (half height).
+// Day and Clock are "tall" blocks; everything else is "short" (half height).
 static bool block_is_short(QuadBlock b) {
-  return b == BLK_DOW || b == BLK_MONTH;
+  return !(b == BLK_DAY || b == BLK_CLOCK);
 }
 
 static void main_layer_update(Layer *layer, GContext *ctx) {
@@ -315,7 +382,7 @@ static void main_layer_update(Layer *layer, GContext *ctx) {
     band = GRect(inner.origin.x, top + col_h + GUTTER, inner.size.w, year_h);
   }
 
-  draw_year(ctx, band);
+  draw_band(ctx, band);
 
   // Each column pairs a square block (Day/Clock) with a short block
   // (Month/DoW); s_grid decides which sits on top. Both columns total the
@@ -358,7 +425,7 @@ static void apply_tick_interval(void) {
 static QuadBlock read_block(PersistKey key, QuadBlock def) {
   if (!persist_exists(key)) return def;
   int v = persist_read_int(key);
-  return (v >= BLK_DOW && v <= BLK_MONTH) ? (QuadBlock)v : def;
+  return block_valid_grid(v) ? (QuadBlock)v : def;
 }
 
 // Seed runtime config from persisted values, falling back to the compile-time
@@ -366,6 +433,11 @@ static QuadBlock read_block(PersistKey key, QuadBlock def) {
 static void settings_load(void) {
   s_year_top     = persist_exists(PK_YEAR_TOP)     ? persist_read_bool(PK_YEAR_TOP) : true;
   s_show_seconds = persist_exists(PK_SHOW_SECONDS) ? persist_read_bool(PK_SHOW_SECONDS) : false;
+
+  s_band_block = (persist_exists(PK_BAND_BLOCK) &&
+                  block_valid_band(persist_read_int(PK_BAND_BLOCK)))
+                     ? (QuadBlock)persist_read_int(PK_BAND_BLOCK)
+                     : BLK_YEAR;
 
   s_grid[0][0] = read_block(PK_BLOCK_TL, BLK_DOW);
   s_grid[0][1] = read_block(PK_BLOCK_TR, BLK_DAY);
@@ -391,7 +463,17 @@ static void apply_block(DictionaryIterator *iter, uint32_t msg_key,
   Tuple *t = dict_find(iter, msg_key);
   if (!t) return;
   int v = t->value->int32;
-  if (v < BLK_DOW || v > BLK_MONTH) return;
+  if (!block_valid_grid(v)) return;
+  *out = (QuadBlock)v;
+  persist_write_int(pk, v);
+}
+
+static void apply_band(DictionaryIterator *iter, uint32_t msg_key,
+                       PersistKey pk, QuadBlock *out) {
+  Tuple *t = dict_find(iter, msg_key);
+  if (!t) return;
+  int v = t->value->int32;
+  if (!block_valid_band(v)) return;
   *out = (QuadBlock)v;
   persist_write_int(pk, v);
 }
@@ -408,6 +490,7 @@ static void apply_color(DictionaryIterator *iter, uint32_t msg_key,
 // Clay forwards every messageKey when the config page is saved.
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   apply_bool(iter, MESSAGE_KEY_YEAR_TOP, PK_YEAR_TOP, &s_year_top);
+  apply_band(iter, MESSAGE_KEY_BLOCK_BAND, PK_BAND_BLOCK, &s_band_block);
 
   apply_block(iter, MESSAGE_KEY_BLOCK_TOP_LEFT,     PK_BLOCK_TL, &s_grid[0][0]);
   apply_block(iter, MESSAGE_KEY_BLOCK_TOP_RIGHT,    PK_BLOCK_TR, &s_grid[0][1]);

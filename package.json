@@ -33,8 +33,12 @@
     "watchapp": {
       "watchface": true
     },
+    "capabilities": [
+      "health"
+    ],
     "messageKeys": [
       "YEAR_TOP",
+      "BLOCK_BAND",
       "BLOCK_TOP_LEFT",
       "BLOCK_TOP_RIGHT",
       "BLOCK_BOTTOM_LEFT",
@@ -69,7 +73,7 @@
           "type": "font",
           "name": "FONT_TXT_26",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z]",
+          "characterRegex": "[0-9A-Za-z.%]",
           "targetPlatforms": [
             "aplite",
             "basalt",
@@ -81,7 +85,7 @@
           "type": "font",
           "name": "FONT_TXT_18",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z]",
+          "characterRegex": "[0-9A-Za-z.%]",
           "targetPlatforms": [
             "aplite",
             "basalt",
@@ -116,7 +120,7 @@
           "type": "font",
           "name": "FONT_TXT_36",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z]",
+          "characterRegex": "[0-9A-Za-z.%]",
           "targetPlatforms": [
             "emery"
           ]
@@ -125,7 +129,7 @@
           "type": "font",
           "name": "FONT_TXT_26",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z]",
+          "characterRegex": "[0-9A-Za-z.%]",
           "targetPlatforms": [
             "emery",
             "gabbro"
@@ -153,7 +157,7 @@
           "type": "font",
           "name": "FONT_TXT_24",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z]",
+          "characterRegex": "[0-9A-Za-z.%]",
           "targetPlatforms": [
             "chalk"
           ]
@@ -162,7 +166,7 @@
           "type": "font",
           "name": "FONT_TXT_17",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z]",
+          "characterRegex": "[0-9A-Za-z.%]",
           "targetPlatforms": [
             "chalk"
           ]
@@ -171,7 +175,7 @@
           "type": "font",
           "name": "FONT_TXT_38",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z]",
+          "characterRegex": "[0-9A-Za-z.%]",
           "targetPlatforms": [
             "gabbro"
           ]
@@ -189,11 +193,6 @@
     }
   },
   "dependencies": {
-    "@rebble/clay": "^1.0.10",
-    "pebble-fctx": "^1.6.5"
-  },
-  "devDependencies": {
-    "opentype.js": "^2.0.0",
-    "pebble-fctx-compiler": "^1.2.2"
+    "@rebble/clay": "^1.0.10"
   }
 }
