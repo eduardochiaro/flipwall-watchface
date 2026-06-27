@@ -5,7 +5,7 @@ var clayConfig = require('./config');
 //   0 = Day of week, 1 = Day of month, 2 = Clock, 3 = Month.
 // "Big" blocks fill a square; "small" blocks are half height. Each column must
 // pair exactly one of each, so the two columns line up.
-var BIG_BLOCKS = { 1: true, 2: true };   // Day of month, Clock
+var BIG_BLOCKS = { 1: true, 2: true, 8: true };   // Day of month, Clock, Weather
 var FALLBACK_SMALL = 0;                   // Day of week
 var FALLBACK_BIG = 2;                     // Clock
 
@@ -41,7 +41,7 @@ function clayCustomFn() {
   // big = Day of month / Clock; small = Day of week / Month.
   function isBig(v) {
     var n = parseInt(v, 10);
-    return n === 1 || n === 2;
+    return n === 1 || n === 2 || n === 8;
   }
   var FALLBACK_SMALL = 0;   // Day of week
   var FALLBACK_BIG = 2;     // Clock
@@ -61,15 +61,27 @@ function clayCustomFn() {
                  steps: '8.2K', dist: '8.2km', batt: '82%',
                  weekend: true, isPM: false, hour: 10, min: 9, sec: 30 };
 
+  // Localised month/weekday names — must match MONTHS/WDAYS in the C source.
+  // Sample date is June (mon 5), Sunday (wday 0).
+  var MONTHS = [
+    'Jun','Jun','Jun','Jui','Jun','Giu','Jun','Cze','Haz','Jun'  // index = lang
+  ];
+  var WDAYS = [
+    'Sun','Dom','Dom','Dim','Son','Dom','Zon','Nie','Paz','Min'  // index = lang
+  ];
+
   // Block ids match the QuadBlock enum: 0 DoW, 1 Day, 2 Clock, 3 Month,
-  // 4 Steps, 5 Distance, 6 Battery, 7 Year. Only Day/Clock are big.
-  function isShort(v) { return v !== 1 && v !== 2; }
+  // 4 Steps, 5 Distance, 6 Battery, 7 Year, 8 Weather, 9 Month+Day,
+  // 10 Weekday+Day. Day/Clock/Weather big.
+  function isShort(v) { return v !== 1 && v !== 2 && v !== 8; }
 
   // Display text for the data blocks (steps / distance / battery / year).
   function valueText(v) {
     if (v === 4) { return SAMPLE.steps; }
     if (v === 5) { return SAMPLE.dist; }
     if (v === 6) { return SAMPLE.batt; }
+    if (v === 9) { return SAMPLE.month + ' ' + SAMPLE.day; }
+    if (v === 10) { return SAMPLE.dow + ' ' + SAMPLE.day; }
     return SAMPLE.year;
   }
 
@@ -91,7 +103,7 @@ function clayCustomFn() {
     return '<div style="position:absolute;left:0;top:0;right:0;bottom:0;' +
       'display:flex;align-items:center;justify-content:' +
       (align === 'left' ? 'flex-start' : 'center') + ';padding-left:' +
-      px(padL || 0) + ';color:' + color + ';font-weight:bold;font-size:' +
+      px(padL || 0) + ';white-space:nowrap;color:' + color + ';font-weight:bold;font-size:' +
       px(fontPx) + ';line-height:1;">' + txt + '</div>';
   }
 
@@ -139,10 +151,33 @@ function clayCustomFn() {
       ';width:' + px(w) + ';height:' + px(h) + ';">' + s + '</div>';
   }
 
+  // A big block holding a sun icon. Mirrors draw_icon_block in the C source:
+  // panel-filled block, the icon scaled to nearly fill with a small pad, stroke
+  // in the text colour and fill in the panel colour (so it reads as an outline).
+  function iconBlock(x, y, w, h, panelC, textC) {
+    var side = Math.min(w, h) - 16;         // pad ~8 each side
+    var cx = w / 2, cy = h / 2, rr = side / 2;
+    var core = rr * 0.45;
+    var s = '<svg width="' + px(w) + '" height="' + px(h) + '" viewBox="0 0 ' +
+      w + ' ' + h + '">';
+    s += '<circle cx="' + cx + '" cy="' + cy + '" r="' + core + '" fill="' +
+      panelC + '" stroke="' + textC + '" stroke-width="3"/>';
+    for (var i = 0; i < 8; i++) {
+      s += radialLine(cx, cy, i * 45, core + rr * 0.18, rr, textC, 3);
+    }
+    s += '</svg>';
+    return '<div style="position:absolute;left:' + px(x) + ';top:' + px(y) +
+      ';width:' + px(w) + ';height:' + px(h) + ';background:' + panelC +
+      ';border-radius:' + px(4) + ';overflow:hidden;">' + s + '</div>';
+  }
+
   // Render one grid block (by QuadBlock id) into the given rect.
   function block(v, x, y, w, h, c) {
     if (v === 2) {  // clock
       return clockBlock(x, y, w, h, c.panel, c.text, c.showSeconds);
+    }
+    if (v === 8) {  // weather icon
+      return iconBlock(x, y, w, h, c.panel, c.text);
     }
     if (v === 0) {  // day of week
       var bg = SAMPLE.weekend ? c.weekend : c.panel;
@@ -161,11 +196,14 @@ function clayCustomFn() {
   }
 
   function bandBlock(v, x, y, w, h, c) {
-    var pw = Math.round(h * 1.9);
+    var txt = valueText(v);
+    var font = Math.round(h * 0.62);
+    // Width the panel to the text (mirrors draw_band sizing to content), so
+    // longer strings like "Jun 26" don't wrap onto a second line.
+    var pw = Math.max(Math.round(h * 1.9), Math.round(txt.length * font * 0.62) + 12);
     var px0 = x + Math.floor((w - pw) / 2);
     return panelDiv(px0, y, pw, h, c.panel,
-      textDiv(valueText(v), c.text, Math.round(h * 0.62), 'center', 0) +
-      seam(pw, h));
+      textDiv(txt, c.text, font, 'center', 0) + seam(pw, h));
   }
 
   // Black on light backgrounds, white on dark ones (mirrors contrast_color in C).
@@ -178,6 +216,10 @@ function clayCustomFn() {
   // cfg: { yearTop, band, blocks:[tl,tr,bl,br], face, panel, weekend,
   //        showSeconds }. Mirrors main_layer_update() in the C source.
   function build(cfg) {
+    var lang = cfg.lang || 0;
+    SAMPLE.month = MONTHS[lang];
+    SAMPLE.dow = WDAYS[lang];
+
     var innerW = W - 2 * MARGIN, innerH = H - 2 * MARGIN;
     var colW = Math.floor((innerW - GUTTER) / 2);
     var square = colW, shortH = Math.floor(square / 2);
@@ -240,6 +282,7 @@ function clayCustomFn() {
     if (!item) { return; }
     item.set(PREVIEW.build({
       yearTop: clayConfig.getItemByMessageKey('YEAR_TOP').get(),
+      lang: blockVal('LANG'),
       band: blockVal('BLOCK_BAND'),
       blocks: [
         blockVal('BLOCK_TOP_LEFT'), blockVal('BLOCK_TOP_RIGHT'),
@@ -277,9 +320,9 @@ function clayCustomFn() {
     link('BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_RIGHT');
 
     // Draw once, then redraw whenever any setting that affects the face changes.
-    var watched = ['YEAR_TOP', 'BLOCK_BAND', 'BLOCK_TOP_LEFT', 'BLOCK_TOP_RIGHT',
-      'BLOCK_BOTTOM_LEFT', 'BLOCK_BOTTOM_RIGHT', 'FACE_COLOR', 'PANEL_COLOR',
-      'WEEKEND_COLOR', 'SHOW_SECONDS'];
+    var watched = ['YEAR_TOP', 'LANG', 'BLOCK_BAND', 'BLOCK_TOP_LEFT',
+      'BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_LEFT', 'BLOCK_BOTTOM_RIGHT', 'FACE_COLOR',
+      'PANEL_COLOR', 'WEEKEND_COLOR', 'SHOW_SECONDS'];
     watched.forEach(function(key) {
       var item = clayConfig.getItemByMessageKey(key);
       if (item) { item.on('change', refreshPreview); }
@@ -315,6 +358,11 @@ function sanitize(settings) {
   if (readValue(settings, 'BLOCK_BAND') !== undefined) {
     writeValue(settings, 'BLOCK_BAND',
                parseInt(readValue(settings, 'BLOCK_BAND'), 10) || 7);
+  }
+
+  // Language select likewise ships as an int (0 = English).
+  if (readValue(settings, 'LANG') !== undefined) {
+    writeValue(settings, 'LANG', parseInt(readValue(settings, 'LANG'), 10) || 0);
   }
 
   COLUMNS.forEach(function(col) {

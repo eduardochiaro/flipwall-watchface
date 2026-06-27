@@ -20,13 +20,19 @@ typedef enum {
   BLK_KM,       // distance walked (Health)
   BLK_BATTERY,  // battery level %
   BLK_YEAR,     // year (banner-only block)
+  BLK_WEATHER,  // weather icon (big block); appended last so persisted ints stay stable
+  BLK_MONTH_DAY, // "Jun 28" (banner-only); appended to keep persisted ints stable
+  BLK_DOW_DAY,   // "Sat 28" (banner-only)
 } QuadBlock;
 
 // Grid blocks span BLK_DOW..BLK_BATTERY; the banner adds BLK_YEAR. Only Day and
 // Clock are "big" (square); everything else is a "short" half-height block.
-static bool block_valid_grid(int v) { return v >= BLK_DOW && v <= BLK_BATTERY; }
+static bool block_valid_grid(int v) {
+  return (v >= BLK_DOW && v <= BLK_BATTERY) || v == BLK_WEATHER;
+}
 static bool block_valid_band(int v) {
-  return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY);
+  return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY) ||
+         v == BLK_MONTH_DAY || v == BLK_DOW_DAY;
 }
 
 // --- Configuration ---------------------------------------------------------
@@ -39,6 +45,40 @@ static QuadBlock s_grid[2][2] = {
   { BLK_CLOCK, BLK_MONTH },   // bottom row
 };
 static bool s_show_seconds = false;   // off by default (battery friendly)
+static int  s_lang = 0;               // 0 = English (see LANGS below)
+
+// --- Localisation ----------------------------------------------------------
+// Month (%b) and weekday (%a) short names, ASCII-folded to 3 letters so they
+// render with the Latin-only bundled font. Numbers (day/year) and the data
+// readouts (steps/km/%) are language-neutral; AM/PM is left untranslated.
+// Order must match LANG_OPTIONS in config.js (0 = English default).
+#define LANG_COUNT 10
+// tm_mon 0..11 (Jan..Dec).
+static const char *const MONTHS[LANG_COUNT][12] = {
+  {"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"}, // en
+  {"Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"}, // es
+  {"Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"}, // pt
+  {"Jan","Fev","Mar","Avr","Mai","Jui","Jul","Aou","Sep","Oct","Nov","Dec"}, // fr
+  {"Jan","Feb","Mar","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"}, // de
+  {"Gen","Feb","Mar","Apr","Mag","Giu","Lug","Ago","Set","Ott","Nov","Dic"}, // it
+  {"Jan","Feb","Mrt","Apr","Mei","Jun","Jul","Aug","Sep","Okt","Nov","Dec"}, // nl
+  {"Sty","Lut","Mar","Kwi","Maj","Cze","Lip","Sie","Wrz","Paz","Lis","Gru"}, // pl
+  {"Oca","Sub","Mar","Nis","May","Haz","Tem","Agu","Eyl","Eki","Kas","Ara"}, // tr
+  {"Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"}, // id
+};
+// tm_wday 0..6 (Sun..Sat).
+static const char *const WDAYS[LANG_COUNT][7] = {
+  {"Sun","Mon","Tue","Wed","Thu","Fri","Sat"}, // en
+  {"Dom","Lun","Mar","Mie","Jue","Vie","Sab"}, // es
+  {"Dom","Seg","Ter","Qua","Qui","Sex","Sab"}, // pt
+  {"Dim","Lun","Mar","Mer","Jeu","Ven","Sam"}, // fr
+  {"Son","Mon","Die","Mit","Don","Fre","Sam"}, // de
+  {"Dom","Lun","Mar","Mer","Gio","Ven","Sab"}, // it
+  {"Zon","Maa","Din","Woe","Don","Vri","Zat"}, // nl
+  {"Nie","Pon","Wto","Sro","Czw","Pia","Sob"}, // pl
+  {"Paz","Pzt","Sal","Car","Per","Cum","Cmt"}, // tr
+  {"Min","Sen","Sel","Rab","Kam","Jum","Sab"}, // id
+};
 
 // --- Color defaults (used until the user overrides them) ------------------
 #define FACE_BG      PBL_IF_COLOR_ELSE(GColorOrange, GColorWhite)
@@ -54,6 +94,8 @@ static GColor s_panel_bg;
 static GColor s_weekend_bg;
 static GColor s_text_fg;
 
+static bool is_large_screen = false;   // Pebble Time / Time 2 / Round have 144x168 or 180x180 screens
+
 // Persistent-storage keys (independent of the AppMessage message keys).
 typedef enum {
   PK_YEAR_TOP = 1,
@@ -67,6 +109,7 @@ typedef enum {
   PK_TEXT_COLOR,  // reserved (text color now derived); keeps later keys stable
   PK_SHOW_SECONDS,
   PK_BAND_BLOCK,
+  PK_LANG,
 } PersistKey;
 
 #if defined(PBL_PLATFORM_EMERY)
@@ -96,6 +139,10 @@ typedef enum {
 static Window *s_window;
 static Layer  *s_main_layer;
 static struct tm s_now;
+
+// Localised month/weekday short names for the current time + language.
+static const char *month_name(void) { return MONTHS[s_lang][s_now.tm_mon]; }
+static const char *wday_name(void)  { return WDAYS[s_lang][s_now.tm_wday]; }
 
 // All text uses bundled Montserrat Bold so the design is consistent across
 // platforms; sizes are picked per screen tier in prv_window_load().
@@ -240,6 +287,12 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
     case BLK_BATTERY:
       snprintf(buf, n, "%d%%", battery_state_service_peek().charge_percent);
       break;
+    case BLK_MONTH_DAY:
+      snprintf(buf, n, "%s %d", month_name(), s_now.tm_mday);
+      break;
+    case BLK_DOW_DAY:
+      snprintf(buf, n, "%s %d", wday_name(), s_now.tm_mday);
+      break;
     default:
       buf[0] = '\0';
       break;
@@ -286,16 +339,13 @@ static void draw_day(GContext *ctx, GRect r) {
 }
 
 static void draw_month(GContext *ctx, GRect r) {
-  char buf[8];
-  strftime(buf, sizeof(buf), "%b", &s_now);
   draw_panel(ctx, r, s_panel_bg);
-  draw_centered(ctx, r, buf, s_font_txt, s_text_fg, GTextAlignmentCenter);
+  draw_centered(ctx, r, month_name(), s_font_txt, s_text_fg, GTextAlignmentCenter);
   draw_seam(ctx, r);
 }
 
 static void draw_dow(GContext *ctx, GRect r) {
-  char buf[8];
-  strftime(buf, sizeof(buf), "%a", &s_now);     // title case "Mon" (matches "Jun")
+  const char *buf = wday_name();     // title case "Mon" (matches "Jun")
   bool weekend = (s_now.tm_wday == 0 || s_now.tm_wday == 6);
   draw_panel(ctx, r, weekend ? s_weekend_bg : s_panel_bg);
   GColor s_override_text_fg = contrast_color(weekend ? s_weekend_bg : s_panel_bg);
@@ -361,13 +411,59 @@ static void draw_clock(GContext *ctx, GRect r) {
   graphics_fill_circle(ctx, c, 2);
 }
 
+// A big block holding a PDC (vector) icon. PDC has no scale API, so the icon is
+// recreated each redraw and its points are multiplied up to fill the block (less
+// a small padding). Stroke takes the text colour, fill the panel background, so
+// the icon reads as an outline on the panel. Cheap: only redrawn on minute ticks.
+static void draw_icon_block(GContext *ctx, GRect r, uint32_t res_id) {
+  draw_panel(ctx, r, s_panel_bg);
+
+  GDrawCommandImage *img = gdraw_command_image_create_with_resource(res_id);
+  if (!img) return;
+  GSize native = gdraw_command_image_get_bounds_size(img);
+  if (native.w <= 0 || native.h <= 0) { gdraw_command_image_destroy(img); return; }
+
+  const int pad = 8;
+  int side = (r.size.w < r.size.h ? r.size.w : r.size.h) - pad * 2;
+  if (side < 1) side = 1;
+
+  GDrawCommandList *list = gdraw_command_image_get_command_list(img);
+  uint32_t n = gdraw_command_list_get_num_commands(list);
+  for (uint32_t i = 0; i < n; i++) {
+    GDrawCommand *cmd = gdraw_command_list_get_command(list, i);
+    gdraw_command_set_stroke_color(cmd, s_text_fg);
+    gdraw_command_set_fill_color(cmd, s_panel_bg);
+    if (gdraw_command_get_stroke_width(cmd) > 0) {
+      // if small screen use 3, if large use 6
+      if (is_large_screen) {
+        gdraw_command_set_stroke_width(cmd, 6);  // large screen
+      } else {
+        gdraw_command_set_stroke_width(cmd, 3);  // small screen
+      }
+    }
+    uint16_t np = gdraw_command_get_num_points(cmd);
+    for (uint16_t p = 0; p < np; p++) {
+      GPoint pt = gdraw_command_get_point(cmd, p);
+      pt.x = pt.x * side / native.w;
+      pt.y = pt.y * side / native.h;
+      gdraw_command_set_point(cmd, p, pt);
+    }
+  }
+
+  GPoint offset = GPoint(r.origin.x + (r.size.w - side) / 2,
+                         r.origin.y + (r.size.h - side) / 2);
+  gdraw_command_image_draw(ctx, img, offset);
+  gdraw_command_image_destroy(img);
+}
+
 static void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
   switch (blk) {
-    case BLK_DOW:   draw_dow(ctx, r);   break;
-    case BLK_DAY:   draw_day(ctx, r);   break;
-    case BLK_CLOCK: draw_clock(ctx, r); break;
-    case BLK_MONTH: draw_month(ctx, r); break;
-    default:        draw_value_block(ctx, r, blk); break;  // steps / km / battery
+    case BLK_DOW:     draw_dow(ctx, r);   break;
+    case BLK_DAY:     draw_day(ctx, r);   break;
+    case BLK_CLOCK:   draw_clock(ctx, r); break;
+    case BLK_MONTH:   draw_month(ctx, r); break;
+    case BLK_WEATHER: draw_icon_block(ctx, r, RESOURCE_ID_ICON_SUNNY); break;
+    default:          draw_value_block(ctx, r, blk); break;  // steps / km / battery
   }
 }
 
@@ -377,7 +473,7 @@ static void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
 
 // Day and Clock are "tall" blocks; everything else is "short" (half height).
 static bool block_is_short(QuadBlock b) {
-  return !(b == BLK_DAY || b == BLK_CLOCK);
+  return !(b == BLK_DAY || b == BLK_CLOCK || b == BLK_WEATHER);
 }
 
 static void main_layer_update(Layer *layer, GContext *ctx) {
@@ -478,6 +574,9 @@ static void settings_load(void) {
   s_year_top     = persist_exists(PK_YEAR_TOP)     ? persist_read_bool(PK_YEAR_TOP) : true;
   s_show_seconds = persist_exists(PK_SHOW_SECONDS) ? persist_read_bool(PK_SHOW_SECONDS) : false;
 
+  s_lang = persist_exists(PK_LANG) ? persist_read_int(PK_LANG) : 0;
+  if (s_lang < 0 || s_lang >= LANG_COUNT) s_lang = 0;
+
   s_band_block = (persist_exists(PK_BAND_BLOCK) &&
                   block_valid_band(persist_read_int(PK_BAND_BLOCK)))
                      ? (QuadBlock)persist_read_int(PK_BAND_BLOCK)
@@ -538,6 +637,12 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   apply_bool(iter, MESSAGE_KEY_YEAR_TOP, PK_YEAR_TOP, &s_year_top);
   apply_band(iter, MESSAGE_KEY_BLOCK_BAND, PK_BAND_BLOCK, &s_band_block);
 
+  Tuple *lang_t = dict_find(iter, MESSAGE_KEY_LANG);
+  if (lang_t) {
+    int v = lang_t->value->int32;
+    if (v >= 0 && v < LANG_COUNT) { s_lang = v; persist_write_int(PK_LANG, v); }
+  }
+
   apply_block(iter, MESSAGE_KEY_BLOCK_TOP_LEFT,     PK_BLOCK_TL, &s_grid[0][0]);
   apply_block(iter, MESSAGE_KEY_BLOCK_TOP_RIGHT,    PK_BLOCK_TR, &s_grid[0][1]);
   apply_block(iter, MESSAGE_KEY_BLOCK_BOTTOM_LEFT,  PK_BLOCK_BL, &s_grid[1][0]);
@@ -563,6 +668,8 @@ static void prv_window_load(Window *window) {
   s_main_layer = layer_create(layer_get_bounds(root));
   layer_set_update_proc(s_main_layer, main_layer_update);
   layer_add_child(root, s_main_layer);
+
+  is_large_screen = (layer_get_bounds(root).size.w > 144);
 
 #if defined(PBL_PLATFORM_EMERY)
   s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_64));

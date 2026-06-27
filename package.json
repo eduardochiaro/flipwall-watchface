@@ -1,7 +1,7 @@
 {
   "name": "wall-flip",
   "author": "Eduardo Chiaro",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "keywords": [
     "pebble-watchface",
     "flip",
@@ -47,7 +47,8 @@
       "PANEL_COLOR",
       "WEEKEND_COLOR",
       "TEXT_COLOR",
-      "SHOW_SECONDS"
+      "SHOW_SECONDS",
+      "LANG"
     ],
     "resources": {
       "media": [
@@ -56,6 +57,11 @@
           "type": "png",
           "name": "MENU_ICON",
           "file": "menu_icon.png"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_SUNNY",
+          "file": "weather/sunny.pdc"
         },
         {
           "type": "font",
@@ -73,7 +79,7 @@
           "type": "font",
           "name": "FONT_TXT_26",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%]",
+          "characterRegex": "[0-9A-Za-z.% ]",
           "targetPlatforms": [
             "aplite",
             "basalt",
@@ -85,7 +91,7 @@
           "type": "font",
           "name": "FONT_TXT_18",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%]",
+          "characterRegex": "[0-9A-Za-z.% ]",
           "targetPlatforms": [
             "aplite",
             "basalt",
@@ -120,7 +126,7 @@
           "type": "font",
           "name": "FONT_TXT_36",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%]",
+          "characterRegex": "[0-9A-Za-z.% ]",
           "targetPlatforms": [
             "emery"
           ]
@@ -129,7 +135,7 @@
           "type": "font",
           "name": "FONT_TXT_26",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%]",
+          "characterRegex": "[0-9A-Za-z.% ]",
           "targetPlatforms": [
             "emery",
             "gabbro"
@@ -157,7 +163,7 @@
           "type": "font",
           "name": "FONT_TXT_24",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%]",
+          "characterRegex": "[0-9A-Za-z.% ]",
           "targetPlatforms": [
             "chalk"
           ]
@@ -166,7 +172,7 @@
           "type": "font",
           "name": "FONT_TXT_17",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%]",
+          "characterRegex": "[0-9A-Za-z.% ]",
           "targetPlatforms": [
             "chalk"
           ]
@@ -175,7 +181,7 @@
           "type": "font",
           "name": "FONT_TXT_38",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%]",
+          "characterRegex": "[0-9A-Za-z.% ]",
           "targetPlatforms": [
             "gabbro"
           ]
