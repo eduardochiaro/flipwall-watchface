@@ -34,6 +34,25 @@ A digital watchface for Pebble smartwatches based on flip clock design.
 [Rebble App Store](https://apps.rebble.io/en_US/application/6a3d4248cd52370009862b05)
 [Pebble App Store](https://apps.repebble.com/6a3d4248cd52370009862b05)
 
+## Configuration options
+
+Configure via the Pebble app settings page.
+
+### Layout
+- **Banner block** — content of the full-width banner: Year, Steps, Distance, or Battery.
+- **Banner at top** — banner above the grid (on) or below it (off).
+- **Top-left / Top-right / Bottom-left / Bottom-right block** — fill each grid quadrant with: Day of week, Day of month, Clock, Month, Steps, Distance, or Battery. Each column pairs one big block (Clock / Day of month) with one small block; picking two of the same size auto-swaps the other.
+
+### Colours
+- **Face background** — colour behind the panels.
+- **Panel background** — colour of the flip panels.
+- **Weekend / accent** — day-of-week panel colour on weekends, also used for the inactive AM/PM label.
+
+Text colour is automatic: black on light backgrounds, white on dark ones.
+
+### Clock
+- **Show seconds hand** — adds a seconds hand (off by default to save battery).
+
 ## Support
 For issues, questions, or suggestions, please open an issue on GitHub.
 

@@ -44,10 +44,9 @@ static bool s_show_seconds = false;   // off by default (battery friendly)
 #define FACE_BG      PBL_IF_COLOR_ELSE(GColorOrange, GColorWhite)
 #define PANEL_BG     GColorBlack
 #define WEEKEND_BG   PBL_IF_COLOR_ELSE(GColorRed, GColorBlack)
-#define TEXT_FG      GColorWhite
 #define SEAM_COLOR   GColorDarkGray
 #define SECOND_FG    PBL_IF_COLOR_ELSE(GColorRed, GColorWhite)
-#define DIM_FG       GColorDarkGray
+#define DIM_FG       GColorLightGray
 
 // User-configurable colours (the four above-listed defaults at startup).
 static GColor s_face_bg;
@@ -65,7 +64,7 @@ typedef enum {
   PK_FACE_COLOR,
   PK_PANEL_COLOR,
   PK_WEEKEND_COLOR,
-  PK_TEXT_COLOR,
+  PK_TEXT_COLOR,  // reserved (text colour now derived); keeps later keys stable
   PK_SHOW_SECONDS,
   PK_BAND_BLOCK,
 } PersistKey;
@@ -104,6 +103,41 @@ static GFont s_font_num;   // big day number
 static GFont s_font_txt;   // month
 static GFont s_font_txt_sm; // year, day-of-week
 static GFont s_font_sml;   // AM/PM indicator
+
+// ---------------------------------------------------------------------------
+//  helpers
+// ---------------------------------------------------------------------------
+
+static uint32_t GColorToRGB8(GColor c) {
+  return (uint8_t)(c.r * 255) << 16 | (uint8_t)(c.g * 255) << 8 | (uint8_t)(c.b * 255);
+}
+
+static GColor get_closest_accent_color(GColor c) {
+  uint8_t r = (uint8_t)(GColorToRGB8(c) >> 16);
+  uint8_t g = (uint8_t)(GColorToRGB8(c) >> 8);
+  uint8_t b = (uint8_t)(GColorToRGB8(c));
+  // Perceived luminance: lighten dark colors, darken light ones.
+  uint16_t lum = (uint16_t)(r * 30 + g * 59 + b * 11) / 100;
+  if (lum < 128) {
+    r = (uint8_t)(r + (255 - r) * 0.3);
+    g = (uint8_t)(g + (255 - g) * 0.3);
+    b = (uint8_t)(b + (255 - b) * 0.3);
+  } else {
+    r = (uint8_t)(r * 0.7);
+    g = (uint8_t)(g * 0.7);
+    b = (uint8_t)(b * 0.7);
+  }
+  return GColorFromRGB(r, g, b);
+}
+
+// Black on light backgrounds, white on dark ones (perceived luminance).
+static GColor contrast_color(GColor bg) {
+  uint8_t r = (uint8_t)(GColorToRGB8(bg) >> 16);
+  uint8_t g = (uint8_t)(GColorToRGB8(bg) >> 8);
+  uint8_t b = (uint8_t)(GColorToRGB8(bg));
+  uint16_t lum = (uint16_t)(r * 30 + g * 59 + b * 11) / 100;
+  return lum < 128 ? GColorWhite : GColorBlack;
+}
 
 // ---------------------------------------------------------------------------
 // Drawing helpers
@@ -182,13 +216,21 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
     case BLK_KM: {
 #if defined(PBL_HEALTH)
       int m = (int)health_service_sum_today(HealthMetricWalkedDistanceMeters);
+      const char *type = "m";
+      int t = (m + 50);     
+      if (m >= 1000) {
+        type = "km";
+        t = (m + 50) / 100;     
+      }     // km * 10, rounded
       if (health_service_get_measurement_system_for_display(
               HealthMetricWalkedDistanceMeters) == MeasurementSystemImperial) {
-        int t = (m * 10 + 804) / 1609;   // miles * 10, rounded
-        snprintf(buf, n, "%d.%dmi", t / 10, t % 10);
+        t = (m * 10 + 804) / 1609;   // miles * 10, rounded
+        type = "mi";
+      } 
+      if (t > 99) {
+        snprintf(buf, n, "%d%s", t / 10, type);
       } else {
-        int t = (m + 50) / 100;          // km * 10, rounded
-        snprintf(buf, n, "%d.%dkm", t / 10, t % 10);
+        snprintf(buf, n, "%d.%d%s", t / 10, t % 10, type);
       }
 #else
       snprintf(buf, n, "--");
@@ -256,17 +298,19 @@ static void draw_dow(GContext *ctx, GRect r) {
   strftime(buf, sizeof(buf), "%a", &s_now);     // title case "Mon" (matches "Jun")
   bool weekend = (s_now.tm_wday == 0 || s_now.tm_wday == 6);
   draw_panel(ctx, r, weekend ? s_weekend_bg : s_panel_bg);
+  GColor s_override_text_fg = contrast_color(weekend ? s_weekend_bg : s_panel_bg);
 
   // Day-of-week uses the full block width. add a little padding to the left so the AM/PM label doesn't collide with the text.
   GRect newr = r;
   newr.origin.x += 4;
   newr.size.w -= 4;
-  draw_centered(ctx, newr, buf, s_font_txt_sm, s_text_fg, GTextAlignmentLeft);
+  draw_centered(ctx, newr, buf, s_font_txt_sm, s_override_text_fg, GTextAlignmentLeft);
 
   // AM top-right, PM bottom-right; the active one is bright.
   bool is_pm = s_now.tm_hour >= 12;
-  draw_ampm(ctx, r, "AM", true,  is_pm ? DIM_FG : s_text_fg);
-  draw_ampm(ctx, r, "PM", false, is_pm ? s_text_fg : DIM_FG);
+  GColor dim = get_closest_accent_color(s_weekend_bg);
+  draw_ampm(ctx, r, "AM", true,  is_pm ? dim : s_override_text_fg);
+  draw_ampm(ctx, r, "PM", false, is_pm ? s_override_text_fg : dim);
 
   draw_seam(ctx, r);
 }
@@ -447,7 +491,9 @@ static void settings_load(void) {
   s_face_bg    = persist_exists(PK_FACE_COLOR)    ? GColorFromHEX(persist_read_int(PK_FACE_COLOR))    : (GColor)FACE_BG;
   s_panel_bg   = persist_exists(PK_PANEL_COLOR)   ? GColorFromHEX(persist_read_int(PK_PANEL_COLOR))   : (GColor)PANEL_BG;
   s_weekend_bg = persist_exists(PK_WEEKEND_COLOR) ? GColorFromHEX(persist_read_int(PK_WEEKEND_COLOR)) : (GColor)WEEKEND_BG;
-  s_text_fg    = persist_exists(PK_TEXT_COLOR)    ? GColorFromHEX(persist_read_int(PK_TEXT_COLOR))    : (GColor)TEXT_FG;
+  // ponytail: text contrast is derived from the panel bg, not configurable.
+  // Weekend dow text reuses it; only wrong if panel/weekend differ in luminance.
+  s_text_fg    = contrast_color(s_panel_bg);
 }
 
 static void apply_bool(DictionaryIterator *iter, uint32_t msg_key,
@@ -500,7 +546,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   apply_color(iter, MESSAGE_KEY_FACE_COLOR,    PK_FACE_COLOR,    &s_face_bg);
   apply_color(iter, MESSAGE_KEY_PANEL_COLOR,   PK_PANEL_COLOR,   &s_panel_bg);
   apply_color(iter, MESSAGE_KEY_WEEKEND_COLOR, PK_WEEKEND_COLOR, &s_weekend_bg);
-  apply_color(iter, MESSAGE_KEY_TEXT_COLOR,    PK_TEXT_COLOR,    &s_text_fg);
+  s_text_fg = contrast_color(s_panel_bg);
 
   bool was_seconds = s_show_seconds;
   apply_bool(iter, MESSAGE_KEY_SHOW_SECONDS, PK_SHOW_SECONDS, &s_show_seconds);

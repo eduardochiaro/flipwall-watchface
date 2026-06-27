@@ -146,10 +146,11 @@ function clayCustomFn() {
     }
     if (v === 0) {  // day of week
       var bg = SAMPLE.weekend ? c.weekend : c.panel;
-      var inner = textDiv(SAMPLE.dow, c.text, Math.round(h * 0.5), 'left',
+      var fg = SAMPLE.weekend ? contrast(c.weekend) : c.text;
+      var inner = textDiv(SAMPLE.dow, fg, Math.round(h * 0.5), 'left',
         Math.round(w * 0.08)) +
-        ampm('AM', true, SAMPLE.isPM ? DIM : c.text) +
-        ampm('PM', false, SAMPLE.isPM ? c.text : DIM) + seam(w, h);
+        ampm('AM', true, SAMPLE.isPM ? DIM : fg) +
+        ampm('PM', false, SAMPLE.isPM ? fg : DIM) + seam(w, h);
       return panelDiv(x, y, w, h, bg, inner);
     }
     // day number (big), month name, or a data readout (steps/km/battery).
@@ -167,7 +168,14 @@ function clayCustomFn() {
       seam(pw, h));
   }
 
-  // cfg: { yearTop, band, blocks:[tl,tr,bl,br], face, panel, weekend, text,
+  // Black on light backgrounds, white on dark ones (mirrors contrast_color in C).
+  function contrast(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return (r * 30 + g * 59 + b * 11) / 100 < 128 ? '#FFFFFF' : '#000000';
+  }
+
+  // cfg: { yearTop, band, blocks:[tl,tr,bl,br], face, panel, weekend,
   //        showSeconds }. Mirrors main_layer_update() in the C source.
   function build(cfg) {
     var innerW = W - 2 * MARGIN, innerH = H - 2 * MARGIN;
@@ -182,7 +190,7 @@ function clayCustomFn() {
     if (cfg.yearTop) { bandY = topY; areaY = topY + yearH + GUTTER; }
     else { areaY = topY; bandY = topY + colH + GUTTER; }
 
-    var c = { panel: cfg.panel, weekend: cfg.weekend, text: cfg.text,
+    var c = { panel: cfg.panel, weekend: cfg.weekend, text: contrast(cfg.panel),
               showSeconds: cfg.showSeconds };
     var html = '<div style="position:relative;width:' + px(W) + ';height:' +
       px(H) + ';margin:8px auto;background:' + cfg.face + ';border-radius:' +
@@ -240,7 +248,6 @@ function clayCustomFn() {
       face: colorHex('FACE_COLOR'),
       panel: colorHex('PANEL_COLOR'),
       weekend: colorHex('WEEKEND_COLOR'),
-      text: colorHex('TEXT_COLOR'),
       showSeconds: clayConfig.getItemByMessageKey('SHOW_SECONDS').get()
     }));
   }
@@ -272,7 +279,7 @@ function clayCustomFn() {
     // Draw once, then redraw whenever any setting that affects the face changes.
     var watched = ['YEAR_TOP', 'BLOCK_BAND', 'BLOCK_TOP_LEFT', 'BLOCK_TOP_RIGHT',
       'BLOCK_BOTTOM_LEFT', 'BLOCK_BOTTOM_RIGHT', 'FACE_COLOR', 'PANEL_COLOR',
-      'WEEKEND_COLOR', 'TEXT_COLOR', 'SHOW_SECONDS'];
+      'WEEKEND_COLOR', 'SHOW_SECONDS'];
     watched.forEach(function(key) {
       var item = clayConfig.getItemByMessageKey(key);
       if (item) { item.on('change', refreshPreview); }

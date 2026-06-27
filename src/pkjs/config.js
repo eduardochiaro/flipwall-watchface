@@ -117,13 +117,6 @@ module.exports = [
         label: "Weekend / accent",
         defaultValue: "FF0000",
         sunlight: false
-      },
-      {
-        type: "color",
-        messageKey: "TEXT_COLOR",
-        label: "Text",
-        defaultValue: "FFFFFF",
-        sunlight: false
       }
     ]
   },
