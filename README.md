@@ -43,12 +43,12 @@ Configure via the Pebble app settings page.
 - **Banner at top** — banner above the grid (on) or below it (off).
 - **Top-left / Top-right / Bottom-left / Bottom-right block** — fill each grid quadrant with: Day of week, Day of month, Clock, Month, Steps, Distance, or Battery. Each column pairs one big block (Clock / Day of month) with one small block; picking two of the same size auto-swaps the other.
 
-### Colours
-- **Face background** — colour behind the panels.
-- **Panel background** — colour of the flip panels.
-- **Weekend / accent** — day-of-week panel colour on weekends, also used for the inactive AM/PM label.
+### Colors
+- **Face background** — color behind the panels.
+- **Panel background** — color of the flip panels.
+- **Weekend / accent** — day-of-week panel color on weekends, also used for the inactive AM/PM label.
 
-Text colour is automatic: black on light backgrounds, white on dark ones.
+Text color is automatic: black on light backgrounds, white on dark ones.
 
 ### Clock
 - **Show seconds hand** — adds a seconds hand (off by default to save battery).

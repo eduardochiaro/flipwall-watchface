@@ -3,7 +3,7 @@
 // Block selector values map to the QuadBlock enum on the C side:
 //   0 = Day of week, 1 = Day of month, 2 = Clock, 3 = Month,
 //   4 = Steps, 5 = Distance, 6 = Battery, 7 = Year (banner only).
-// Defaults mirror the hard-coded layout/colours in flipwall-watchface.c.
+// Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
 // Only Day of month and Clock are "big"; everything else is "small".
 
 var BLOCK_OPTIONS = [
@@ -96,7 +96,7 @@ module.exports = [
   {
     type: "section",
     items: [
-      { type: "heading", defaultValue: "Colours" },
+      { type: "heading", defaultValue: "Colors" },
       {
         type: "color",
         messageKey: "FACE_COLOR",

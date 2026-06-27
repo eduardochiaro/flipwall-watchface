@@ -53,9 +53,9 @@ function clayCustomFn() {
   var MARGIN = 3, GUTTER = 3;
   var SEAM = '#555555';            // GColorDarkGray
   var DIM = '#555555';
-  var SECOND = '#FF0000';          // SECOND_FG (red on colour screens)
+  var SECOND = '#FF0000';          // SECOND_FG (red on color screens)
 
-  // Sample data shown in the mock-up. Sunday so the weekend/accent colour is
+  // Sample data shown in the mock-up. Sunday so the weekend/accent color is
   // visible; 10:09 -> AM active.
   var SAMPLE = { dow: 'Sun', day: '26', month: 'Jun', year: '2020',
                  steps: '8.2K', dist: '8.2km', batt: '82%',
@@ -222,7 +222,7 @@ function clayCustomFn() {
   return { build: build };
   })();
 
-  // Convert a Clay colour value (decimal int) to a CSS #RRGGBB string.
+  // Convert a Clay color value (decimal int) to a CSS #RRGGBB string.
   function colorHex(key) {
     var v = clayConfig.getItemByMessageKey(key).get();
     var n = parseInt(v, 10) & 0xFFFFFF;

@@ -40,7 +40,7 @@ static QuadBlock s_grid[2][2] = {
 };
 static bool s_show_seconds = false;   // off by default (battery friendly)
 
-// --- Colour defaults (used until the user overrides them) ------------------
+// --- Color defaults (used until the user overrides them) ------------------
 #define FACE_BG      PBL_IF_COLOR_ELSE(GColorOrange, GColorWhite)
 #define PANEL_BG     GColorBlack
 #define WEEKEND_BG   PBL_IF_COLOR_ELSE(GColorRed, GColorBlack)
@@ -48,7 +48,7 @@ static bool s_show_seconds = false;   // off by default (battery friendly)
 #define SECOND_FG    PBL_IF_COLOR_ELSE(GColorRed, GColorWhite)
 #define DIM_FG       GColorLightGray
 
-// User-configurable colours (the four above-listed defaults at startup).
+// User-configurable colors (the four above-listed defaults at startup).
 static GColor s_face_bg;
 static GColor s_panel_bg;
 static GColor s_weekend_bg;
@@ -64,7 +64,7 @@ typedef enum {
   PK_FACE_COLOR,
   PK_PANEL_COLOR,
   PK_WEEKEND_COLOR,
-  PK_TEXT_COLOR,  // reserved (text colour now derived); keeps later keys stable
+  PK_TEXT_COLOR,  // reserved (text color now derived); keeps later keys stable
   PK_SHOW_SECONDS,
   PK_BAND_BLOCK,
 } PersistKey;
