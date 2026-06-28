@@ -14,16 +14,17 @@
 bool block_valid_grid(int v) {
   return (v >= BLK_DOW && v <= BLK_BATTERY) || v == BLK_WEATHER ||
          v == BLK_TEMP || v == BLK_TEMP_BIG || v == BLK_HUMIDITY ||
-         v == BLK_PRECIP;
+         v == BLK_PRECIP || v == BLK_DIGITAL || v == BLK_DIGITAL_BIG;
 }
 bool block_valid_band(int v) {
   return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY) ||
          v == BLK_MONTH_DAY || v == BLK_DOW_DAY ||
          v == BLK_TEMP || v == BLK_HUMIDITY || v == BLK_MINMAX ||
-         v == BLK_PRECIP;
+         v == BLK_PRECIP || v == BLK_DIGITAL;
 }
 bool block_is_short(QuadBlock b) {
-  return !(b == BLK_DAY || b == BLK_CLOCK || b == BLK_WEATHER || b == BLK_TEMP_BIG);
+  return !(b == BLK_DAY || b == BLK_CLOCK || b == BLK_WEATHER ||
+           b == BLK_TEMP_BIG || b == BLK_DIGITAL_BIG);
 }
 
 // ---------------------------------------------------------------------------
@@ -176,6 +177,15 @@ static void draw_panel(GContext *ctx, GRect r, GColor bg) {
 // Individual blocks
 // ---------------------------------------------------------------------------
 
+// Hours and minutes as separate strings, respecting the watch's 12/24h setting.
+// 12h drops the leading zero on the hour ("9" not "09"); minutes always 2 digits.
+static void digital_parts(char *hh, size_t hn, char *mm, size_t mn) {
+  bool h24 = clock_is_24h_style();
+  strftime(hh, hn, h24 ? "%H" : "%I", &s_now);
+  if (!h24 && hh[0] == '0') memmove(hh, hh + 1, strlen(hh));
+  strftime(mm, mn, "%M", &s_now);
+}
+
 // Compact value text for the data blocks (year / steps / km / battery / weather).
 // Health metrics fall back to "--" on platforms without Health (e.g. aplite).
 static void block_text(QuadBlock blk, char *buf, size_t n) {
@@ -244,6 +254,12 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
     case BLK_PRECIP:
       weather_precip_str(buf, n);
       break;
+    case BLK_DIGITAL: {
+      char hh[4], mm[4];
+      digital_parts(hh, sizeof(hh), mm, sizeof(mm));
+      snprintf(buf, n, "%s:%s", hh, mm);
+      break;
+    }
     default:
       buf[0] = '\0';
       break;
@@ -276,6 +292,20 @@ static void draw_temp_big(GContext *ctx, GRect r) {
   weather_temp_str(buf, sizeof(buf));
   draw_panel(ctx, r, s_panel_bg);
   draw_centered(ctx, r, buf, r.size.h * 40 / 100, s_text_fg);   // "°" widens it
+  draw_seam(ctx, r);
+}
+
+// Big digital clock: hours in the top half, minutes in the bottom half, split by
+// the seam. (The small/banner variant is just "HH:MM" via draw_value_block.)
+static void draw_digital_big(GContext *ctx, GRect r) {
+  char hh[4], mm[4];
+  digital_parts(hh, sizeof(hh), mm, sizeof(mm));
+  draw_panel(ctx, r, s_panel_bg);
+  int half = r.size.h / 2;
+  GRect top = GRect(r.origin.x, r.origin.y, r.size.w, half);
+  GRect bot = GRect(r.origin.x, r.origin.y + half, r.size.w, r.size.h - half);
+  draw_centered(ctx, top, hh, half * 75 / 100, s_text_fg);
+  draw_centered(ctx, bot, mm, half * 75 / 100, s_text_fg);
   draw_seam(ctx, r);
 }
 
@@ -430,6 +460,7 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_CLOCK:    draw_clock(ctx, r);    break;
     case BLK_MONTH:    draw_month(ctx, r);    break;
     case BLK_TEMP_BIG: draw_temp_big(ctx, r); break;
+    case BLK_DIGITAL_BIG: draw_digital_big(ctx, r); break;
     case BLK_WEATHER:  draw_icon_block(ctx, r, weather_icon_resource()); break;
     default:           draw_value_block(ctx, r, blk); break;  // steps / km / battery / temp / humidity
   }

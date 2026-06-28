@@ -35,6 +35,8 @@ typedef enum {
   BLK_HUMIDITY,   // relative humidity % (small / banner)
   BLK_MINMAX,     // today's min/max temp (banner-only)
   BLK_PRECIP,     // precipitation mm (small / banner)
+  BLK_DIGITAL,    // digital clock HH:MM (small / banner)
+  BLK_DIGITAL_BIG,// digital clock, hours over minutes (big)
 } QuadBlock;
 
 // --- Localisation ----------------------------------------------------------

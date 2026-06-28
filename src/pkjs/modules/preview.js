@@ -3,7 +3,7 @@
 //   0 = Day of week, 1 = Day of month, 2 = Clock, 3 = Month.
 // "Big" blocks fill a square; "small" blocks are half height. Each column must
 // pair exactly one of each, so the two columns line up.
-var BIG_BLOCKS = { 1: true, 2: true, 8: true, 12: true };   // Day, Clock, Weather, Temp(big)
+var BIG_BLOCKS = { 1: true, 2: true, 8: true, 12: true, 17: true };   // Day, Clock, Weather, Temp(big), Digital(big)
 var FALLBACK_SMALL = 0;                   // Day of week
 var FALLBACK_BIG = 2;                     // Clock
 
@@ -39,7 +39,7 @@ function clayCustomFn() {
   // big = Day of month / Clock; small = Day of week / Month.
   function isBig(v) {
     var n = parseInt(v, 10);
-    return n === 1 || n === 2 || n === 8 || n === 12;
+    return n === 1 || n === 2 || n === 8 || n === 12 || n === 17;
   }
   var FALLBACK_SMALL = 0;   // Day of week
   var FALLBACK_BIG = 2;     // Clock
@@ -58,7 +58,7 @@ function clayCustomFn() {
   var SAMPLE = { dow: 'Sun', day: '26', month: 'Jun', year: '2020',
                  steps: '8.2K', dist: '8.2km', batt: '82%',
                  temp: '22°', humid: '45%', humLabel: 'Hu', minmax: '12/24°',
-                 precip: '2mm',
+                 precip: '2mm', time: '10:09',
                  weekend: true, isPM: false, hour: 10, min: 9, sec: 30 };
 
   // Localised month/weekday names — must match MONTHS/WDAYS in the C source.
@@ -78,7 +78,7 @@ function clayCustomFn() {
   // 4 Steps, 5 Distance, 6 Battery, 7 Year, 8 Weather, 9 Month+Day,
   // 10 Weekday+Day, 11 Temp, 12 Temp(big), 13 Humidity, 14 Min/Max,
   // 15 Precipitation. Day/Clock/Weather/Temp(big) big.
-  function isShort(v) { return v !== 1 && v !== 2 && v !== 8 && v !== 12; }
+  function isShort(v) { return v !== 1 && v !== 2 && v !== 8 && v !== 12 && v !== 17; }
 
   // Display text for the data blocks (steps / distance / battery / year).
   function valueText(v) {
@@ -91,6 +91,7 @@ function clayCustomFn() {
     if (v === 13) { return SAMPLE.humLabel + SAMPLE.humid; }
     if (v === 14) { return SAMPLE.minmax; }
     if (v === 15) { return SAMPLE.precip; }
+    if (v === 16) { return SAMPLE.time; }
     return SAMPLE.year;
   }
 
@@ -196,6 +197,20 @@ function clayCustomFn() {
         ampm('AM', true, SAMPLE.isPM ? DIM : fg) +
         ampm('PM', false, SAMPLE.isPM ? fg : DIM) + seam(w, h);
       return panelDiv(x, y, w, h, bg, inner);
+    }
+    if (v === 17) {  // digital clock (big): hours over minutes, split by seam
+      var hh = '' + SAMPLE.hour;
+      var mm = (SAMPLE.min < 10 ? '0' : '') + SAMPLE.min;
+      var fontD = Math.round(h * 0.34);
+      function halfText(t, topHalf) {
+        return '<div style="position:absolute;left:0;right:0;' +
+          (topHalf ? 'top:0' : 'bottom:0') +
+          ';height:50%;display:flex;align-items:center;justify-content:center;' +
+          'color:' + c.text + ';font-weight:bold;font-size:' + px(fontD) +
+          ';line-height:1;">' + t + '</div>';
+      }
+      return panelDiv(x, y, w, h, c.panel,
+        halfText(hh, true) + halfText(mm, false) + seam(w, h));
     }
     // day number (big), temp (big), month name, or a data readout.
     var txt = v === 1 ? SAMPLE.day : (v === 3 ? SAMPLE.month : valueText(v));

@@ -6,7 +6,8 @@
 //   8 = Weather icon (big), 9 = Month + Day (banner only),
 //   10 = Weekday + Day (banner only), 11 = Temperature (small),
 //   12 = Temperature (big), 13 = Humidity (small), 14 = Min/Max (banner only),
-//   15 = Precipitation (small).
+//   15 = Precipitation (small), 16 = Digital clock (small / banner),
+//   17 = Digital clock (big).
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
 // Day of month / Clock / Weather icon / Temperature (big) are "big".
 
@@ -14,6 +15,8 @@ var BLOCK_OPTIONS = [
   { label: "Day of week (small)", value: 0 },
   { label: "Day of month (big)", value: 1 },
   { label: "Clock (big)", value: 2 },
+  { label: "Digital clock (big)", value: 17 },
+  { label: "Digital clock (small)", value: 16 },
   { label: "Month (small)", value: 3 },
   { label: "Steps (small)", value: 4 },
   { label: "Distance (small)", value: 5 },
@@ -28,6 +31,7 @@ var BLOCK_OPTIONS = [
 // The banner is a single short block: year or one of the data readouts.
 var BAND_OPTIONS = [
   { label: "Year", value: 7 },
+  { label: "Digital clock", value: 16 },
   { label: "Month + Day", value: 9 },
   { label: "Weekday + Day", value: 10 },
   { label: "Steps", value: 4 },

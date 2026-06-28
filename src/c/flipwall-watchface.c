@@ -177,7 +177,9 @@ typedef enum { TRG_DATE, TRG_CLOCK, TRG_HEALTH, TRG_BATTERY, TRG_WEATHER } Trigg
 
 static Trigger block_trigger(QuadBlock b) {
   switch (b) {
-    case BLK_CLOCK:    return TRG_CLOCK;
+    case BLK_CLOCK:
+    case BLK_DIGITAL:
+    case BLK_DIGITAL_BIG: return TRG_CLOCK;
     case BLK_STEPS:
     case BLK_KM:       return TRG_HEALTH;
     case BLK_BATTERY:  return TRG_BATTERY;

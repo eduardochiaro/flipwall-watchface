@@ -15,7 +15,7 @@
     "phone": "npm run build && pebble install --phone",
     "config": "pebble emu-app-config --emulator",
     "logs": "pebble logs",
-    "font": "node scripts/gen-svg-font.js resources/fonts/Montserrat-Bold.ttf resources/fonts/montserrat.svg montserrat \" %-./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°\" && fctx-compiler resources/fonts/montserrat.svg && mv resources/montserrat.ffont resources/fonts/montserrat.ffont"
+    "font": "node scripts/gen-svg-font.js resources/fonts/Montserrat-Bold.ttf resources/fonts/montserrat.svg montserrat \" %-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°\" && fctx-compiler resources/fonts/montserrat.svg && mv resources/montserrat.ffont resources/fonts/montserrat.ffont"
   },
   "pebble": {
     "displayName": "Wall Flip",
@@ -99,7 +99,7 @@
         {
           "type": "raw",
           "name": "ICON_HEAVY_SNOW",
-          "file": "weather/havy_snow.pdc"
+          "file": "weather/heavy_snow.pdc"
         },
         {
           "type": "raw",
