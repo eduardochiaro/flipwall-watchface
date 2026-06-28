@@ -14,7 +14,7 @@
 var BLOCK_OPTIONS = [
   { label: "Day of week (small)", value: 0 },
   { label: "Day of month (big)", value: 1 },
-  { label: "Clock (big)", value: 2 },
+  { label: "Analog Clock (big)", value: 2 },
   { label: "Digital clock (big)", value: 17 },
   { label: "Digital clock (small)", value: 16 },
   { label: "Month (small)", value: 3 },
@@ -74,15 +74,7 @@ module.exports = [
   {
     type: "section",
     items: [
-      { type: "heading", defaultValue: "Preview" },
-      { type: "text", id: "PREVIEW", label: "", defaultValue: "" },
-    ]
-  },
-
-  {
-    type: "section",
-    items: [
-      { type: "heading", defaultValue: "Layout" },
+      { type: "heading", defaultValue: "General" },
       {
         type: "select",
         messageKey: "LANG",
@@ -95,55 +87,15 @@ module.exports = [
         messageKey: "UNITS",
         label: "Units",
         defaultValue: 0,
-        options: UNITS_OPTIONS
-      },
-      {
-        type: "select",
-        messageKey: "BLOCK_BAND",
-        label: "Banner block",
-        defaultValue: 7,
-        options: BAND_OPTIONS
+        options: UNITS_OPTIONS,
+        description: "Metric = °C / mm, Imperial = °F / in. Used for weather blocks."
       },
       {
         type: "toggle",
-        messageKey: "YEAR_TOP",
-        label: "Banner at top",
-        defaultValue: true
-      },
-      {
-        type: "select",
-        messageKey: "BLOCK_TOP_LEFT",
-        label: "Top-left block (big or small)",
-        defaultValue: 0,
-        options: BLOCK_OPTIONS
-      },
-      {
-        type: "select",
-        messageKey: "BLOCK_TOP_RIGHT",
-        label: "Top-right block (big or small)",
-        defaultValue: 1,
-        options: BLOCK_OPTIONS
-      },
-      {
-        type: "select",
-        messageKey: "BLOCK_BOTTOM_LEFT",
-        label: "Bottom-left block (big or small)",
-        defaultValue: 2,
-        options: BLOCK_OPTIONS
-      },
-      {
-        type: "select",
-        messageKey: "BLOCK_BOTTOM_RIGHT",
-        label: "Bottom-right block (big or small)",
-        defaultValue: 3,
-        options: BLOCK_OPTIONS
-      },
-      {
-        type: "text",
-        defaultValue:
-          "Tip: each column pairs one big block (Clock / Day of month) " +
-          "with one small block (Day of week / Month / Steps / Distance / " +
-          "Battery). Picking two of the same size auto-swaps the other."
+        messageKey: "SHOW_SECONDS",
+        label: "Show seconds hand",
+        defaultValue: false,
+        description: "Only on analog clock block."
       }
     ]
   },
@@ -179,14 +131,75 @@ module.exports = [
   {
     type: "section",
     items: [
-      { type: "heading", defaultValue: "Clock" },
+      { type: "heading", defaultValue: "Preview" },
+      { type: "text", id: "PREVIEW", label: "", defaultValue: "" },
+    ]
+  },
+
+  {
+    type: "section",
+    items: [
+      { type: "heading", defaultValue: "Banner Block" },
+      {
+        type: "select",
+        messageKey: "BLOCK_BAND",
+        label: "Type",
+        defaultValue: 7,
+        options: BAND_OPTIONS
+      },
       {
         type: "toggle",
-        messageKey: "SHOW_SECONDS",
-        label: "Show seconds hand",
-        defaultValue: false
-      }
+        messageKey: "YEAR_TOP",
+        label: "Show at top",
+        defaultValue: true
+      },
     ]
+  },
+
+  {
+    type: "section",
+    items: [
+      { type: "heading", defaultValue: "Left Column" },
+      {
+        type: "select",
+        messageKey: "BLOCK_TOP_LEFT",
+        label: "Top Left",
+        defaultValue: 0,
+        options: BLOCK_OPTIONS
+      },
+      {
+        type: "select",
+        messageKey: "BLOCK_BOTTOM_LEFT",
+        label: "Bottom Left",
+        defaultValue: 2,
+        options: BLOCK_OPTIONS
+      },
+    ]
+  },
+  {
+    type: "section",
+    items: [
+      { type: "heading", defaultValue: "Right Column" },
+      {
+        type: "select",
+        messageKey: "BLOCK_TOP_RIGHT",
+        label: "Top Right",
+        defaultValue: 1,
+        options: BLOCK_OPTIONS
+      },
+      {
+        type: "select",
+        messageKey: "BLOCK_BOTTOM_RIGHT",
+        label: "Bottom Right",
+        defaultValue: 3,
+        options: BLOCK_OPTIONS
+      },
+    ]
+  },
+  {
+    type: "text",
+    defaultValue:
+      "Tip: Each column pairs one big block and one small block. Picking two of the same size auto-swaps the other."
   },
 
   {

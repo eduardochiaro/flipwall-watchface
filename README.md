@@ -38,10 +38,23 @@ A digital watchface for Pebble smartwatches based on flip clock design.
 
 Configure via the Pebble app settings page.
 
+### General
+- **Language** — translates month and weekday names. 10 Latin-script languages: English, Espanol, Portugues, Francais, Deutsch, Italiano, Nederlands, Polski, Turkce, Indonesia.
+- **Units** — Metric (°C, mm) or Imperial (°F, in). Applies to the weather blocks.
+- **Show seconds hand** — adds a seconds hand to the analog clock block (off by default to save battery).
+
 ### Layout
-- **Banner block** — content of the full-width banner: Year, Steps, Distance, or Battery.
+Each grid quadrant and the banner is assigned a block. Blocks come in two sizes — **big** (Day of month, Analog clock, Digital clock, Weather icon, Temperature) and **small** (everything else). Each column pairs one big block with one small block; picking two of the same size auto-swaps the other.
+
+- **Banner block** — full-width banner content: Year, Digital clock, Month + Day, Weekday + Day, Steps, Distance, Battery, Temperature, Humidity, Min/Max temp, or Precipitation.
 - **Banner at top** — banner above the grid (on) or below it (off).
-- **Top-left / Top-right / Bottom-left / Bottom-right block** — fill each grid quadrant with: Day of week, Day of month, Clock, Month, Steps, Distance, or Battery. Each column pairs one big block (Clock / Day of month) with one small block; picking two of the same size auto-swaps the other.
+- **Top-left / Top-right / Bottom-left / Bottom-right block** — fill each quadrant with:
+  - **Date/time:** Day of week, Day of month, Analog clock, Digital clock (big or small), Month
+  - **Activity:** Steps, Distance, Battery
+  - **Weather:** Weather icon, Temperature (big or small), Humidity, Precipitation
+
+### Weather
+Weather blocks (icon, temperature, humidity, precipitation, min/max) pull current conditions from Open-Meteo using the phone's location. The icon maps WMO weather codes to condition glyphs. Values render in the selected unit system.
 
 ### Colors
 - **Face background** — color behind the panels.
@@ -49,9 +62,6 @@ Configure via the Pebble app settings page.
 - **Weekend / accent** — day-of-week panel color on weekends, also used for the inactive AM/PM label.
 
 Text color is automatic: black on light backgrounds, white on dark ones.
-
-### Clock
-- **Show seconds hand** — adds a seconds hand (off by default to save battery).
 
 ## Support
 For issues, questions, or suggestions, please open an issue on GitHub.

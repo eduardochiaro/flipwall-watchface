@@ -346,7 +346,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 
 static void prv_window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
-  is_large_screen = (layer_get_bounds(root).size.w > 144);
+  is_large_screen = (layer_get_bounds(root).size.w >= 200);
 
   // aplite is too small for the vector font; it uses system fonts (see blocks.c).
 #if !PBL_PLATFORM_APLITE

@@ -330,7 +330,7 @@ static void draw_dow(GContext *ctx, GRect r) {
                GTextAlignmentLeft);
 
   // AM top-right, PM bottom-right; the active one is bright.
-  int ampm_cap = is_large_screen ? 11 : 7;
+  int ampm_cap = PBL_IF_ROUND_ELSE(is_large_screen ? 11 : 5, is_large_screen ? 11 : 7);
   bool is_pm = s_now.tm_hour >= 12;
   GColor dim = get_closest_accent_color(s_weekend_bg);
   text_corner(ctx, r, "AM", ampm_cap, true,  is_pm ? dim : s_override_text_fg);
