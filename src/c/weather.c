@@ -9,12 +9,16 @@ typedef enum {
   PK_W_HUMIDITY,
   PK_W_MIN,
   PK_W_MAX,
+  PK_W_PRECIP,
+  PK_W_UNITS,
 } WeatherPersistKey;
 
 static bool s_have = false;
-static int  s_temp, s_code, s_humidity, s_min, s_max;
+static int  s_temp, s_code, s_humidity, s_min, s_max, s_precip;
+static bool s_imperial = false;   // affects only the precip suffix (mm vs in)
 
 void weather_init(void) {
+  if (persist_exists(PK_W_UNITS)) s_imperial = persist_read_bool(PK_W_UNITS);
   if (!persist_exists(PK_W_VALID)) return;
   s_have     = true;
   s_temp     = persist_read_int(PK_W_TEMP);
@@ -22,6 +26,12 @@ void weather_init(void) {
   s_humidity = persist_read_int(PK_W_HUMIDITY);
   s_min      = persist_read_int(PK_W_MIN);
   s_max      = persist_read_int(PK_W_MAX);
+  s_precip   = persist_read_int(PK_W_PRECIP);
+}
+
+void weather_set_units(bool imperial) {
+  s_imperial = imperial;
+  persist_write_bool(PK_W_UNITS, imperial);
 }
 
 // Clay/config saves and weather pushes arrive on the same inbox; this reads the
@@ -39,6 +49,8 @@ bool weather_handle_message(DictionaryIterator *iter) {
   if (mn) s_min = mn->value->int32;
   Tuple *mx = dict_find(iter, MESSAGE_KEY_WEATHER_MAX_TEMP);
   if (mx) s_max = mx->value->int32;
+  Tuple *pr = dict_find(iter, MESSAGE_KEY_WEATHER_PRECIPITATION);
+  if (pr) s_precip = pr->value->int32;
 
   s_have = true;
   persist_write_bool(PK_W_VALID, true);
@@ -47,6 +59,7 @@ bool weather_handle_message(DictionaryIterator *iter) {
   persist_write_int(PK_W_HUMIDITY, s_humidity);
   persist_write_int(PK_W_MIN, s_min);
   persist_write_int(PK_W_MAX, s_max);
+  persist_write_int(PK_W_PRECIP, s_precip);
   return true;
 }
 
@@ -62,6 +75,11 @@ void weather_humidity_str(char *buf, size_t n) {
 
 void weather_minmax_str(char *buf, size_t n) {
   if (s_have) snprintf(buf, n, "%d/%d°", s_min, s_max);
+  else        snprintf(buf, n, "--");
+}
+
+void weather_precip_str(char *buf, size_t n) {
+  if (s_have) snprintf(buf, n, "%d%s", s_precip, s_imperial ? "in" : "mm");
   else        snprintf(buf, n, "--");
 }
 

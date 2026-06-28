@@ -14,7 +14,8 @@
     "emulator": "npm run build && pebble install --emulator ",
     "phone": "npm run build && pebble install --phone",
     "config": "pebble emu-app-config --emulator",
-    "logs": "pebble logs"
+    "logs": "pebble logs",
+    "font": "node scripts/gen-svg-font.js resources/fonts/Montserrat-Bold.ttf resources/fonts/montserrat.svg montserrat \" %-./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°\" && fctx-compiler resources/fonts/montserrat.svg && mv resources/montserrat.ffont resources/fonts/montserrat.ffont"
   },
   "pebble": {
     "displayName": "Wall Flip",
@@ -49,6 +50,7 @@
       "TEXT_COLOR",
       "SHOW_SECONDS",
       "LANG",
+      "UNITS",
       "WEATHER_TEMPERATURE",
       "WEATHER_CODE",
       "WEATHER_HUMIDITY",
@@ -70,134 +72,15 @@
           "file": "weather/sunny.pdc"
         },
         {
-          "type": "font",
-          "name": "FONT_NUM_44",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9°-]",
+          "type": "raw",
+          "name": "FONT_MONTSERRAT_FFONT",
+          "file": "fonts/montserrat.ffont",
           "targetPlatforms": [
-            "aplite",
-            "basalt",
-            "diorite",
-            "flint"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_TXT_26",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%/° -]",
-          "targetPlatforms": [
-            "aplite",
-            "basalt",
-            "diorite",
-            "flint"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_TXT_18",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%/° -]",
-          "targetPlatforms": [
-            "aplite",
-            "basalt",
-            "diorite",
-            "flint"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_SML_8",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[A-Za-z]",
-          "targetPlatforms": [
-            "aplite",
             "basalt",
             "chalk",
             "diorite",
-            "flint"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_NUM_64",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9°-]",
-          "targetPlatforms": [
             "emery",
-            "gabbro"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_TXT_36",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%/° -]",
-          "targetPlatforms": [
-            "emery"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_TXT_26",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%/° -]",
-          "targetPlatforms": [
-            "emery",
-            "gabbro"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_SML_10",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[A-Za-z]",
-          "targetPlatforms": [
-            "emery"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_NUM_40",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9°-]",
-          "targetPlatforms": [
-            "chalk"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_TXT_24",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%/° -]",
-          "targetPlatforms": [
-            "chalk"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_TXT_17",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%/° -]",
-          "targetPlatforms": [
-            "chalk"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_TXT_38",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.%/° -]",
-          "targetPlatforms": [
-            "gabbro"
-          ]
-        },
-        {
-          "type": "font",
-          "name": "FONT_SML_12",
-          "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[A-Za-z]",
-          "targetPlatforms": [
+            "flint",
             "gabbro"
           ]
         }
@@ -205,6 +88,11 @@
     }
   },
   "dependencies": {
-    "@rebble/clay": "^1.0.10"
+    "@rebble/clay": "^1.0.10",
+    "pebble-fctx": "^1.6.5"
+  },
+  "devDependencies": {
+    "opentype.js": "^2.0.0",
+    "pebble-fctx-compiler": "^1.2.2"
   }
 }

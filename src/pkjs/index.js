@@ -37,6 +37,11 @@ function sanitize(settings) {
     writeValue(settings, 'LANG', parseInt(readValue(settings, 'LANG'), 10) || 0);
   }
 
+  // Units select ships as an int (0 = metric, 1 = imperial).
+  if (readValue(settings, 'UNITS') !== undefined) {
+    writeValue(settings, 'UNITS', parseInt(readValue(settings, 'UNITS'), 10) || 0);
+  }
+
   COLUMNS.forEach(function(col) {
     var topKey = col[0];
     var botKey = col[1];
@@ -80,6 +85,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
   Pebble.sendAppMessage(dict, function() {
     console.log('Sent config data to Pebble');
+    getWeather();   // units may have changed; refresh now instead of waiting
   }, function(error) {
     console.log('Failed to send config data: ' + JSON.stringify(error));
   });

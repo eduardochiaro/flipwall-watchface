@@ -13,10 +13,27 @@ function getLocation(successCallback, errorCallback) {
   );
 }
 
+// Imperial when the user picked it on the config page (UNITS = 1), else metric.
+// Clay persists the saved settings to localStorage under 'clay-settings'.
+function isImperial() {
+  try {
+    var s = JSON.parse(localStorage.getItem('clay-settings')) || {};
+    var u = s.UNITS;
+    if (u && typeof u === 'object') { u = u.value; }
+    return parseInt(u, 10) === 1;
+  } catch (e) {
+    return false;
+  }
+}
+
 function fetchWeather(lat, lon, successCallback, errorCallback) {
-  // Always fetch in Celsius - conversion will be done in C code
-  var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&daily=temperature_2m_max,temperature_2m_min&current=temperature_2m,weather_code,relative_humidity_2m,precipitation&forecast_days=1&timezone=auto';
-  
+  // Open-Meteo returns the values already in the requested unit, so the module
+  // does the metric<->imperial translation here (C just renders the numbers).
+  var units = isImperial()
+    ? '&temperature_unit=fahrenheit&precipitation_unit=inch'
+    : '';
+  var url = 'https://api.open-meteo.com/v1/forecast?latitude=' + lat + '&longitude=' + lon + '&daily=temperature_2m_max,temperature_2m_min&current=temperature_2m,weather_code,relative_humidity_2m,precipitation&forecast_days=1&timezone=auto' + units;
+
   var xhr = new XMLHttpRequest();
   
   xhr.onreadystatechange = function() {
@@ -70,7 +87,7 @@ function getWeather() {
     fetchWeather(location.lat, location.lon, function(weatherData) {
       // Send weather data to C code
       Pebble.sendAppMessage({
-        WEATHER_TEMPERATURE: weatherData.temperature, // In celsius, conversion to Fahrenheit will be done in C code
+        WEATHER_TEMPERATURE: weatherData.temperature, // already in the user's unit (see isImperial)
         WEATHER_CODE: weatherData.weatherCode, // Weather code for icon selection
         WEATHER_HUMIDITY: weatherData.humidity, // Relative humidity percentage
         WEATHER_PRECIPITATION: weatherData.precipitation, // Precipitation in mm

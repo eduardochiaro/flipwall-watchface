@@ -13,12 +13,14 @@
 // "short" half-height block.
 bool block_valid_grid(int v) {
   return (v >= BLK_DOW && v <= BLK_BATTERY) || v == BLK_WEATHER ||
-         v == BLK_TEMP || v == BLK_TEMP_BIG || v == BLK_HUMIDITY;
+         v == BLK_TEMP || v == BLK_TEMP_BIG || v == BLK_HUMIDITY ||
+         v == BLK_PRECIP;
 }
 bool block_valid_band(int v) {
   return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY) ||
          v == BLK_MONTH_DAY || v == BLK_DOW_DAY ||
-         v == BLK_TEMP || v == BLK_HUMIDITY || v == BLK_MINMAX;
+         v == BLK_TEMP || v == BLK_HUMIDITY || v == BLK_MINMAX ||
+         v == BLK_PRECIP;
 }
 bool block_is_short(QuadBlock b) {
   return !(b == BLK_DAY || b == BLK_CLOCK || b == BLK_WEATHER || b == BLK_TEMP_BIG);
@@ -28,19 +30,133 @@ bool block_is_short(QuadBlock b) {
 // Drawing helpers
 // ---------------------------------------------------------------------------
 
-// Draw text optically centred inside a rect. Pebble fonts carry internal
-// leading (padding above the caps), so a plain box-centre leaves the glyphs
-// sitting low; nudge up by a fraction of the line height to compensate.
-static void draw_centered(GContext *ctx, GRect r, const char *txt, GFont font,
-                          GColor color, GTextAlignment align) {
+// Text is drawn through three helpers so the blocks don't care how glyphs are
+// produced. There are two backends, picked at compile time:
+//
+//   * the 6 roomy platforms use the fctx vector font (one scalable .ffont,
+//     sized per block by cap height);
+//   * aplite (12KB heap, too small for the vector font + fctx buffers) falls
+//     back to Pebble's built-in system fonts: zero resource cost, near-zero
+//     heap. cap_h is mapped to the nearest system font size.
+//
+//   text_in_rect : horizontal text, vertically centred, align left/center/right
+//   text_width   : pixel width of a string (to size the banner panel to text)
+//   text_corner  : a small AM/PM marker pinned to a top/bottom-right corner
+
+#if PBL_PLATFORM_APLITE
+
+static GFont sysfont(int cap_h) {
+  if (cap_h >= 30) return fonts_get_system_font(FONT_KEY_BITHAM_42_BOLD);
+  if (cap_h >= 22) return fonts_get_system_font(FONT_KEY_GOTHIC_28_BOLD);
+  if (cap_h >= 16) return fonts_get_system_font(FONT_KEY_GOTHIC_24_BOLD);
+  if (cap_h >= 12) return fonts_get_system_font(FONT_KEY_GOTHIC_18_BOLD);
+  return fonts_get_system_font(FONT_KEY_GOTHIC_14_BOLD);
+}
+
+static void text_in_rect(GContext *ctx, GRect r, const char *txt, int cap_h,
+                         GColor color, GTextAlignment align) {
+  GFont font = sysfont(cap_h);
   graphics_context_set_text_color(ctx, color);
   GSize sz = graphics_text_layout_get_content_size(
       txt, font, r, GTextOverflowModeTrailingEllipsis, align);
   GRect tr = r;
+  // System fonts pad above the caps, so the content box centres lower than the
+  // glyphs. Nudge up by ~1/6 of the line height to centre the caps instead.
+  // ponytail: empirical knob; tweak the /6 if a size still looks off-centre.
   tr.origin.y += (r.size.h - sz.h) / 2 - sz.h / 6;
   tr.size.h = sz.h + 4;
   graphics_draw_text(ctx, txt, font, tr, GTextOverflowModeTrailingEllipsis,
                      align, NULL);
+}
+
+static int text_width(GContext *ctx, const char *txt, int cap_h) {
+  return graphics_text_layout_get_content_size(
+      txt, sysfont(cap_h), GRect(0, 0, 200, 60),
+      GTextOverflowModeTrailingEllipsis, GTextAlignmentLeft).w;
+}
+
+static void text_corner(GContext *ctx, GRect r, const char *txt, int cap_h,
+                        bool top, GColor color) {
+  GFont font = sysfont(cap_h);
+  // sysfont() snaps cap_h to a real font that may be taller than cap_h, so size
+  // the box from the actual rendered text, not cap_h, or the glyph clips.
+  GSize sz = graphics_text_layout_get_content_size(
+      txt, font, GRect(0, 0, r.size.w, 40), GTextOverflowModeTrailingEllipsis,
+      GTextAlignmentRight);
+  // Align the text box to the block's top/bottom edge; the font's own padding
+  // (leading above, descent below) insets each label symmetrically.
+  // ponytail: tweak the +/-1 if a label still kisses or clips its edge.
+  int y = top ? r.origin.y + 1
+              : r.origin.y + r.size.h - sz.h - 1;
+  graphics_context_set_text_color(ctx, color);
+  graphics_draw_text(ctx, txt, font, GRect(r.origin.x, y, r.size.w - 3, sz.h + 4),
+                     GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
+}
+
+#else  // fctx vector font
+
+static void fctx_text(GContext *ctx, GPoint anchor, const char *txt, int cap_h,
+                      GColor color, GTextAlignment align, FTextAnchor vanchor) {
+  if (!s_ffont) return;   // font failed to load -> draw nothing (no crash)
+  FContext f;
+  fctx_init_context(&f, ctx);
+  // fctx draws in absolute framebuffer coords; shift by the layer's origin.
+  fctx_set_offset(&f, FPointI(anchor.x + s_draw_origin.x,
+                              anchor.y + s_draw_origin.y));
+  fctx_set_fill_color(&f, color);
+  fctx_set_text_cap_height(&f, s_ffont, cap_h);
+  fctx_begin_fill(&f);
+  fctx_draw_string(&f, txt, s_ffont, align, vanchor);
+  fctx_end_fill(&f);
+  fctx_deinit_context(&f);
+}
+
+static void text_in_rect(GContext *ctx, GRect r, const char *txt, int cap_h,
+                         GColor color, GTextAlignment align) {
+  int x = (align == GTextAlignmentLeft)  ? r.origin.x
+        : (align == GTextAlignmentRight) ? r.origin.x + r.size.w
+        :                                  r.origin.x + r.size.w / 2;
+  GPoint anchor = GPoint(x, r.origin.y + r.size.h / 2);
+  fctx_text(ctx, anchor, txt, cap_h, color, align, FTextAnchorCapMiddle);
+}
+
+static int text_width(GContext *ctx, const char *txt, int cap_h) {
+  if (!s_ffont) return 0;
+  FContext f;
+  fctx_init_context(&f, ctx);
+  fctx_set_text_cap_height(&f, s_ffont, cap_h);
+  int w = FIXED_TO_INT(fctx_string_width(&f, txt, s_ffont));
+  fctx_deinit_context(&f);
+  return w;
+}
+
+static void text_corner(GContext *ctx, GRect r, const char *txt, int cap_h,
+                        bool top, GColor color) {
+  const int pad = 3;
+  // Pin to the block's top/bottom edge (cap-top grows down, bottom grows up)
+  // so the two labels stay clear of each other and the centred day name.
+  // ponytail: bottom needs extra lift so the baseline-anchored label clears the
+  // border; raise the +5 if PM still kisses the edge.
+  int y = top ? r.origin.y + pad : r.origin.y + r.size.h - pad;
+  GPoint anchor = GPoint(r.origin.x + r.size.w - pad, y);
+  // Bottom label uses Baseline, not Bottom: AM/PM have no descenders, so the
+  // font's descent gap under Bottom would float the glyph up off the edge.
+  fctx_text(ctx, anchor, txt, cap_h, color, GTextAlignmentRight,
+            top ? FTextAnchorCapTop : FTextAnchorBaseline);
+}
+
+#endif
+
+// Centre text in a rect (most blocks). cap_h is a fraction of the rect height,
+// but shrink it if the string is too wide (e.g. 3-digit temps like "100°" or a
+// long "54/75°") so it never spills past the panel. Width scales ~linearly with
+// cap height, so one ratio pass is enough.
+static void draw_centered(GContext *ctx, GRect r, const char *txt, int cap_h,
+                          GColor color) {
+  int avail = r.size.w - 6;
+  int w = text_width(ctx, txt, cap_h);
+  if (w > avail && avail > 0) cap_h = cap_h * avail / w;
+  text_in_rect(ctx, r, txt, cap_h, color, GTextAlignmentCenter);
 }
 
 // The thin dark line across the middle that sells the "flip display" look.
@@ -54,25 +170,6 @@ static void draw_seam(GContext *ctx, GRect r) {
 static void draw_panel(GContext *ctx, GRect r, GColor bg) {
   graphics_context_set_fill_color(ctx, bg);
   graphics_fill_rect(ctx, r, 4, GCornersAll);
-}
-
-// Small AM/PM label tucked into a top or bottom corner of the DoW block, in
-// the empty row above/below the vertically-centred word (so it never collides).
-static void draw_ampm(GContext *ctx, GRect r, const char *txt, bool top,
-                      GColor color) {
-  const int h = 14;
-  // On the taller gabbro block the bottom (PM) label sits a touch low; lift it.
-#if defined(PBL_PLATFORM_GABBRO)
-  const int bottom_lift = 6;
-#else
-  const int bottom_lift = 0;
-#endif
-  int y = top ? r.origin.y + 2
-              : r.origin.y + r.size.h - h + 1 - bottom_lift;
-  graphics_context_set_text_color(ctx, color);
-  graphics_draw_text(ctx, txt, s_font_sml,
-                     GRect(r.origin.x, y, r.size.w - 3, h),
-                     GTextOverflowModeTrailingEllipsis, GTextAlignmentRight, NULL);
 }
 
 // ---------------------------------------------------------------------------
@@ -135,11 +232,17 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
     case BLK_TEMP_BIG:
       weather_temp_str(buf, n);
       break;
-    case BLK_HUMIDITY:
-      weather_humidity_str(buf, n);
+    case BLK_HUMIDITY: {
+      char v[8];
+      weather_humidity_str(v, sizeof(v));
+      snprintf(buf, n, "%s%s", humidity_label(), v);   // localised "Hu45%"
       break;
+    }
     case BLK_MINMAX:
       weather_minmax_str(buf, n);
+      break;
+    case BLK_PRECIP:
+      weather_precip_str(buf, n);
       break;
     default:
       buf[0] = '\0';
@@ -153,7 +256,9 @@ static void draw_value_block(GContext *ctx, GRect r, QuadBlock blk) {
   char buf[16];
   block_text(blk, buf, sizeof(buf));
   draw_panel(ctx, r, s_panel_bg);
-  draw_centered(ctx, r, buf, s_font_txt_sm, s_text_fg, GTextAlignmentCenter);
+  // Big cap (matches the month block); draw_centered shrinks it to fit width if
+  // the string (a wide "°"/prefix value) would overflow.
+  draw_centered(ctx, r, buf, r.size.h * 52 / 100, s_text_fg);
   draw_seam(ctx, r);
 }
 
@@ -161,7 +266,7 @@ static void draw_day(GContext *ctx, GRect r) {
   char buf[4];
   snprintf(buf, sizeof(buf), "%d", s_now.tm_mday);
   draw_panel(ctx, r, s_panel_bg);
-  draw_centered(ctx, r, buf, s_font_num, s_text_fg, GTextAlignmentCenter);
+  draw_centered(ctx, r, buf, r.size.h * 50 / 100, s_text_fg);
   draw_seam(ctx, r);
 }
 
@@ -170,13 +275,13 @@ static void draw_temp_big(GContext *ctx, GRect r) {
   char buf[16];
   weather_temp_str(buf, sizeof(buf));
   draw_panel(ctx, r, s_panel_bg);
-  draw_centered(ctx, r, buf, s_font_num, s_text_fg, GTextAlignmentCenter);
+  draw_centered(ctx, r, buf, r.size.h * 40 / 100, s_text_fg);   // "°" widens it
   draw_seam(ctx, r);
 }
 
 static void draw_month(GContext *ctx, GRect r) {
   draw_panel(ctx, r, s_panel_bg);
-  draw_centered(ctx, r, month_name(), s_font_txt, s_text_fg, GTextAlignmentCenter);
+  draw_centered(ctx, r, month_name(), r.size.h * 52 / 100, s_text_fg);
   draw_seam(ctx, r);
 }
 
@@ -186,17 +291,20 @@ static void draw_dow(GContext *ctx, GRect r) {
   draw_panel(ctx, r, weekend ? s_weekend_bg : s_panel_bg);
   GColor s_override_text_fg = contrast_color(weekend ? s_weekend_bg : s_panel_bg);
 
-  // Day-of-week uses the full block width. add a little padding to the left so the AM/PM label doesn't collide with the text.
-  GRect newr = r;
-  newr.origin.x += 4;
-  newr.size.w -= 4;
-  draw_centered(ctx, newr, buf, s_font_txt_sm, s_override_text_fg, GTextAlignmentLeft);
+  // Day-of-week is left-aligned with a little left padding so the AM/PM label
+  // in the right corners never collides with it.
+  GRect lr = r;
+  lr.origin.x += 6;
+  lr.size.w -= 6;
+  text_in_rect(ctx, lr, buf, r.size.h * 42 / 100, s_override_text_fg,
+               GTextAlignmentLeft);
 
   // AM top-right, PM bottom-right; the active one is bright.
+  int ampm_cap = is_large_screen ? 11 : 7;
   bool is_pm = s_now.tm_hour >= 12;
   GColor dim = get_closest_accent_color(s_weekend_bg);
-  draw_ampm(ctx, r, "AM", true,  is_pm ? dim : s_override_text_fg);
-  draw_ampm(ctx, r, "PM", false, is_pm ? s_override_text_fg : dim);
+  text_corner(ctx, r, "AM", ampm_cap, true,  is_pm ? dim : s_override_text_fg);
+  text_corner(ctx, r, "PM", ampm_cap, false, is_pm ? s_override_text_fg : dim);
 
   draw_seam(ctx, r);
 }
@@ -298,19 +406,20 @@ static void draw_icon_block(GContext *ctx, GRect r, uint32_t res_id) {
 void draw_band(GContext *ctx, GRect band) {
   char buf[16];
   block_text(s_band_block, buf, sizeof(buf));
-  GFont font = s_font_txt_sm;
-  GSize sz = graphics_text_layout_get_content_size(
-      buf, font, band, GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);
+  int cap_h = band.size.h * 60 / 100;
 
-  const int pad_x = 6;
+  // Measure the string so the panel hugs the text.
+  int text_w = text_width(ctx, buf, cap_h);
+
+  const int pad_x = 8;
   GRect r;
-  r.size.w = sz.w + pad_x * 2;
+  r.size.w = text_w + pad_x * 2;
   r.size.h = band.size.h;
   r.origin.x = band.origin.x + (band.size.w - r.size.w) / 2;
   r.origin.y = band.origin.y;
 
   draw_panel(ctx, r, s_panel_bg);
-  draw_centered(ctx, r, buf, font, s_text_fg, GTextAlignmentCenter);
+  draw_centered(ctx, r, buf, cap_h, s_text_fg);
   draw_seam(ctx, r);
 }
 

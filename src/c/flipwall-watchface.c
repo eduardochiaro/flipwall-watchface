@@ -40,12 +40,9 @@ bool is_large_screen = false;   // Pebble Time / Time 2 / Round screens
 
 struct tm s_now;
 
-// All text uses bundled Montserrat Bold so the design is consistent across
-// platforms; sizes are picked per screen tier in prv_window_load().
-GFont s_font_num;     // big day number
-GFont s_font_txt;     // month
-GFont s_font_txt_sm;  // year, day-of-week
-GFont s_font_sml;     // AM/PM indicator
+// One scalable Montserrat Bold vector font (fctx); every block sizes it by
+// cap height, so there are no per-screen font tiers to load.
+FFont *s_ffont;
 
 // Persistent-storage keys (independent of the AppMessage message keys).
 typedef enum {
@@ -83,46 +80,58 @@ typedef enum {
 #endif
 
 static Window *s_window;
-static Layer  *s_main_layer;
+static Layer  *s_band_layer;          // the banner
+static Layer  *s_grid_layer[2][2];    // the 2x2 grid; each holds a QuadBlock
+static int     s_prev_yday = -1;      // for day-rollover detection
+GPoint s_draw_origin;                 // abs origin of the block being drawn (for fctx)
 
 // ---------------------------------------------------------------------------
-// Layout + main update
+// Per-block layers
+//
+// Each block is its own Layer so it repaints in isolation: the clock every
+// minute (or second), the date blocks once a day, weather on a phone push,
+// battery/steps on their service events. Frames don't overlap, so marking one
+// block dirty skips every other block's (fctx) update_proc -- the point, for
+// battery. The face colour is the window background, shown in the gutters and
+// rounded corners, and never repainted.
 // ---------------------------------------------------------------------------
 
-static void main_layer_update(Layer *layer, GContext *ctx) {
-  GRect b = layer_get_bounds(layer);
+static void band_layer_update(Layer *layer, GContext *ctx) {
+  s_draw_origin = layer_get_frame(layer).origin;
+  draw_band(ctx, layer_get_bounds(layer));
+}
 
-  // Face background.
-  graphics_context_set_fill_color(ctx, s_face_bg);
-  graphics_fill_rect(ctx, b, 0, GCornerNone);
+static void grid_layer_update(Layer *layer, GContext *ctx) {
+  s_draw_origin = layer_get_frame(layer).origin;
+  QuadBlock blk = *(QuadBlock *)layer_get_data(layer);
+  draw_block(ctx, blk, layer_get_bounds(layer));
+}
 
+// Position every block layer and tag each grid layer with the block it shows.
+// Runs once on load and again on a settings change -- never per tick.
+static void layout(void) {
+  GRect b = layer_get_bounds(window_get_root_layer(s_window));
   GRect inner = grect_inset(b, GEdgeInsets(MARGIN, MARGIN + SIDE_MARGIN));
 
-  // The two columns fill the width. The tall blocks are square; the short
-  // blocks are half their height.
+  // The two columns fill the width. Tall blocks are square; short blocks are
+  // half their height.
   int col_w   = (inner.size.w - GUTTER) / 2;
   int square  = col_w;
   int short_h = square / 2;
   int col_h   = square + GUTTER + short_h;
+  int year_h  = square * 45 / 100;   // banner height
 
-  // Year band height comes from the year text itself (plus a little padding).
-  char yb[8];
-  strftime(yb, sizeof(yb), "%Y", &s_now);
-  GSize ys = graphics_text_layout_get_content_size(
-      yb, s_font_txt, inner,
-      GTextOverflowModeTrailingEllipsis, GTextAlignmentCenter);
-  int year_h = ys.h + 6;
-
-  // Centre the whole group (year band + grid) vertically in the face.
+  // Centre the whole group (banner + grid) vertically in the face.
   int group_h = year_h + GUTTER + col_h;
   int top = inner.origin.y + (inner.size.h - group_h) / 2;
-
-  // Round faces nudge the whole group up when the banner is on top (and down
-  // when it's at the bottom) so the full-width grid edge clears the bezel.
+  // Round faces nudge the group up (banner top) / down (banner bottom) so the
+  // full-width grid edge clears the bezel.
+  // ponytail: round-bezel clearance knob. The up-nudge was clipping the top
+  // banner, so it's reduced; raise the magnitude again if the grid edge clips.
 #if defined(PBL_PLATFORM_GABBRO)
-  top += s_year_top ? -20 : 20;
+  top += s_year_top ? -10 : 20;
 #elif defined(PBL_PLATFORM_CHALK)
-  top += s_year_top ? -10 : 10;
+  top += s_year_top ? -5 : 10;
 #endif
 
   GRect band, area;
@@ -133,8 +142,7 @@ static void main_layer_update(Layer *layer, GContext *ctx) {
     area = GRect(inner.origin.x, top, inner.size.w, col_h);
     band = GRect(inner.origin.x, top + col_h + GUTTER, inner.size.w, year_h);
   }
-
-  draw_band(ctx, band);
+  layer_set_frame(s_band_layer, band);
 
   // Each column pairs a square block with a short block; s_grid decides which
   // sits on top. Both columns total the same height, so they align.
@@ -151,26 +159,80 @@ static void main_layer_update(Layer *layer, GContext *ctx) {
       top_h = square;  bot_h = short_h;      // square on top, short below
     }
     int x = area.origin.x + col * (col_w + GUTTER);
-    draw_block(ctx, top_blk, GRect(x, area.origin.y, col_w, top_h));
-    draw_block(ctx, bot_blk,
-               GRect(x, area.origin.y + top_h + GUTTER, col_w, bot_h));
+    layer_set_frame(s_grid_layer[0][col], GRect(x, area.origin.y, col_w, top_h));
+    layer_set_frame(s_grid_layer[1][col],
+                    GRect(x, area.origin.y + top_h + GUTTER, col_w, bot_h));
+    *(QuadBlock *)layer_get_data(s_grid_layer[0][col]) = top_blk;
+    *(QuadBlock *)layer_get_data(s_grid_layer[1][col]) = bot_blk;
   }
+
+  // Reframing marks frames dirty; force the kinds/colours to repaint too.
+  layer_mark_dirty(s_band_layer);
+  for (int r = 0; r < 2; r++)
+    for (int c = 0; c < 2; c++) layer_mark_dirty(s_grid_layer[r][c]);
+}
+
+// What real-world change forces a given block to repaint.
+typedef enum { TRG_DATE, TRG_CLOCK, TRG_HEALTH, TRG_BATTERY, TRG_WEATHER } Trigger;
+
+static Trigger block_trigger(QuadBlock b) {
+  switch (b) {
+    case BLK_CLOCK:    return TRG_CLOCK;
+    case BLK_STEPS:
+    case BLK_KM:       return TRG_HEALTH;
+    case BLK_BATTERY:  return TRG_BATTERY;
+    case BLK_WEATHER:
+    case BLK_TEMP:
+    case BLK_TEMP_BIG:
+    case BLK_HUMIDITY:
+    case BLK_MINMAX:
+    case BLK_PRECIP:   return TRG_WEATHER;
+    default:           return TRG_DATE;   // dow / day / month / year / *_day
+  }
+}
+
+// Repaint only the placed blocks driven by `t`.
+static void mark_blocks(Trigger t) {
+  if (block_trigger(s_band_block) == t) layer_mark_dirty(s_band_layer);
+  for (int r = 0; r < 2; r++)
+    for (int c = 0; c < 2; c++)
+      if (block_trigger(s_grid[r][c]) == t) layer_mark_dirty(s_grid_layer[r][c]);
+}
+
+static bool clock_present(void) {
+  for (int r = 0; r < 2; r++)
+    for (int c = 0; c < 2; c++)
+      if (s_grid[r][c] == BLK_CLOCK) return true;
+  return false;
 }
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   s_now = *tick_time;
-  layer_mark_dirty(s_main_layer);
+  mark_blocks(TRG_CLOCK);
+  if (s_now.tm_yday != s_prev_yday) {   // crossed midnight
+    s_prev_yday = s_now.tm_yday;
+    mark_blocks(TRG_DATE);
+  }
 }
+
+static void battery_handler(BatteryChargeState state) { mark_blocks(TRG_BATTERY); }
+
+#if defined(PBL_HEALTH)
+static void health_handler(HealthEventType event, void *ctx) {
+  if (event == HealthEventMovementUpdate || event == HealthEventSignificantUpdate)
+    mark_blocks(TRG_HEALTH);
+}
+#endif
 
 // ---------------------------------------------------------------------------
 // Settings (Clay config page <-> persistent storage)
 // ---------------------------------------------------------------------------
 
-// Ticking every second is only needed when the seconds hand is shown; fall
-// back to minute ticks otherwise to save battery.
+// Second ticks only when the seconds hand is shown AND a clock is actually
+// placed; minute ticks otherwise (which also catch the day rollover).
 static void apply_tick_interval(void) {
-  tick_timer_service_subscribe(s_show_seconds ? SECOND_UNIT : MINUTE_UNIT,
-                               tick_handler);
+  bool secs = s_show_seconds && clock_present();
+  tick_timer_service_subscribe(secs ? SECOND_UNIT : MINUTE_UNIT, tick_handler);
 }
 
 static QuadBlock read_block(PersistKey key, QuadBlock def) {
@@ -246,7 +308,7 @@ static void apply_color(DictionaryIterator *iter, uint32_t msg_key,
 // Both Clay config saves and weather pushes arrive on this inbox.
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if (weather_handle_message(iter)) {
-    layer_mark_dirty(s_main_layer);
+    mark_blocks(TRG_WEATHER);   // repaint only the weather blocks
     return;   // a weather push carries no config keys
   }
 
@@ -269,59 +331,63 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   apply_color(iter, MESSAGE_KEY_WEEKEND_COLOR, PK_WEEKEND_COLOR, &s_weekend_bg);
   s_text_fg = contrast_color(s_panel_bg);
 
-  bool was_seconds = s_show_seconds;
   apply_bool(iter, MESSAGE_KEY_SHOW_SECONDS, PK_SHOW_SECONDS, &s_show_seconds);
-  if (s_show_seconds != was_seconds) {
-    apply_tick_interval();
-  }
 
+  Tuple *units_t = dict_find(iter, MESSAGE_KEY_UNITS);
+  if (units_t) weather_set_units(units_t->value->int32 != 0);
+
+  // Layout, block kinds, seconds and clock placement may all have changed.
   window_set_background_color(s_window, s_face_bg);
-  layer_mark_dirty(s_main_layer);
+  apply_tick_interval();
+  layout();   // reframes + retags + repaints every block
 }
 
 static void prv_window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
-  s_main_layer = layer_create(layer_get_bounds(root));
-  layer_set_update_proc(s_main_layer, main_layer_update);
-  layer_add_child(root, s_main_layer);
-
   is_large_screen = (layer_get_bounds(root).size.w > 144);
 
-#if defined(PBL_PLATFORM_EMERY)
-  s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_64));
-  s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_36));
-  s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_26));
-  s_font_sml = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SML_10));
-#elif defined(PBL_PLATFORM_GABBRO)
-  // 260x260 round: blocks are ~95px, so the fonts are bumped above even emery's.
-  s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_64));
-  s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_38));
-  s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_26));
-  s_font_sml = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SML_12));
-#elif defined(PBL_PLATFORM_CHALK)
-  // 180x180 round with a wide side margin: blocks are ~55px, smaller than
-  // basalt's, so the fonts step down a tier.
-  s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_40));
-  s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_24));
-  s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_17));
-  s_font_sml = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SML_8));
-#else
-  s_font_num = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_NUM_44));
-  s_font_txt = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_26));
-  s_font_txt_sm = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_TXT_18));
-  s_font_sml = fonts_load_custom_font(resource_get_handle(RESOURCE_ID_FONT_SML_8));
+  // aplite is too small for the vector font; it uses system fonts (see blocks.c).
+#if !PBL_PLATFORM_APLITE
+  s_ffont = ffont_create_from_resource(RESOURCE_ID_FONT_MONTSERRAT_FFONT);
 #endif
 
   time_t now = time(NULL);
   s_now = *localtime(&now);
+  s_prev_yday = s_now.tm_yday;
+
+  // One Layer per block (frames assigned by layout()). Grid layers carry the
+  // QuadBlock they render so each repaints independently.
+  s_band_layer = layer_create(GRect(0, 0, 2, 2));
+  layer_set_update_proc(s_band_layer, band_layer_update);
+  layer_add_child(root, s_band_layer);
+  for (int r = 0; r < 2; r++) {
+    for (int c = 0; c < 2; c++) {
+      s_grid_layer[r][c] =
+          layer_create_with_data(GRect(0, 0, 2, 2), sizeof(QuadBlock));
+      layer_set_update_proc(s_grid_layer[r][c], grid_layer_update);
+      layer_add_child(root, s_grid_layer[r][c]);
+    }
+  }
+
+  layout();
+
+  battery_state_service_subscribe(battery_handler);
+#if defined(PBL_HEALTH)
+  health_service_events_subscribe(health_handler, NULL);
+#endif
 }
 
 static void prv_window_unload(Window *window) {
-  fonts_unload_custom_font(s_font_num);
-  fonts_unload_custom_font(s_font_txt);
-  fonts_unload_custom_font(s_font_sml);
-  fonts_unload_custom_font(s_font_txt_sm);
-  layer_destroy(s_main_layer);
+  battery_state_service_unsubscribe();
+#if defined(PBL_HEALTH)
+  health_service_events_unsubscribe();
+#endif
+#if !PBL_PLATFORM_APLITE
+  ffont_destroy(s_ffont);
+#endif
+  layer_destroy(s_band_layer);
+  for (int r = 0; r < 2; r++)
+    for (int c = 0; c < 2; c++) layer_destroy(s_grid_layer[r][c]);
 }
 
 static void prv_init(void) {
@@ -338,7 +404,10 @@ static void prv_init(void) {
   apply_tick_interval();
 
   app_message_register_inbox_received(inbox_received_handler);
-  app_message_open(app_message_inbox_size_maximum(), 0);
+  // We only receive (Clay config ~18 small keys, or a 6-int weather push) and
+  // never send, so a right-sized inbox frees heap that the vector font needs
+  // (critical on aplite's ~12KB heap). Outbox is minimal.
+  app_message_open(1024, 64);
 }
 
 static void prv_deinit(void) {

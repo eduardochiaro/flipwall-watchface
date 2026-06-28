@@ -57,7 +57,8 @@ function clayCustomFn() {
   // visible; 10:09 -> AM active.
   var SAMPLE = { dow: 'Sun', day: '26', month: 'Jun', year: '2020',
                  steps: '8.2K', dist: '8.2km', batt: '82%',
-                 temp: '22°', humid: '45%', minmax: '12/24°',
+                 temp: '22°', humid: '45%', humLabel: 'Hu', minmax: '12/24°',
+                 precip: '2mm',
                  weekend: true, isPM: false, hour: 10, min: 9, sec: 30 };
 
   // Localised month/weekday names — must match MONTHS/WDAYS in the C source.
@@ -68,10 +69,15 @@ function clayCustomFn() {
   var WDAYS = [
     'Sun','Dom','Dom','Dim','Son','Dom','Zon','Nie','Paz','Min'  // index = lang
   ];
+  // Humidity prefix per language — must match HUMIDITY in the C source (lang.c).
+  var HUM_LABELS = [
+    'Hu','Hu','Um','Hu','Lf','Um','Vo','Wi','Ne','Ke'  // index = lang
+  ];
 
   // Block ids match the QuadBlock enum: 0 DoW, 1 Day, 2 Clock, 3 Month,
   // 4 Steps, 5 Distance, 6 Battery, 7 Year, 8 Weather, 9 Month+Day,
-  // 10 Weekday+Day. Day/Clock/Weather big.
+  // 10 Weekday+Day, 11 Temp, 12 Temp(big), 13 Humidity, 14 Min/Max,
+  // 15 Precipitation. Day/Clock/Weather/Temp(big) big.
   function isShort(v) { return v !== 1 && v !== 2 && v !== 8 && v !== 12; }
 
   // Display text for the data blocks (steps / distance / battery / year).
@@ -82,8 +88,9 @@ function clayCustomFn() {
     if (v === 9) { return SAMPLE.month + ' ' + SAMPLE.day; }
     if (v === 10) { return SAMPLE.dow + ' ' + SAMPLE.day; }
     if (v === 11 || v === 12) { return SAMPLE.temp; }
-    if (v === 13) { return SAMPLE.humid; }
+    if (v === 13) { return SAMPLE.humLabel + SAMPLE.humid; }
     if (v === 14) { return SAMPLE.minmax; }
+    if (v === 15) { return SAMPLE.precip; }
     return SAMPLE.year;
   }
 
@@ -221,6 +228,12 @@ function clayCustomFn() {
     var lang = cfg.lang || 0;
     SAMPLE.month = MONTHS[lang];
     SAMPLE.dow = WDAYS[lang];
+    SAMPLE.humLabel = HUM_LABELS[lang];
+    if (cfg.units) {  // imperial
+      SAMPLE.temp = '72°'; SAMPLE.minmax = '54/75°'; SAMPLE.precip = '0in';
+    } else {          // metric
+      SAMPLE.temp = '22°'; SAMPLE.minmax = '12/24°'; SAMPLE.precip = '2mm';
+    }
 
     var innerW = W - 2 * MARGIN, innerH = H - 2 * MARGIN;
     var colW = Math.floor((innerW - GUTTER) / 2);
@@ -285,6 +298,7 @@ function clayCustomFn() {
     item.set(PREVIEW.build({
       yearTop: clayConfig.getItemByMessageKey('YEAR_TOP').get(),
       lang: blockVal('LANG'),
+      units: blockVal('UNITS'),
       band: blockVal('BLOCK_BAND'),
       blocks: [
         blockVal('BLOCK_TOP_LEFT'), blockVal('BLOCK_TOP_RIGHT'),
@@ -322,7 +336,7 @@ function clayCustomFn() {
     link('BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_RIGHT');
 
     // Draw once, then redraw whenever any setting that affects the face changes.
-    var watched = ['YEAR_TOP', 'LANG', 'BLOCK_BAND', 'BLOCK_TOP_LEFT',
+    var watched = ['YEAR_TOP', 'LANG', 'UNITS', 'BLOCK_BAND', 'BLOCK_TOP_LEFT',
       'BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_LEFT', 'BLOCK_BOTTOM_RIGHT', 'FACE_COLOR',
       'PANEL_COLOR', 'WEEKEND_COLOR', 'SHOW_SECONDS'];
     watched.forEach(function(key) {

@@ -32,5 +32,21 @@ static const char *const WDAYS[LANG_COUNT][7] = {
   {"Min","Sen","Sel","Rab","Kam","Jum","Sab"}, // id
 };
 
-const char *month_name(void) { return MONTHS[s_lang][s_now.tm_mon]; }
-const char *wday_name(void)  { return WDAYS[s_lang][s_now.tm_wday]; }
+// 2-letter humidity prefix so the readout is identifiable (e.g. "Hu45%").
+// Latin-folded to the bundled font's glyph set; order matches MONTHS/WDAYS.
+static const char *const HUMIDITY[LANG_COUNT] = {
+  "Hu", // en Humidity
+  "Hu", // es Humedad
+  "Um", // pt Umidade
+  "Hu", // fr Humidite
+  "Lf", // de Luftfeuchtigkeit
+  "Um", // it Umidita
+  "Vo", // nl Vochtigheid
+  "Wi", // pl Wilgotnosc
+  "Ne", // tr Nem
+  "Ke", // id Kelembaban
+};
+
+const char *month_name(void)     { return MONTHS[s_lang][s_now.tm_mon]; }
+const char *wday_name(void)      { return WDAYS[s_lang][s_now.tm_wday]; }
+const char *humidity_label(void) { return HUMIDITY[s_lang]; }

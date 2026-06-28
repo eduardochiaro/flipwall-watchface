@@ -8,10 +8,12 @@
 
 void weather_init(void);                               // load cached reading
 bool weather_handle_message(DictionaryIterator *iter); // true if it held weather
+void weather_set_units(bool imperial);                 // precip suffix: in vs mm
 
 // Formatters write "--" when no reading is available yet.
 void weather_temp_str(char *buf, size_t n);     // "22°"
 void weather_humidity_str(char *buf, size_t n); // "45%"
 void weather_minmax_str(char *buf, size_t n);   // "12/24°"
+void weather_precip_str(char *buf, size_t n);   // "5mm"
 
 uint32_t weather_icon_resource(void);           // pdc resource for the icon block

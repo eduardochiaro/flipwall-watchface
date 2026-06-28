@@ -5,7 +5,8 @@
 //   4 = Steps, 5 = Distance, 6 = Battery, 7 = Year (banner only),
 //   8 = Weather icon (big), 9 = Month + Day (banner only),
 //   10 = Weekday + Day (banner only), 11 = Temperature (small),
-//   12 = Temperature (big), 13 = Humidity (small), 14 = Min/Max (banner only).
+//   12 = Temperature (big), 13 = Humidity (small), 14 = Min/Max (banner only),
+//   15 = Precipitation (small).
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
 // Day of month / Clock / Weather icon / Temperature (big) are "big".
 
@@ -20,7 +21,8 @@ var BLOCK_OPTIONS = [
   { label: "Weather icon (big)", value: 8 },
   { label: "Temperature (big)", value: 12 },
   { label: "Temperature (small)", value: 11 },
-  { label: "Humidity (small)", value: 13 }
+  { label: "Humidity (small)", value: 13 },
+  { label: "Precipitation (small)", value: 15 }
 ];
 
 // The banner is a single short block: year or one of the data readouts.
@@ -33,11 +35,19 @@ var BAND_OPTIONS = [
   { label: "Battery", value: 6 },
   { label: "Temperature", value: 11 },
   { label: "Humidity", value: 13 },
-  { label: "Min/Max temp", value: 14 }
+  { label: "Min/Max temp", value: 14 },
+  { label: "Precipitation", value: 15 }
 ];
 
 // Month/weekday names are translated to these 10 Latin-script languages
 // (values match the LANGS tables in flipwall-watchface.c; 0 = English).
+// Measurement system. Metric = °C / mm, Imperial = °F / in. The JS weather
+// module fetches in the chosen unit; the watch only renders the precip suffix.
+var UNITS_OPTIONS = [
+  { label: "Metric (°C, mm)", value: 0 },
+  { label: "Imperial (°F, in)", value: 1 }
+];
+
 var LANG_OPTIONS = [
   { label: "English", value: 0 },
   { label: "Espanol", value: 1 },
@@ -75,6 +85,13 @@ module.exports = [
         label: "Language",
         defaultValue: 0,
         options: LANG_OPTIONS
+      },
+      {
+        type: "select",
+        messageKey: "UNITS",
+        label: "Units",
+        defaultValue: 0,
+        options: UNITS_OPTIONS
       },
       {
         type: "select",

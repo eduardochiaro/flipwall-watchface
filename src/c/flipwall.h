@@ -1,5 +1,7 @@
 #pragma once
 #include <pebble.h>
+#include <pebble-fctx/fctx.h>
+#include <pebble-fctx/ffont.h>
 
 // ---------------------------------------------------------------------------
 // Shared contract for the flip-wall-clock watchface modules.
@@ -32,12 +34,14 @@ typedef enum {
   BLK_TEMP_BIG,   // current temperature (big)
   BLK_HUMIDITY,   // relative humidity % (small / banner)
   BLK_MINMAX,     // today's min/max temp (banner-only)
+  BLK_PRECIP,     // precipitation mm (small / banner)
 } QuadBlock;
 
 // --- Localisation ----------------------------------------------------------
 #define LANG_COUNT 10
-const char *month_name(void);   // localised %b for s_now / s_lang
-const char *wday_name(void);    // localised %a for s_now / s_lang
+const char *month_name(void);     // localised %b for s_now / s_lang
+const char *wday_name(void);      // localised %a for s_now / s_lang
+const char *humidity_label(void); // localised 2-letter humidity prefix ("Hu")
 
 // --- Colours ---------------------------------------------------------------
 GColor get_closest_accent_color(GColor c);   // lighten dark / darken light
@@ -52,8 +56,12 @@ bool block_valid_band(int v);         // may sit in the banner
 
 // --- Shared state (defined in flipwall-watchface.c) ------------------------
 extern GColor s_face_bg, s_panel_bg, s_weekend_bg, s_text_fg;
-extern GFont  s_font_num, s_font_txt, s_font_txt_sm, s_font_sml;
+extern FFont *s_ffont;   // single scalable vector font (fctx)
 extern bool   is_large_screen;
+// Absolute origin of the block layer currently drawing. fctx writes straight to
+// the framebuffer and ignores the per-layer drawing offset, so the fctx text
+// backend adds this; the graphics-API draws (panels, clock, icon) don't need it.
+extern GPoint s_draw_origin;
 extern bool   s_show_seconds;
 extern int    s_lang;
 extern QuadBlock s_band_block;
