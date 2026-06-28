@@ -48,7 +48,13 @@
       "WEEKEND_COLOR",
       "TEXT_COLOR",
       "SHOW_SECONDS",
-      "LANG"
+      "LANG",
+      "WEATHER_TEMPERATURE",
+      "WEATHER_CODE",
+      "WEATHER_HUMIDITY",
+      "WEATHER_PRECIPITATION",
+      "WEATHER_MIN_TEMP",
+      "WEATHER_MAX_TEMP"
     ],
     "resources": {
       "media": [
@@ -67,7 +73,7 @@
           "type": "font",
           "name": "FONT_NUM_44",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9]",
+          "characterRegex": "[0-9°-]",
           "targetPlatforms": [
             "aplite",
             "basalt",
@@ -79,7 +85,7 @@
           "type": "font",
           "name": "FONT_TXT_26",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.% ]",
+          "characterRegex": "[0-9A-Za-z.%/° -]",
           "targetPlatforms": [
             "aplite",
             "basalt",
@@ -91,7 +97,7 @@
           "type": "font",
           "name": "FONT_TXT_18",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.% ]",
+          "characterRegex": "[0-9A-Za-z.%/° -]",
           "targetPlatforms": [
             "aplite",
             "basalt",
@@ -116,7 +122,7 @@
           "type": "font",
           "name": "FONT_NUM_64",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9]",
+          "characterRegex": "[0-9°-]",
           "targetPlatforms": [
             "emery",
             "gabbro"
@@ -126,7 +132,7 @@
           "type": "font",
           "name": "FONT_TXT_36",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.% ]",
+          "characterRegex": "[0-9A-Za-z.%/° -]",
           "targetPlatforms": [
             "emery"
           ]
@@ -135,7 +141,7 @@
           "type": "font",
           "name": "FONT_TXT_26",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.% ]",
+          "characterRegex": "[0-9A-Za-z.%/° -]",
           "targetPlatforms": [
             "emery",
             "gabbro"
@@ -154,7 +160,7 @@
           "type": "font",
           "name": "FONT_NUM_40",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9]",
+          "characterRegex": "[0-9°-]",
           "targetPlatforms": [
             "chalk"
           ]
@@ -163,7 +169,7 @@
           "type": "font",
           "name": "FONT_TXT_24",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.% ]",
+          "characterRegex": "[0-9A-Za-z.%/° -]",
           "targetPlatforms": [
             "chalk"
           ]
@@ -172,7 +178,7 @@
           "type": "font",
           "name": "FONT_TXT_17",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.% ]",
+          "characterRegex": "[0-9A-Za-z.%/° -]",
           "targetPlatforms": [
             "chalk"
           ]
@@ -181,7 +187,7 @@
           "type": "font",
           "name": "FONT_TXT_38",
           "file": "fonts/Montserrat-Bold.ttf",
-          "characterRegex": "[0-9A-Za-z.% ]",
+          "characterRegex": "[0-9A-Za-z.%/° -]",
           "targetPlatforms": [
             "gabbro"
           ]

@@ -3,10 +3,11 @@
 // Block selector values map to the QuadBlock enum on the C side:
 //   0 = Day of week, 1 = Day of month, 2 = Clock, 3 = Month,
 //   4 = Steps, 5 = Distance, 6 = Battery, 7 = Year (banner only),
-//   8 = Weather (big), 9 = Month + Day (banner only),
-//   10 = Weekday + Day (banner only).
+//   8 = Weather icon (big), 9 = Month + Day (banner only),
+//   10 = Weekday + Day (banner only), 11 = Temperature (small),
+//   12 = Temperature (big), 13 = Humidity (small), 14 = Min/Max (banner only).
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
-// Only Day of month and Clock are "big"; everything else is "small".
+// Day of month / Clock / Weather icon / Temperature (big) are "big".
 
 var BLOCK_OPTIONS = [
   { label: "Day of week (small)", value: 0 },
@@ -16,7 +17,10 @@ var BLOCK_OPTIONS = [
   { label: "Steps (small)", value: 4 },
   { label: "Distance (small)", value: 5 },
   { label: "Battery (small)", value: 6 },
-  { label: "Weather (big)", value: 8 }
+  { label: "Weather icon (big)", value: 8 },
+  { label: "Temperature (big)", value: 12 },
+  { label: "Temperature (small)", value: 11 },
+  { label: "Humidity (small)", value: 13 }
 ];
 
 // The banner is a single short block: year or one of the data readouts.
@@ -26,7 +30,10 @@ var BAND_OPTIONS = [
   { label: "Weekday + Day", value: 10 },
   { label: "Steps", value: 4 },
   { label: "Distance", value: 5 },
-  { label: "Battery", value: 6 }
+  { label: "Battery", value: 6 },
+  { label: "Temperature", value: 11 },
+  { label: "Humidity", value: 13 },
+  { label: "Min/Max temp", value: 14 }
 ];
 
 // Month/weekday names are translated to these 10 Latin-script languages
