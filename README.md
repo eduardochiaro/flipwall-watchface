@@ -3,9 +3,17 @@
 A digital watchface for Pebble smartwatches based on flip clock design.
 
 ## Screenshots
-### Pebble Classic/Steel/Pebble 2/Duo
+### Pebble Classic/Steel/
 ![Aplite 1](assets/aplite_1.png)
 ![Aplite 2](assets/aplite_2.png)
+![Aplite 3](assets/aplite_3.png)
+![Aplite 4](assets/aplite_4.png)
+
+### Pebble 2/Duo
+![Diorite 1](assets/diorite_1.png)
+![Diorite 2](assets/diorite_2.png)
+![Diorite 3](assets/diorite_3.png)
+![Diorite 4](assets/diorite_4.png)
 
 ### Pebble Time/Time Steel
 ![Basalt](assets/basalt_0.gif)
@@ -17,6 +25,8 @@ A digital watchface for Pebble smartwatches based on flip clock design.
 ### Pebble Time Round
 ![Chalk 1](assets/chalk_1.png)
 ![Chalk 2](assets/chalk_2.png)
+![Chalk 3](assets/chalk_3.png)
+![Chalk 4](assets/chalk_4.png)
 
 ### Pebble Time 2
 ![Emery](assets/emery_0.gif)
@@ -29,6 +39,7 @@ A digital watchface for Pebble smartwatches based on flip clock design.
 ![Gabbro 1](assets/gabbro_1.png)
 ![Gabbro 2](assets/gabbro_2.png)
 ![Gabbro 3](assets/gabbro_3.png)
+![Gabbro 4](assets/gabbro_4.png)
 
 ## Store
 [Rebble App Store](https://apps.rebble.io/en_US/application/6a3d4248cd52370009862b05)
