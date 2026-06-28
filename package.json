@@ -69,7 +69,47 @@
         {
           "type": "raw",
           "name": "ICON_SUNNY",
-          "file": "weather/sunny.pdc"
+          "file": "weather/sunny_day.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_PARTLY_CLOUDY",
+          "file": "weather/partly_cloudy.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_CLOUDY",
+          "file": "weather/cloudy_day.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_LIGHT_RAIN",
+          "file": "weather/light_rain.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_HEAVY_RAIN",
+          "file": "weather/heavy_rain.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_LIGHT_SNOW",
+          "file": "weather/light_snow.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_HEAVY_SNOW",
+          "file": "weather/havy_snow.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_RAIN_SNOW",
+          "file": "weather/raining_and_snowing.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_GENERIC_WEATHER",
+          "file": "weather/generic_weather.pdc"
         },
         {
           "type": "raw",
