@@ -3,17 +3,17 @@
 A digital watchface for Pebble smartwatches based on flip clock design.
 
 ## Screenshots
-### Pebble Classic/Steel/
+### Pebble Classic/Steel
 ![Aplite 1](assets/aplite_1.png)
 ![Aplite 2](assets/aplite_2.png)
 ![Aplite 3](assets/aplite_3.png)
 ![Aplite 4](assets/aplite_4.png)
 
 ### Pebble 2/Duo
-![Diorite 1](assets/diorite_1.png)
-![Diorite 2](assets/diorite_2.png)
-![Diorite 3](assets/diorite_3.png)
-![Diorite 4](assets/diorite_4.png)
+![Flint 1](assets/flint_1.png)
+![Flint 2](assets/flint_2.png)
+![Flint 3](assets/flint_3.png)
+![Flint 4](assets/flint_4.png)
 
 ### Pebble Time/Time Steel
 ![Basalt](assets/basalt_0.gif)
