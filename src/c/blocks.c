@@ -318,8 +318,9 @@ static void draw_month(GContext *ctx, GRect r) {
 static void draw_dow(GContext *ctx, GRect r) {
   const char *buf = wday_name();     // title case "Mon" (matches "Jun")
   bool weekend = (s_now.tm_wday == 0 || s_now.tm_wday == 6);
-  draw_panel(ctx, r, weekend ? s_weekend_bg : s_panel_bg);
-  GColor s_override_text_fg = contrast_color(weekend ? s_weekend_bg : s_panel_bg);
+  GColor bg_panel = weekend ? s_weekend_bg : s_panel_bg;
+  draw_panel(ctx, r, bg_panel);
+  GColor s_override_text_fg = contrast_color(bg_panel);
 
   // Day-of-week is left-aligned with a little left padding so the AM/PM label
   // in the right corners never collides with it.
@@ -330,9 +331,9 @@ static void draw_dow(GContext *ctx, GRect r) {
                GTextAlignmentLeft);
 
   // AM top-right, PM bottom-right; the active one is bright.
-  int ampm_cap = PBL_IF_ROUND_ELSE(is_large_screen ? 11 : 5, is_large_screen ? 11 : 7);
+  int ampm_cap = PBL_IF_ROUND_ELSE(is_large_screen ? 9 : 5, is_large_screen ? 8 : 6);
   bool is_pm = s_now.tm_hour >= 12;
-  GColor dim = get_closest_accent_color(s_weekend_bg);
+  GColor dim = get_closest_accent_color(bg_panel);
   text_corner(ctx, r, "AM", ampm_cap, true,  is_pm ? dim : s_override_text_fg);
   text_corner(ctx, r, "PM", ampm_cap, false, is_pm ? s_override_text_fg : dim);
 
@@ -428,6 +429,9 @@ static void draw_icon_block(GContext *ctx, GRect r, uint32_t res_id) {
                          r.origin.y + (r.size.h - side) / 2);
   gdraw_command_image_draw(ctx, img, offset);
   gdraw_command_image_destroy(img);
+
+
+  draw_seam(ctx, r);
 }
 
 // The banner sits in a horizontal band but the panel itself is only a little

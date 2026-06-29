@@ -11,21 +11,29 @@
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
 // Day of month / Clock / Weather icon / Temperature (big) are "big".
 
-var BLOCK_OPTIONS = [
-  { label: "Day of week (small)", value: 0 },
-  { label: "Day of month (big)", value: 1 },
-  { label: "Analog Clock (big)", value: 2 },
-  { label: "Digital clock (big)", value: 17 },
+var BLOCK_OPTIONS_SMALL = [
   { label: "Digital clock (small)", value: 16 },
   { label: "Month (small)", value: 3 },
+  { label: "Day of week (small)", value: 0 },
   { label: "Steps (small)", value: 4 },
   { label: "Distance (small)", value: 5 },
   { label: "Battery (small)", value: 6 },
-  { label: "Weather icon (big)", value: 8 },
-  { label: "Temperature (big)", value: 12 },
   { label: "Temperature (small)", value: 11 },
   { label: "Humidity (small)", value: 13 },
   { label: "Precipitation (small)", value: 15 }
+];
+
+var BLOCK_OPTIONS_BIG = [
+  { label: "Analog Clock (big)", value: 2 },
+  { label: "Digital clock (big)", value: 17 },
+  { label: "Day of month (big)", value: 1 },
+  { label: "Weather icon (big)", value: 8 },
+  { label: "Temperature (big)", value: 12 },
+];
+
+var BLOCK_OPTIONS_GROUPS = [
+  { label: "Big blocks", value: BLOCK_OPTIONS_BIG },
+  { label: "Small blocks", value: BLOCK_OPTIONS_SMALL }
 ];
 
 // The banner is a single short block: year or one of the data readouts.
@@ -165,14 +173,14 @@ module.exports = [
         messageKey: "BLOCK_TOP_LEFT",
         label: "Top Left",
         defaultValue: 0,
-        options: BLOCK_OPTIONS
+        options: BLOCK_OPTIONS_GROUPS
       },
       {
         type: "select",
         messageKey: "BLOCK_BOTTOM_LEFT",
         label: "Bottom Left",
         defaultValue: 2,
-        options: BLOCK_OPTIONS
+        options: BLOCK_OPTIONS_GROUPS
       },
     ]
   },
@@ -185,14 +193,14 @@ module.exports = [
         messageKey: "BLOCK_TOP_RIGHT",
         label: "Top Right",
         defaultValue: 1,
-        options: BLOCK_OPTIONS
+        options: BLOCK_OPTIONS_GROUPS
       },
       {
         type: "select",
         messageKey: "BLOCK_BOTTOM_RIGHT",
         label: "Bottom Right",
         defaultValue: 3,
-        options: BLOCK_OPTIONS
+        options: BLOCK_OPTIONS_GROUPS
       },
     ]
   },
