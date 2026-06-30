@@ -53,6 +53,8 @@ Configure via the Pebble app settings page.
 - **Language** — translates month and weekday names. 10 Latin-script languages: English, Espanol, Portugues, Francais, Deutsch, Italiano, Nederlands, Polski, Turkce, Indonesia.
 - **Units** — Metric (°C, mm) or Imperial (°F, in). Applies to the weather blocks.
 - **Show seconds hand** — adds a seconds hand to the analog clock block (off by default to save battery).
+- **Flip animation** — blocks flip like a split-flap when their value changes (on by default).
+- **Seam line** — thin line across each block's middle for the flip-display look (on by default).
 
 ### Layout
 Each grid quadrant and the banner is assigned a block. Blocks come in two sizes — **big** (Day of month, Analog clock, Digital clock, Weather icon, Temperature) and **small** (everything else). Each column pairs one big block with one small block; picking two of the same size auto-swaps the other.
