@@ -56,7 +56,9 @@
       "WEATHER_HUMIDITY",
       "WEATHER_PRECIPITATION",
       "WEATHER_MIN_TEMP",
-      "WEATHER_MAX_TEMP"
+      "WEATHER_MAX_TEMP",
+      "FLIP_ANIM",
+      "DRAW_SEAM"
     ],
     "resources": {
       "media": [

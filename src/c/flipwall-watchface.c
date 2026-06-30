@@ -25,6 +25,8 @@ static QuadBlock s_grid[2][2] = {
   { BLK_CLOCK, BLK_MONTH },   // bottom row
 };
 bool s_show_seconds = false;   // off by default (battery friendly)
+bool s_flip_enabled = true;    // flip animation on value change (on by default)
+bool s_seam_enabled = true;    // thin seam line across each block (on by default)
 int  s_lang = 0;               // 0 = English (see lang.c)
 
 // --- Color defaults (used until the user overrides them) ------------------
@@ -58,6 +60,8 @@ typedef enum {
   PK_SHOW_SECONDS,
   PK_BAND_BLOCK,
   PK_LANG,
+  PK_FLIP_ANIM,
+  PK_DRAW_SEAM,
 } PersistKey;
 
 #if defined(PBL_PLATFORM_EMERY)
@@ -103,8 +107,31 @@ static void band_layer_update(Layer *layer, GContext *ctx) {
 
 static void grid_layer_update(Layer *layer, GContext *ctx) {
   s_draw_origin = layer_get_frame(layer).origin;
-  QuadBlock blk = *(QuadBlock *)layer_get_data(layer);
-  draw_block(ctx, blk, layer_get_bounds(layer));
+  draw_block_layer(ctx, layer);   // flip-aware (see blocks.c)
+}
+
+// One shared timer advances every in-flight flip and stops itself once none are
+// left. blocks.c sets a layer's countdown and calls flip_request() to start it.
+static AppTimer *s_flip_timer;
+#define FLIP_MS 40
+
+static void flip_tick(void *context) {
+  s_flip_timer = NULL;
+  bool any = false;
+  for (int r = 0; r < 2; r++)
+    for (int c = 0; c < 2; c++) {
+      BlockState *st = layer_get_data(s_grid_layer[r][c]);
+      if (st->anim) {
+        st->anim--;
+        layer_mark_dirty(s_grid_layer[r][c]);   // draws this flip frame
+        if (st->anim) any = true;
+      }
+    }
+  if (any) s_flip_timer = app_timer_register(FLIP_MS, flip_tick, NULL);
+}
+
+void flip_request(void) {
+  if (!s_flip_timer) s_flip_timer = app_timer_register(FLIP_MS, flip_tick, NULL);
 }
 
 // Position every block layer and tag each grid layer with the block it shows.
@@ -162,8 +189,15 @@ static void layout(void) {
     layer_set_frame(s_grid_layer[0][col], GRect(x, area.origin.y, col_w, top_h));
     layer_set_frame(s_grid_layer[1][col],
                     GRect(x, area.origin.y + top_h + GUTTER, col_w, bot_h));
-    *(QuadBlock *)layer_get_data(s_grid_layer[0][col]) = top_blk;
-    *(QuadBlock *)layer_get_data(s_grid_layer[1][col]) = bot_blk;
+    // Retag the layer with its block and clear the flip state, so re-layout
+    // (load or a settings change) adopts the new value silently, not as a flip.
+    QuadBlock kinds[2] = { top_blk, bot_blk };
+    for (int row = 0; row < 2; row++) {
+      BlockState *st = layer_get_data(s_grid_layer[row][col]);
+      st->blk = kinds[row];
+      st->anim = 0;
+      st->shown[0] = '\0';
+    }
   }
 
   // Reframing marks frames dirty; force the kinds/colours to repaint too.
@@ -248,6 +282,8 @@ static QuadBlock read_block(PersistKey key, QuadBlock def) {
 static void settings_load(void) {
   s_year_top     = persist_exists(PK_YEAR_TOP)     ? persist_read_bool(PK_YEAR_TOP) : true;
   s_show_seconds = persist_exists(PK_SHOW_SECONDS) ? persist_read_bool(PK_SHOW_SECONDS) : false;
+  s_flip_enabled = persist_exists(PK_FLIP_ANIM)    ? persist_read_bool(PK_FLIP_ANIM)    : true;
+  s_seam_enabled = persist_exists(PK_DRAW_SEAM)    ? persist_read_bool(PK_DRAW_SEAM)    : true;
 
   s_lang = persist_exists(PK_LANG) ? persist_read_int(PK_LANG) : 0;
   if (s_lang < 0 || s_lang >= LANG_COUNT) s_lang = 0;
@@ -334,6 +370,8 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   s_text_fg = contrast_color(s_panel_bg);
 
   apply_bool(iter, MESSAGE_KEY_SHOW_SECONDS, PK_SHOW_SECONDS, &s_show_seconds);
+  apply_bool(iter, MESSAGE_KEY_FLIP_ANIM, PK_FLIP_ANIM, &s_flip_enabled);
+  apply_bool(iter, MESSAGE_KEY_DRAW_SEAM, PK_DRAW_SEAM, &s_seam_enabled);
 
   Tuple *units_t = dict_find(iter, MESSAGE_KEY_UNITS);
   if (units_t) weather_set_units(units_t->value->int32 != 0);
@@ -365,7 +403,7 @@ static void prv_window_load(Window *window) {
   for (int r = 0; r < 2; r++) {
     for (int c = 0; c < 2; c++) {
       s_grid_layer[r][c] =
-          layer_create_with_data(GRect(0, 0, 2, 2), sizeof(QuadBlock));
+          layer_create_with_data(GRect(0, 0, 2, 2), sizeof(BlockState));
       layer_set_update_proc(s_grid_layer[r][c], grid_layer_update);
       layer_add_child(root, s_grid_layer[r][c]);
     }
@@ -380,6 +418,7 @@ static void prv_window_load(Window *window) {
 }
 
 static void prv_window_unload(Window *window) {
+  if (s_flip_timer) { app_timer_cancel(s_flip_timer); s_flip_timer = NULL; }
   battery_state_service_unsubscribe();
 #if defined(PBL_HEALTH)
   health_service_events_unsubscribe();
