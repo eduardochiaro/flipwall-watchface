@@ -162,6 +162,7 @@ static void draw_centered(GContext *ctx, GRect r, const char *txt, int cap_h,
 
 // The thin dark line across the middle that sells the "flip display" look.
 static void draw_seam(GContext *ctx, GRect r) {
+  if (!s_seam_enabled) return;
   int mid = r.origin.y + r.size.h / 2;
   graphics_context_set_fill_color(ctx, SEAM_COLOR);
   graphics_fill_rect(ctx, GRect(r.origin.x + 2, mid, r.size.w - 4, 1), 0,
@@ -468,4 +469,96 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_WEATHER:  draw_icon_block(ctx, r, weather_icon_resource()); break;
     default:           draw_value_block(ctx, r, blk); break;  // steps / km / battery / temp / humidity
   }
+}
+
+// ---------------------------------------------------------------------------
+// Flip animation (centred single-string grid blocks only)
+// ---------------------------------------------------------------------------
+
+// The string a flippable block shows, plus whether it's flippable at all. The
+// analog clock, weather icon, two-half big digital and the am/pm dow block draw
+// their own way, so they don't flip -> return false.
+static bool block_centered_text(QuadBlock b, char *buf, size_t n) {
+  switch (b) {
+    case BLK_DAY:   snprintf(buf, n, "%d", s_now.tm_mday); return true;
+    case BLK_MONTH: snprintf(buf, n, "%s", month_name());  return true;
+    case BLK_STEPS: case BLK_KM:  case BLK_BATTERY:
+    case BLK_TEMP:  case BLK_TEMP_BIG: case BLK_HUMIDITY:
+    case BLK_PRECIP: case BLK_DIGITAL:
+      block_text(b, buf, n); return true;
+    default: return false;
+  }
+}
+
+// Cap height each flippable block uses (mirrors its draw_* function), so the
+// flip's text matches the block's resting size.
+static int block_cap_h(QuadBlock b, GRect r) {
+  if (b == BLK_DAY)      return r.size.h * 50 / 100;
+  if (b == BLK_TEMP_BIG) return r.size.h * 40 / 100;
+  return r.size.h * 52 / 100;   // month + all value blocks
+}
+
+// One flip frame: the value, masked down to a centred band of height `hv` so it
+// looks foreshortened toward the seam. Gaps are filled with the panel colour
+// (rounded at the outer corners so the panel keeps its shape); the seam is drawn
+// last so the centre line stays put. hv == r.h is a no-op (full value).
+static void draw_flip(GContext *ctx, GRect r, const char *txt, int cap_h,
+                      GColor color, int hv) {
+  draw_panel(ctx, r, s_panel_bg);
+  draw_centered(ctx, r, txt, cap_h, color);
+
+  int seam = r.origin.y + r.size.h / 2;
+  int half = hv / 2;
+  int top_h = (seam - half) - r.origin.y;
+  int bot_y = seam + half;
+  int bot_h = r.origin.y + r.size.h - bot_y;
+  graphics_context_set_fill_color(ctx, s_panel_bg);
+  if (top_h > 0)
+    graphics_fill_rect(ctx, GRect(r.origin.x, r.origin.y, r.size.w, top_h), 4,
+                       GCornersTop);
+  if (bot_h > 0)
+    graphics_fill_rect(ctx, GRect(r.origin.x, bot_y, r.size.w, bot_h), 4,
+                       GCornersBottom);
+  draw_seam(ctx, r);
+}
+
+// Flip-aware render for a grid layer (called from the layer's update_proc).
+// Detects a value change, kicks off the flip, and draws the right frame; blocks
+// that aren't flippable just fall through to draw_block.
+void draw_block_layer(GContext *ctx, Layer *layer) {
+  BlockState *st = (BlockState *)layer_get_data(layer);
+  GRect r = layer_get_bounds(layer);
+
+  char now[16];
+  if (!block_centered_text(st->blk, now, sizeof now)) {
+    draw_block(ctx, st->blk, r);
+    return;
+  }
+
+  // Start a flip on a real change (shown[0] == 0 means first paint -> silent).
+  if (s_flip_enabled && !st->anim && st->shown[0] && strcmp(now, st->shown) != 0) {
+    strncpy(st->old, st->shown, sizeof st->old);
+    st->anim = FLIP_STEPS;
+    flip_request();
+  }
+  strncpy(st->shown, now, sizeof st->shown);   // shown tracks the live value
+
+  if (!st->anim) {
+    draw_block(ctx, st->blk, r);
+    return;
+  }
+
+  // anim counts FLIP_STEPS..1; p_num 0..STEPS-1 walks the flip. First half the
+  // old value collapses to the seam, second half the new value grows back out.
+  int p_num = FLIP_STEPS - st->anim;
+  const char *active;
+  int hv;
+  if (2 * p_num <= FLIP_STEPS) {
+    active = st->old;
+    hv = r.size.h * (FLIP_STEPS - 2 * p_num) / FLIP_STEPS;
+  } else {
+    active = now;
+    hv = r.size.h * (2 * p_num - FLIP_STEPS) / FLIP_STEPS;
+  }
+  draw_flip(ctx, r, active, block_cap_h(st->blk, r), s_text_fg, hv);
 }

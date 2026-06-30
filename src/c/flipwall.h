@@ -56,6 +56,20 @@ bool block_is_short(QuadBlock b);     // false = "big" (square) block
 bool block_valid_grid(int v);         // may sit in the 2x2 grid
 bool block_valid_band(int v);         // may sit in the banner
 
+// --- Flip animation --------------------------------------------------------
+// A grid block flips (collapses about its seam, then re-grows with the new
+// value) only when its drawn text actually changes. Each grid layer carries a
+// BlockState; blocks.c renders it flip-aware, watchface.c drives the countdown.
+#define FLIP_STEPS 8           // frames per flip (~FLIP_STEPS * 40ms total)
+typedef struct {
+  QuadBlock blk;               // which block this layer shows (was the layer data)
+  uint8_t   anim;              // 0 = idle, else countdown FLIP_STEPS..1
+  char      shown[16];         // text currently on screen (empty = first paint)
+  char      old[16];           // pre-flip text, shown during the collapse half
+} BlockState;
+void draw_block_layer(GContext *ctx, Layer *layer);  // flip-aware grid render
+void flip_request(void);       // blocks.c -> watchface.c: start/keep flip timer
+
 // --- Shared state (defined in flipwall-watchface.c) ------------------------
 extern GColor s_face_bg, s_panel_bg, s_weekend_bg, s_text_fg;
 extern FFont *s_ffont;   // single scalable vector font (fctx)
@@ -65,6 +79,8 @@ extern bool   is_large_screen;
 // backend adds this; the graphics-API draws (panels, clock, icon) don't need it.
 extern GPoint s_draw_origin;
 extern bool   s_show_seconds;
+extern bool   s_flip_enabled;   // config: animate blocks on value change
+extern bool   s_seam_enabled;   // config: draw the seam line across blocks
 extern int    s_lang;
 extern QuadBlock s_band_block;
 extern struct tm s_now;

@@ -104,6 +104,20 @@ module.exports = [
         label: "Show seconds hand",
         defaultValue: false,
         description: "Only on analog clock block."
+      },
+      {
+        type: "toggle",
+        messageKey: "FLIP_ANIM",
+        label: "Flip animation",
+        defaultValue: true,
+        description: "Animate blocks like a flap when their value changes."
+      },
+      {
+        type: "toggle",
+        messageKey: "DRAW_SEAM",
+        label: "Seam line",
+        defaultValue: true,
+        description: "Thin line across each block's middle (the flip-display look)."
       }
     ]
   },
