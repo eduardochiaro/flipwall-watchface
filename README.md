@@ -57,14 +57,16 @@ Configure via the Pebble app settings page.
 - **Seam line** — thin line across each block's middle for the flip-display look (on by default).
 
 ### Layout
-Each grid quadrant and the banner is assigned a block. Blocks come in two sizes — **big** (Day of month, Analog clock, Digital clock, Weather icon, Temperature) and **small** (everything else). Each column pairs one big block with one small block; picking two of the same size auto-swaps the other.
+Each grid quadrant and the banner is assigned a block. Blocks come in two sizes — **big** (Day of month, Analog clock, Digital clock, Hours, Minutes, Weather icon, Temperature) and **small** (everything else). Each column pairs one big block with one small block; picking two of the same size auto-swaps the other.
 
 - **Banner block** — full-width banner content: Year, Digital clock, Month + Day, Weekday + Day, Steps, Distance, Battery, Temperature, Humidity, Min/Max temp, or Precipitation.
 - **Banner at top** — banner above the grid (on) or below it (off).
 - **Top-left / Top-right / Bottom-left / Bottom-right block** — fill each quadrant with:
-  - **Date/time:** Day of week, Day of month, Analog clock, Digital clock (big or small), Month
+  - **Date/time:** Day of week, Day of month, Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Month
   - **Activity:** Steps, Distance, Battery
   - **Weather:** Weather icon, Temperature (big or small), Humidity, Precipitation
+
+  Hours and Minutes are shown as standalone two-digit blocks (leading zero kept). AM/PM highlights the active half in the text color and dims the other, like the weekday block.
 
 ### Weather
 Weather blocks (icon, temperature, humidity, precipitation, min/max) pull current conditions from Open-Meteo using the phone's location. The icon maps WMO weather codes to condition glyphs. Values render in the selected unit system.
