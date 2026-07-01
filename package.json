@@ -1,7 +1,7 @@
 {
   "name": "wall-flip",
   "author": "Eduardo Chiaro",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "keywords": [
     "pebble-watchface",
     "flip",
@@ -35,7 +35,8 @@
       "watchface": true
     },
     "capabilities": [
-      "health"
+      "health",
+      "configurable"
     ],
     "messageKeys": [
       "YEAR_TOP",

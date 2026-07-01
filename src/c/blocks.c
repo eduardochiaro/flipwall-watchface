@@ -14,7 +14,10 @@
 bool block_valid_grid(int v) {
   return (v >= BLK_DOW && v <= BLK_BATTERY) || v == BLK_WEATHER ||
          v == BLK_TEMP || v == BLK_TEMP_BIG || v == BLK_HUMIDITY ||
-         v == BLK_PRECIP || v == BLK_DIGITAL || v == BLK_DIGITAL_BIG;
+         v == BLK_PRECIP || v == BLK_DIGITAL || v == BLK_DIGITAL_BIG ||
+         v == BLK_HOURS || v == BLK_HOURS_BIG ||
+         v == BLK_MINUTES || v == BLK_MINUTES_BIG ||
+         v == BLK_AMPM || v == BLK_AMPM_STACK;
 }
 bool block_valid_band(int v) {
   return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY) ||
@@ -24,7 +27,8 @@ bool block_valid_band(int v) {
 }
 bool block_is_short(QuadBlock b) {
   return !(b == BLK_DAY || b == BLK_CLOCK || b == BLK_WEATHER ||
-           b == BLK_TEMP_BIG || b == BLK_DIGITAL_BIG);
+           b == BLK_TEMP_BIG || b == BLK_DIGITAL_BIG ||
+           b == BLK_HOURS_BIG || b == BLK_MINUTES_BIG);
 }
 
 // ---------------------------------------------------------------------------
@@ -187,6 +191,15 @@ static void digital_parts(char *hh, size_t hn, char *mm, size_t mn) {
   strftime(mm, mn, "%M", &s_now);
 }
 
+// Hours / minutes as standalone 2-digit strings (leading zero kept). Hours honour
+// the watch's 12/24h setting; %I/%H/%M all pad to two digits.
+static void hours_str(char *buf, size_t n) {
+  strftime(buf, n, clock_is_24h_style() ? "%H" : "%I", &s_now);
+}
+static void minutes_str(char *buf, size_t n) {
+  strftime(buf, n, "%M", &s_now);
+}
+
 // Compact value text for the data blocks (year / steps / km / battery / weather).
 // Health metrics fall back to "--" on platforms without Health (e.g. aplite).
 static void block_text(QuadBlock blk, char *buf, size_t n) {
@@ -261,6 +274,14 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
       snprintf(buf, n, "%s:%s", hh, mm);
       break;
     }
+    case BLK_HOURS:
+    case BLK_HOURS_BIG:
+      hours_str(buf, n);
+      break;
+    case BLK_MINUTES:
+    case BLK_MINUTES_BIG:
+      minutes_str(buf, n);
+      break;
     default:
       buf[0] = '\0';
       break;
@@ -284,6 +305,13 @@ static void draw_day(GContext *ctx, GRect r) {
   snprintf(buf, sizeof(buf), "%d", s_now.tm_mday);
   draw_panel(ctx, r, s_panel_bg);
   draw_centered(ctx, r, buf, r.size.h * 50 / 100, s_text_fg);
+  draw_seam(ctx, r);
+}
+
+// Big hours / minutes block: one big centred 2-digit number, like the day.
+static void draw_big_number(GContext *ctx, GRect r, const char *txt) {
+  draw_panel(ctx, r, s_panel_bg);
+  draw_centered(ctx, r, txt, r.size.h * 50 / 100, s_text_fg);
   draw_seam(ctx, r);
 }
 
@@ -338,6 +366,35 @@ static void draw_dow(GContext *ctx, GRect r) {
   text_corner(ctx, r, "AM", ampm_cap, true,  is_pm ? dim : s_override_text_fg);
   text_corner(ctx, r, "PM", ampm_cap, false, is_pm ? s_override_text_fg : dim);
 
+  draw_seam(ctx, r);
+}
+
+// AM/PM as a short block: AM pinned left, PM pinned right, the active side in the
+// text colour and the other dimmed (same colours as the weekday block's markers).
+static void draw_ampm(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  bool is_pm = s_now.tm_hour >= 12;
+  GColor dim = get_closest_accent_color(s_panel_bg);
+  int cap = r.size.h * 29 / 100;
+  GRect ir = r;
+  ir.origin.x += 6;
+  ir.size.w -= 12;
+  text_in_rect(ctx, ir, "AM", cap, is_pm ? dim : s_text_fg, GTextAlignmentLeft);
+  text_in_rect(ctx, ir, "PM", cap, is_pm ? s_text_fg : dim, GTextAlignmentRight);
+  draw_seam(ctx, r);
+}
+
+// AM/PM variant: AM in the top-left, PM in the bottom-right (diagonal).
+static void draw_ampm_stack(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  bool is_pm = s_now.tm_hour >= 12;
+  GColor dim = get_closest_accent_color(s_panel_bg);
+  int cap = r.size.h * 29 / 100;
+  int half = r.size.h / 2;
+  GRect top = GRect(r.origin.x + 6, r.origin.y, r.size.w - 12, half);
+  GRect bot = GRect(r.origin.x + 6, r.origin.y + half, r.size.w - 12, r.size.h - half);
+  text_in_rect(ctx, top, "AM", cap, is_pm ? dim : s_text_fg, GTextAlignmentLeft);
+  text_in_rect(ctx, bot, "PM", cap, is_pm ? s_text_fg : dim, GTextAlignmentRight);
   draw_seam(ctx, r);
 }
 
@@ -466,6 +523,10 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_MONTH:    draw_month(ctx, r);    break;
     case BLK_TEMP_BIG: draw_temp_big(ctx, r); break;
     case BLK_DIGITAL_BIG: draw_digital_big(ctx, r); break;
+    case BLK_HOURS_BIG: { char b[4]; hours_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
+    case BLK_MINUTES_BIG: { char b[4]; minutes_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
+    case BLK_AMPM:     draw_ampm(ctx, r);     break;
+    case BLK_AMPM_STACK: draw_ampm_stack(ctx, r); break;
     case BLK_WEATHER:  draw_icon_block(ctx, r, weather_icon_resource()); break;
     default:           draw_value_block(ctx, r, blk); break;  // steps / km / battery / temp / humidity
   }
@@ -485,6 +546,8 @@ static bool block_centered_text(QuadBlock b, char *buf, size_t n) {
     case BLK_STEPS: case BLK_KM:  case BLK_BATTERY:
     case BLK_TEMP:  case BLK_TEMP_BIG: case BLK_HUMIDITY:
     case BLK_PRECIP: case BLK_DIGITAL:
+    case BLK_HOURS: case BLK_HOURS_BIG:
+    case BLK_MINUTES: case BLK_MINUTES_BIG:
       block_text(b, buf, n); return true;
     default: return false;
   }
@@ -493,7 +556,8 @@ static bool block_centered_text(QuadBlock b, char *buf, size_t n) {
 // Cap height each flippable block uses (mirrors its draw_* function), so the
 // flip's text matches the block's resting size.
 static int block_cap_h(QuadBlock b, GRect r) {
-  if (b == BLK_DAY)      return r.size.h * 50 / 100;
+  if (b == BLK_DAY || b == BLK_HOURS_BIG || b == BLK_MINUTES_BIG)
+    return r.size.h * 50 / 100;
   if (b == BLK_TEMP_BIG) return r.size.h * 40 / 100;
   return r.size.h * 52 / 100;   // month + all value blocks
 }

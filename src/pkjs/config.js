@@ -7,12 +7,18 @@
 //   10 = Weekday + Day (banner only), 11 = Temperature (small),
 //   12 = Temperature (big), 13 = Humidity (small), 14 = Min/Max (banner only),
 //   15 = Precipitation (small), 16 = Digital clock (small / banner),
-//   17 = Digital clock (big).
+//   17 = Digital clock (big), 18 = Hours (small), 19 = Hours (big),
+//   20 = Minutes (small), 21 = Minutes (big), 22 = AM/PM (small),
+//   23 = AM/PM stacked (small).
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
 // Day of month / Clock / Weather icon / Temperature (big) are "big".
 
 var BLOCK_OPTIONS_SMALL = [
   { label: "Digital clock (small)", value: 16 },
+  { label: "Hours (small)", value: 18 },
+  { label: "Minutes (small)", value: 20 },
+  { label: "AM/PM (small)", value: 22 },
+  { label: "AM/PM stacked (small)", value: 23 },
   { label: "Month (small)", value: 3 },
   { label: "Day of week (small)", value: 0 },
   { label: "Steps (small)", value: 4 },
@@ -26,6 +32,8 @@ var BLOCK_OPTIONS_SMALL = [
 var BLOCK_OPTIONS_BIG = [
   { label: "Analog Clock (big)", value: 2 },
   { label: "Digital clock (big)", value: 17 },
+  { label: "Hours (big)", value: 19 },
+  { label: "Minutes (big)", value: 21 },
   { label: "Day of month (big)", value: 1 },
   { label: "Weather icon (big)", value: 8 },
   { label: "Temperature (big)", value: 12 },
@@ -145,7 +153,8 @@ module.exports = [
         messageKey: "WEEKEND_COLOR",
         label: "Weekend / accent",
         defaultValue: "FF0000",
-        sunlight: false
+        sunlight: false,
+        description: "Used for weekend days on weekday block."
       }
     ]
   },

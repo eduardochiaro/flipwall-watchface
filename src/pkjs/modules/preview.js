@@ -3,7 +3,7 @@
 //   0 = Day of week, 1 = Day of month, 2 = Clock, 3 = Month.
 // "Big" blocks fill a square; "small" blocks are half height. Each column must
 // pair exactly one of each, so the two columns line up.
-var BIG_BLOCKS = { 1: true, 2: true, 8: true, 12: true, 17: true };   // Day, Clock, Weather, Temp(big), Digital(big)
+var BIG_BLOCKS = { 1: true, 2: true, 8: true, 12: true, 17: true, 19: true, 21: true };   // Day, Clock, Weather, Temp(big), Digital(big), Hours(big), Minutes(big)
 var FALLBACK_SMALL = 0;                   // Day of week
 var FALLBACK_BIG = 2;                     // Clock
 
@@ -39,7 +39,8 @@ function clayCustomFn() {
   // big = Day of month / Clock; small = Day of week / Month.
   function isBig(v) {
     var n = parseInt(v, 10);
-    return n === 1 || n === 2 || n === 8 || n === 12 || n === 17;
+    return n === 1 || n === 2 || n === 8 || n === 12 || n === 17 ||
+           n === 19 || n === 21;
   }
   var FALLBACK_SMALL = 0;   // Day of week
   var FALLBACK_BIG = 2;     // Clock
@@ -78,7 +79,10 @@ function clayCustomFn() {
   // 4 Steps, 5 Distance, 6 Battery, 7 Year, 8 Weather, 9 Month+Day,
   // 10 Weekday+Day, 11 Temp, 12 Temp(big), 13 Humidity, 14 Min/Max,
   // 15 Precipitation. Day/Clock/Weather/Temp(big) big.
-  function isShort(v) { return v !== 1 && v !== 2 && v !== 8 && v !== 12 && v !== 17; }
+  function isShort(v) {
+    return v !== 1 && v !== 2 && v !== 8 && v !== 12 && v !== 17 &&
+           v !== 19 && v !== 21;
+  }
 
   // Display text for the data blocks (steps / distance / battery / year).
   function valueText(v) {
@@ -92,6 +96,8 @@ function clayCustomFn() {
     if (v === 14) { return SAMPLE.minmax; }
     if (v === 15) { return SAMPLE.precip; }
     if (v === 16) { return SAMPLE.time; }
+    if (v === 18 || v === 19) { return (SAMPLE.hour < 10 ? '0' : '') + SAMPLE.hour; }
+    if (v === 20 || v === 21) { return (SAMPLE.min < 10 ? '0' : '') + SAMPLE.min; }
     return SAMPLE.year;
   }
 
@@ -188,6 +194,32 @@ function clayCustomFn() {
     }
     if (v === 8) {  // weather icon
       return iconBlock(x, y, w, h, c.panel, c.text);
+    }
+    if (v === 22) {  // AM (left) / PM (right), active bright, other dim
+      var fpx = Math.round(h * 0.29), pad = Math.round(w * 0.08);
+      function side(txt, isRight, color) {
+        return '<div style="position:absolute;top:0;bottom:0;' +
+          (isRight ? 'right:0;padding-right:' : 'left:0;padding-left:') + px(pad) +
+          ';display:flex;align-items:center;color:' + color +
+          ';font-weight:bold;font-size:' + px(fpx) + ';line-height:1;">' + txt + '</div>';
+      }
+      var inner = side('AM', false, SAMPLE.isPM ? DIM : c.text) +
+        side('PM', true, SAMPLE.isPM ? c.text : DIM) + seam(w, h);
+      return panelDiv(x, y, w, h, c.panel, inner);
+    }
+    if (v === 23) {  // AM (top-left) / PM (bottom-right), active bright, other dim
+      var fpx2 = Math.round(h * 0.29), pad2 = Math.round(w * 0.08);
+      function half(txt, bottom, color) {
+        return '<div style="position:absolute;left:0;right:0;' +
+          (bottom ? 'bottom:0;justify-content:flex-end;padding-right:'
+                  : 'top:0;justify-content:flex-start;padding-left:') + px(pad2) +
+          ';height:50%;display:flex;align-items:center;color:' +
+          color + ';font-weight:bold;font-size:' + px(fpx2) + ';line-height:1;">' +
+          txt + '</div>';
+      }
+      var inner2 = half('AM', false, SAMPLE.isPM ? DIM : c.text) +
+        half('PM', true, SAMPLE.isPM ? c.text : DIM) + seam(w, h);
+      return panelDiv(x, y, w, h, c.panel, inner2);
     }
     if (v === 0) {  // day of week
       var bg = SAMPLE.weekend ? c.weekend : c.panel;

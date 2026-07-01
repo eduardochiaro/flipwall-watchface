@@ -37,6 +37,12 @@ typedef enum {
   BLK_PRECIP,     // precipitation mm (small / banner)
   BLK_DIGITAL,    // digital clock HH:MM (small / banner)
   BLK_DIGITAL_BIG,// digital clock, hours over minutes (big)
+  BLK_HOURS,      // hours only, 2-digit (small)
+  BLK_HOURS_BIG,  // hours only, 2-digit (big)
+  BLK_MINUTES,    // minutes only, 2-digit (small)
+  BLK_MINUTES_BIG,// minutes only, 2-digit (big)
+  BLK_AMPM,       // AM (left) / PM (right), active bright, other dim (small)
+  BLK_AMPM_STACK, // AM (top) / PM (bottom), active bright, other dim (small)
 } QuadBlock;
 
 // --- Localisation ----------------------------------------------------------

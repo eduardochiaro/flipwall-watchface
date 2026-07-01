@@ -213,7 +213,13 @@ static Trigger block_trigger(QuadBlock b) {
   switch (b) {
     case BLK_CLOCK:
     case BLK_DIGITAL:
-    case BLK_DIGITAL_BIG: return TRG_CLOCK;
+    case BLK_DIGITAL_BIG:
+    case BLK_HOURS:
+    case BLK_HOURS_BIG:
+    case BLK_MINUTES:
+    case BLK_MINUTES_BIG:
+    case BLK_AMPM:
+    case BLK_AMPM_STACK:  return TRG_CLOCK;
     case BLK_STEPS:
     case BLK_KM:       return TRG_HEALTH;
     case BLK_BATTERY:  return TRG_BATTERY;
