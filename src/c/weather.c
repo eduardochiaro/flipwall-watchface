@@ -74,7 +74,7 @@ void weather_humidity_str(char *buf, size_t n) {
 }
 
 void weather_minmax_str(char *buf, size_t n) {
-  if (s_have) snprintf(buf, n, "%d/%d°", s_min, s_max);
+  if (s_have) snprintf(buf, n, "%d/%d°", s_max, s_min);
   else        snprintf(buf, n, "--");
 }
 

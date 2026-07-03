@@ -51,14 +51,15 @@ function clayCustomFn() {
   var W = 144, H = 168;            // base (aplite/basalt) screen
   var MARGIN = 3, GUTTER = 3;
   var SEAM = '#555555';            // GColorDarkGray
+  var drawSeam = true;             // set per-render from cfg.drawSeam
   var DIM = '#555555';
   var SECOND = '#FF0000';          // SECOND_FG (red on color screens)
 
   // Sample data shown in the mock-up. Sunday so the weekend/accent color is
   // visible; 10:09 -> AM active.
   var SAMPLE = { dow: 'Sun', day: '26', month: 'Jun', year: '2020',
-                 steps: '8.2K', dist: '8.2km', batt: '82%',
-                 temp: '22°', humid: '45%', humLabel: 'Hu', minmax: '12/24°',
+                 steps: '8.2K', dist: '3.2km', batt: '82%',
+                 temp: '22°', humid: '45%', humLabel: 'Hu', minmax: '24/12°',
                  precip: '2mm', time: '10:09',
                  weekend: true, isPM: false, hour: 10, min: 9, sec: 30 };
 
@@ -77,7 +78,7 @@ function clayCustomFn() {
 
   // Block ids match the QuadBlock enum: 0 DoW, 1 Day, 2 Clock, 3 Month,
   // 4 Steps, 5 Distance, 6 Battery, 7 Year, 8 Weather, 9 Month+Day,
-  // 10 Weekday+Day, 11 Temp, 12 Temp(big), 13 Humidity, 14 Min/Max,
+  // 10 Weekday+Day, 11 Temp, 12 Temp(big), 13 Humidity, 14 Max/Min,
   // 15 Precipitation. Day/Clock/Weather/Temp(big) big.
   function isShort(v) {
     return v !== 1 && v !== 2 && v !== 8 && v !== 12 && v !== 17 &&
@@ -110,6 +111,7 @@ function clayCustomFn() {
   }
 
   function seam(w, h) {
+    if (!drawSeam) { return ''; }
     return '<div style="position:absolute;left:' + px(2) + ';top:' +
       px(Math.floor(h / 2)) + ';width:' + px(w - 4) + ';height:' +
       Math.max(1, SCALE).toFixed(2) + 'px;background:' + SEAM + ';"></div>';
@@ -272,14 +274,15 @@ function clayCustomFn() {
   // cfg: { yearTop, band, blocks:[tl,tr,bl,br], face, panel, weekend,
   //        showSeconds }. Mirrors main_layer_update() in the C source.
   function build(cfg) {
+    drawSeam = cfg.drawSeam !== false;   // gate the seam line on the config toggle
     var lang = cfg.lang || 0;
     SAMPLE.month = MONTHS[lang];
     SAMPLE.dow = WDAYS[lang];
     SAMPLE.humLabel = HUM_LABELS[lang];
     if (cfg.units) {  // imperial
-      SAMPLE.temp = '72°'; SAMPLE.minmax = '54/75°'; SAMPLE.precip = '0in';
+      SAMPLE.temp = '72°'; SAMPLE.minmax = '75/54°'; SAMPLE.precip = '0in';
     } else {          // metric
-      SAMPLE.temp = '22°'; SAMPLE.minmax = '12/24°'; SAMPLE.precip = '2mm';
+      SAMPLE.temp = '22°'; SAMPLE.minmax = '24/12°'; SAMPLE.precip = '2mm';
     }
 
     var innerW = W - 2 * MARGIN, innerH = H - 2 * MARGIN;
@@ -354,8 +357,70 @@ function clayCustomFn() {
       face: colorHex('FACE_COLOR'),
       panel: colorHex('PANEL_COLOR'),
       weekend: colorHex('WEEKEND_COLOR'),
-      showSeconds: clayConfig.getItemByMessageKey('SHOW_SECONDS').get()
+      showSeconds: clayConfig.getItemByMessageKey('SHOW_SECONDS').get(),
+      drawSeam: clayConfig.getItemByMessageKey('DRAW_SEAM').get()
     }));
+  }
+
+  // --- Presets ------------------------------------------------------------
+  // Each fills the four grid blocks (one big + one small per column), the
+  // banner, top/bottom banner position, and the three colors. Block ids match
+  // the QuadBlock enum; big = {1,2,8,12,17,19,21}. Colors are hex (no '#').
+  var PRESETS = [
+    { name: 'Standard', tl: 0, bl: 2, tr: 1, br: 3, band: 7, yearTop: true,
+      face: 'FF5500', panel: '000000', weekend: 'FF0000' },
+    { name: 'Digital', tl: 17, bl: 0, tr: 1, br: 3, band: 7, yearTop: true,
+      face: '16213E', panel: '1A1A2E', weekend: 'E94560' },
+    { name: 'Flip Clock', tl: 19, bl: 22, tr: 21, br: 3, band: 10, yearTop: false,
+      face: '222222', panel: 'EEEEEE', weekend: 'FF0000' },
+    { name: 'Weather Station', tl: 8, bl: 15, tr: 12, br: 13, band: 16, yearTop: true,
+      face: '005588', panel: 'FFFFFF', weekend: 'FFAA00' },
+    { name: 'Sport', tl: 2, bl: 4, tr: 1, br: 5, band: 6, yearTop: false,
+      face: '004400', panel: '000000', weekend: '00FF00' },
+    { name: 'Stats', tl: 6, bl: 17, tr: 1, br: 4, band: 5, yearTop: false,
+      face: '2C3E50', panel: '34495E', weekend: '1ABC9C' }
+  ];
+
+  function contrastHex(hex) {   // white text on dark bg, black on light
+    var n = parseInt(hex, 16);
+    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    return (r * 30 + g * 59 + b * 11) / 100 < 128 ? '#FFFFFF' : '#000000';
+  }
+
+  function applyPreset(p) {
+    function set(key, val) {
+      var it = clayConfig.getItemByMessageKey(key);
+      if (it) { it.set(val); }
+    }
+    // Set top before bottom in each column so the link() reconcile (which only
+    // touches the sibling) settles on our valid pair rather than a fallback.
+    set('BLOCK_TOP_LEFT', p.tl);     set('BLOCK_BOTTOM_LEFT', p.bl);
+    set('BLOCK_TOP_RIGHT', p.tr);    set('BLOCK_BOTTOM_RIGHT', p.br);
+    set('BLOCK_BAND', p.band);
+    set('YEAR_TOP', p.yearTop);
+    set('FACE_COLOR', parseInt(p.face, 16));
+    set('PANEL_COLOR', parseInt(p.panel, 16));
+    set('WEEKEND_COLOR', parseInt(p.weekend, 16));
+    refreshPreview();
+  }
+
+  function buildPresetButtons() {
+    var item = clayConfig.getItemById('PRESETS');
+    if (!item) { return; }
+    var html = '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+    PRESETS.forEach(function(p, i) {
+      html += '<button type="button" data-preset="' + i + '" style="flex:1 1 40%;' +
+        'padding:10px 6px;border:none;border-radius:6px;cursor:pointer;' +
+        'font-weight:bold;font-size:14px;background:#' + p.panel +
+        ';color:' + contrastHex(p.panel) + ';">' + p.name + '</button>';
+    });
+    item.set(html + '</div>');
+    PRESETS.forEach(function(p, i) {
+      var el = document.querySelector('[data-preset="' + i + '"]');
+      if (el) {
+        el.addEventListener('click', function(e) { e.preventDefault(); applyPreset(p); });
+      }
+    });
   }
 
   function link(aKey, bKey) {
@@ -385,12 +450,13 @@ function clayCustomFn() {
     // Draw once, then redraw whenever any setting that affects the face changes.
     var watched = ['YEAR_TOP', 'LANG', 'UNITS', 'BLOCK_BAND', 'BLOCK_TOP_LEFT',
       'BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_LEFT', 'BLOCK_BOTTOM_RIGHT', 'FACE_COLOR',
-      'PANEL_COLOR', 'WEEKEND_COLOR', 'SHOW_SECONDS'];
+      'PANEL_COLOR', 'WEEKEND_COLOR', 'SHOW_SECONDS', 'DRAW_SEAM'];
     watched.forEach(function(key) {
       var item = clayConfig.getItemByMessageKey(key);
       if (item) { item.on('change', refreshPreview); }
     });
     refreshPreview();
+    buildPresetButtons();
   });
 }
 

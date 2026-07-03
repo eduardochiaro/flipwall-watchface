@@ -5,7 +5,7 @@
 //   4 = Steps, 5 = Distance, 6 = Battery, 7 = Year (banner only),
 //   8 = Weather icon (big), 9 = Month + Day (banner only),
 //   10 = Weekday + Day (banner only), 11 = Temperature (small),
-//   12 = Temperature (big), 13 = Humidity (small), 14 = Min/Max (banner only),
+//   12 = Temperature (big), 13 = Humidity (small), 14 = Max/Min (small / banner),
 //   15 = Precipitation (small), 16 = Digital clock (small / banner),
 //   17 = Digital clock (big), 18 = Hours (small), 19 = Hours (big),
 //   20 = Minutes (small), 21 = Minutes (big), 22 = AM/PM (small),
@@ -25,6 +25,7 @@ var BLOCK_OPTIONS_SMALL = [
   { label: "Distance (small)", value: 5 },
   { label: "Battery (small)", value: 6 },
   { label: "Temperature (small)", value: 11 },
+  { label: "Max/Min temp (small)", value: 14 },
   { label: "Humidity (small)", value: 13 },
   { label: "Precipitation (small)", value: 15 }
 ];
@@ -55,7 +56,7 @@ var BAND_OPTIONS = [
   { label: "Battery", value: 6 },
   { label: "Temperature", value: 11 },
   { label: "Humidity", value: 13 },
-  { label: "Min/Max temp", value: 14 },
+  { label: "Max/Min temp", value: 14 },
   { label: "Precipitation", value: 15 }
 ];
 
@@ -156,6 +157,16 @@ module.exports = [
         sunlight: false,
         description: "Used for weekend days on weekday block."
       }
+    ]
+  },
+
+  {
+    type: "section",
+    items: [
+      { type: "heading", defaultValue: "Presets" },
+      { type: "text", defaultValue: "Tap a preset to fill in blocks and colors. Tweak anything after." },
+      // Buttons + click handlers are injected by clayCustomFn (needs the webview DOM).
+      { type: "text", id: "PRESETS", label: "", defaultValue: "" },
     ]
   },
 

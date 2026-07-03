@@ -17,7 +17,7 @@ bool block_valid_grid(int v) {
          v == BLK_PRECIP || v == BLK_DIGITAL || v == BLK_DIGITAL_BIG ||
          v == BLK_HOURS || v == BLK_HOURS_BIG ||
          v == BLK_MINUTES || v == BLK_MINUTES_BIG ||
-         v == BLK_AMPM || v == BLK_AMPM_STACK;
+         v == BLK_AMPM || v == BLK_AMPM_STACK || v == BLK_MINMAX;
 }
 bool block_valid_band(int v) {
   return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY) ||
@@ -547,7 +547,7 @@ static bool block_centered_text(QuadBlock b, char *buf, size_t n) {
     case BLK_TEMP:  case BLK_TEMP_BIG: case BLK_HUMIDITY:
     case BLK_PRECIP: case BLK_DIGITAL:
     case BLK_HOURS: case BLK_HOURS_BIG:
-    case BLK_MINUTES: case BLK_MINUTES_BIG:
+    case BLK_MINUTES: case BLK_MINUTES_BIG: case BLK_MINMAX:
       block_text(b, buf, n); return true;
     default: return false;
   }
