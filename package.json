@@ -15,7 +15,7 @@
     "phone": "npm run build && pebble install --phone",
     "config": "pebble emu-app-config --emulator",
     "logs": "pebble logs",
-    "font": "node scripts/gen-svg-font.js resources/fonts/Montserrat-Bold.ttf resources/fonts/montserrat.svg montserrat \" %-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°\" && fctx-compiler resources/fonts/montserrat.svg && mv resources/montserrat.ffont resources/fonts/montserrat.ffont"
+    "font": "node scripts/gen-svg-font.js resources/fonts/Lekton-Bold.ttf resources/fonts/mono.svg mono \" %-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°\" && fctx-compiler resources/fonts/mono.svg && mv resources/mono.ffont resources/fonts/mono.ffont"
   },
   "pebble": {
     "displayName": "Wall Flip",
@@ -165,8 +165,8 @@
         },
         {
           "type": "raw",
-          "name": "FONT_MONTSERRAT_FFONT",
-          "file": "fonts/montserrat.ffont",
+          "name": "FONT_MONO",
+          "file": "fonts/mono.ffont",
           "targetPlatforms": [
             "basalt",
             "chalk",

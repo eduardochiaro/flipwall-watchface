@@ -406,7 +406,7 @@ static void prv_window_load(Window *window) {
 
   // aplite is too small for the vector font; it uses system fonts (see blocks.c).
 #if !PBL_PLATFORM_APLITE
-  s_ffont = ffont_create_from_resource(RESOURCE_ID_FONT_MONTSERRAT_FFONT);
+  s_ffont = ffont_create_from_resource(RESOURCE_ID_FONT_MONO);
 #endif
 
   time_t now = time(NULL);
