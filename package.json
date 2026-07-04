@@ -1,7 +1,7 @@
 {
   "name": "wall-flip",
   "author": "Eduardo Chiaro",
-  "version": "2.2.0",
+  "version": "2.4.0",
   "keywords": [
     "pebble-watchface",
     "flip",
@@ -48,7 +48,6 @@
       "FACE_COLOR",
       "PANEL_COLOR",
       "WEEKEND_COLOR",
-      "TEXT_COLOR",
       "SHOW_SECONDS",
       "LANG",
       "UNITS",
@@ -72,47 +71,97 @@
         {
           "type": "raw",
           "name": "ICON_SUNNY",
-          "file": "weather/sunny_day.pdc"
+          "file": "weather/large/sunny_day.pdc"
         },
         {
           "type": "raw",
           "name": "ICON_PARTLY_CLOUDY",
-          "file": "weather/partly_cloudy.pdc"
+          "file": "weather/large/partly_cloudy.pdc"
         },
         {
           "type": "raw",
           "name": "ICON_CLOUDY",
-          "file": "weather/cloudy_day.pdc"
+          "file": "weather/large/cloudy_day.pdc"
         },
         {
           "type": "raw",
           "name": "ICON_LIGHT_RAIN",
-          "file": "weather/light_rain.pdc"
+          "file": "weather/large/light_rain.pdc"
         },
         {
           "type": "raw",
           "name": "ICON_HEAVY_RAIN",
-          "file": "weather/heavy_rain.pdc"
+          "file": "weather/large/heavy_rain.pdc"
         },
         {
           "type": "raw",
           "name": "ICON_LIGHT_SNOW",
-          "file": "weather/light_snow.pdc"
+          "file": "weather/large/light_snow.pdc"
         },
         {
           "type": "raw",
           "name": "ICON_HEAVY_SNOW",
-          "file": "weather/heavy_snow.pdc"
+          "file": "weather/large/heavy_snow.pdc"
         },
         {
           "type": "raw",
           "name": "ICON_RAIN_SNOW",
-          "file": "weather/raining_and_snowing.pdc"
+          "file": "weather/large/raining_and_snowing.pdc"
         },
         {
           "type": "raw",
           "name": "ICON_GENERIC_WEATHER",
-          "file": "weather/generic_weather.pdc"
+          "file": "weather/large/generic_weather.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_SUNNY_SMALL",
+          "file": "weather/small/sunny_day.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_PARTLY_CLOUDY_SMALL",
+          "file": "weather/small/partly_cloudy.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_CLOUDY_SMALL",
+          "file": "weather/small/cloudy_day.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_LIGHT_RAIN_SMALL",
+          "file": "weather/small/light_rain.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_HEAVY_RAIN_SMALL",
+          "file": "weather/small/heavy_rain.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_LIGHT_SNOW_SMALL",
+          "file": "weather/small/light_snow.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_HEAVY_SNOW_SMALL",
+          "file": "weather/small/heavy_snow.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_RAIN_SNOW_SMALL",
+          "file": "weather/small/raining_and_snowing.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_GENERIC_WEATHER_SMALL",
+          "file": "weather/small/generic_weather.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_HEART",
+          "file": "icons/heart.pdc"
         },
         {
           "type": "raw",

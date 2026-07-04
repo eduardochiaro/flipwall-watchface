@@ -85,25 +85,32 @@ void weather_precip_str(char *buf, size_t n) {
 
 // Open-Meteo WMO weather codes -> bundled pdc icon.
 // https://open-meteo.com/en/docs#weathervariables
-uint32_t weather_icon_resource(void) {
+// Each icon ships in two sizes; `small` picks the small variant (small/banner
+// blocks) over the large (the big weather block).
+#define ICON(name) (small ? RESOURCE_ID_ICON_##name##_SMALL : RESOURCE_ID_ICON_##name)
+static uint32_t icon_res(bool small) {
   switch (s_code) {
-    case 0:                            return RESOURCE_ID_ICON_SUNNY;
-    case 1: case 2:                    return RESOURCE_ID_ICON_PARTLY_CLOUDY;
-    case 3: case 45: case 48:          return RESOURCE_ID_ICON_CLOUDY;
+    case 0:                            return ICON(SUNNY);
+    case 1: case 2:                    return ICON(PARTLY_CLOUDY);
+    case 3: case 45: case 48:          return ICON(CLOUDY);
     case 51: case 53: case 55:         // drizzle
     case 56: case 57:                  // freezing drizzle
     case 61: case 80:                  // slight rain
-      return RESOURCE_ID_ICON_LIGHT_RAIN;
+      return ICON(LIGHT_RAIN);
     case 63: case 65:                  // moderate/heavy rain
     case 81: case 82:                  // rain showers
     case 95: case 96: case 99:         // thunderstorm
-      return RESOURCE_ID_ICON_HEAVY_RAIN;
+      return ICON(HEAVY_RAIN);
     case 66: case 67:                  // freezing rain
-      return RESOURCE_ID_ICON_RAIN_SNOW;
+      return ICON(RAIN_SNOW);
     case 71: case 77: case 85:         // slight snow
-      return RESOURCE_ID_ICON_LIGHT_SNOW;
+      return ICON(LIGHT_SNOW);
     case 73: case 75: case 86:         // moderate/heavy snow
-      return RESOURCE_ID_ICON_HEAVY_SNOW;
-    default:                           return RESOURCE_ID_ICON_GENERIC_WEATHER;
+      return ICON(HEAVY_SNOW);
+    default:                           return ICON(GENERIC_WEATHER);
   }
 }
+#undef ICON
+
+uint32_t weather_icon_resource(void)       { return icon_res(false); }
+uint32_t weather_icon_resource_small(void) { return icon_res(true); }

@@ -1,5 +1,5 @@
 #include "flipwall.h"
-#include "weather.h"
+#include "modules/weather.h"
 
 // ---------------------------------------------------------------------------
 // Flip-wall-clock watchface
@@ -137,7 +137,14 @@ void flip_request(void) {
 // Position every block layer and tag each grid layer with the block it shows.
 // Runs once on load and again on a settings change -- never per tick.
 static void layout(void) {
-  GRect b = layer_get_bounds(window_get_root_layer(s_window));
+  // Unobstructed bounds so the layout shrinks/recentres under Timeline Quick
+  // View (the bottom banner overlay); falls back to full bounds when clear.
+  Layer *root = window_get_root_layer(s_window);
+  GRect b = layer_get_unobstructed_bounds(root);
+  // Obstructed (Timeline Quick View): drop the banner and let the 2x2 grid have
+  // the reduced area to itself, so it still centres cleanly.
+  bool obstructed = b.size.h < layer_get_bounds(root).size.h;
+  layer_set_hidden(s_band_layer, obstructed);
   GRect inner = grect_inset(b, GEdgeInsets(MARGIN, MARGIN + SIDE_MARGIN));
 
   // The two columns fill the width. Tall blocks are square; short blocks are
@@ -148,21 +155,25 @@ static void layout(void) {
   int col_h   = square + GUTTER + short_h;
   int year_h  = square * 45 / 100;   // banner height
 
-  // Centre the whole group (banner + grid) vertically in the face.
-  int group_h = year_h + GUTTER + col_h;
+  // Centre the whole group (banner + grid) vertically in the face. When the
+  // banner is hidden the grid alone is centred.
+  int group_h = obstructed ? col_h : year_h + GUTTER + col_h;
   int top = inner.origin.y + (inner.size.h - group_h) / 2;
   // Round faces nudge the group up (banner top) / down (banner bottom) so the
   // full-width grid edge clears the bezel.
   // ponytail: round-bezel clearance knob. The up-nudge was clipping the top
   // banner, so it's reduced; raise the magnitude again if the grid edge clips.
 #if defined(PBL_PLATFORM_GABBRO)
-  top += s_year_top ? -10 : 20;
+  if (!obstructed) top += s_year_top ? -10 : 20;
 #elif defined(PBL_PLATFORM_CHALK)
-  top += s_year_top ? -5 : 10;
+  if (!obstructed) top += s_year_top ? -5 : 10;
 #endif
 
   GRect band, area;
-  if (s_year_top) {
+  if (obstructed) {                       // banner hidden; grid uses full space
+    area = GRect(inner.origin.x, top, inner.size.w, col_h);
+    band = area;                          // unused while hidden
+  } else if (s_year_top) {
     band = GRect(inner.origin.x, top, inner.size.w, year_h);
     area = GRect(inner.origin.x, top + year_h + GUTTER, inner.size.w, col_h);
   } else {
@@ -221,11 +232,13 @@ static Trigger block_trigger(QuadBlock b) {
     case BLK_AMPM:
     case BLK_AMPM_STACK:  return TRG_CLOCK;
     case BLK_STEPS:
-    case BLK_KM:       return TRG_HEALTH;
+    case BLK_KM:
+    case BLK_HR:       return TRG_HEALTH;
     case BLK_BATTERY:  return TRG_BATTERY;
     case BLK_WEATHER:
     case BLK_TEMP:
     case BLK_TEMP_BIG:
+    case BLK_TEMP_ICON:
     case BLK_HUMIDITY:
     case BLK_MINMAX:
     case BLK_PRECIP:   return TRG_WEATHER;
@@ -259,9 +272,18 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
 
 static void battery_handler(BatteryChargeState state) { mark_blocks(TRG_BATTERY); }
 
+// Timeline Quick View (or any system overlay) resized the drawable area:
+// re-layout so the blocks recentre in the space that's left, and again once
+// it clears. did_change fires after the slide, so blocks snap into place.
+// (aplite has no such overlay, so the service -- and this handler -- are absent.)
+#if !PBL_PLATFORM_APLITE
+static void unobstructed_did_change(void *context) { layout(); }
+#endif
+
 #if defined(PBL_HEALTH)
 static void health_handler(HealthEventType event, void *ctx) {
-  if (event == HealthEventMovementUpdate || event == HealthEventSignificantUpdate)
+  if (event == HealthEventMovementUpdate || event == HealthEventSignificantUpdate ||
+      event == HealthEventHeartRateUpdate)
     mark_blocks(TRG_HEALTH);
 }
 #endif
@@ -321,21 +343,11 @@ static void apply_bool(DictionaryIterator *iter, uint32_t msg_key,
 }
 
 static void apply_block(DictionaryIterator *iter, uint32_t msg_key,
-                        PersistKey pk, QuadBlock *out) {
+                        PersistKey pk, QuadBlock *out, bool (*valid)(int)) {
   Tuple *t = dict_find(iter, msg_key);
   if (!t) return;
   int v = t->value->int32;
-  if (!block_valid_grid(v)) return;
-  *out = (QuadBlock)v;
-  persist_write_int(pk, v);
-}
-
-static void apply_band(DictionaryIterator *iter, uint32_t msg_key,
-                       PersistKey pk, QuadBlock *out) {
-  Tuple *t = dict_find(iter, msg_key);
-  if (!t) return;
-  int v = t->value->int32;
-  if (!block_valid_band(v)) return;
+  if (!valid(v)) return;
   *out = (QuadBlock)v;
   persist_write_int(pk, v);
 }
@@ -357,7 +369,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   }
 
   apply_bool(iter, MESSAGE_KEY_YEAR_TOP, PK_YEAR_TOP, &s_year_top);
-  apply_band(iter, MESSAGE_KEY_BLOCK_BAND, PK_BAND_BLOCK, &s_band_block);
+  apply_block(iter, MESSAGE_KEY_BLOCK_BAND, PK_BAND_BLOCK, &s_band_block, block_valid_band);
 
   Tuple *lang_t = dict_find(iter, MESSAGE_KEY_LANG);
   if (lang_t) {
@@ -365,10 +377,10 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     if (v >= 0 && v < LANG_COUNT) { s_lang = v; persist_write_int(PK_LANG, v); }
   }
 
-  apply_block(iter, MESSAGE_KEY_BLOCK_TOP_LEFT,     PK_BLOCK_TL, &s_grid[0][0]);
-  apply_block(iter, MESSAGE_KEY_BLOCK_TOP_RIGHT,    PK_BLOCK_TR, &s_grid[0][1]);
-  apply_block(iter, MESSAGE_KEY_BLOCK_BOTTOM_LEFT,  PK_BLOCK_BL, &s_grid[1][0]);
-  apply_block(iter, MESSAGE_KEY_BLOCK_BOTTOM_RIGHT, PK_BLOCK_BR, &s_grid[1][1]);
+  apply_block(iter, MESSAGE_KEY_BLOCK_TOP_LEFT,     PK_BLOCK_TL, &s_grid[0][0], block_valid_grid);
+  apply_block(iter, MESSAGE_KEY_BLOCK_TOP_RIGHT,    PK_BLOCK_TR, &s_grid[0][1], block_valid_grid);
+  apply_block(iter, MESSAGE_KEY_BLOCK_BOTTOM_LEFT,  PK_BLOCK_BL, &s_grid[1][0], block_valid_grid);
+  apply_block(iter, MESSAGE_KEY_BLOCK_BOTTOM_RIGHT, PK_BLOCK_BR, &s_grid[1][1], block_valid_grid);
 
   apply_color(iter, MESSAGE_KEY_FACE_COLOR,    PK_FACE_COLOR,    &s_face_bg);
   apply_color(iter, MESSAGE_KEY_PANEL_COLOR,   PK_PANEL_COLOR,   &s_panel_bg);
@@ -418,6 +430,10 @@ static void prv_window_load(Window *window) {
   layout();
 
   battery_state_service_subscribe(battery_handler);
+#if !PBL_PLATFORM_APLITE
+  unobstructed_area_service_subscribe(
+      (UnobstructedAreaHandlers){ .did_change = unobstructed_did_change }, NULL);
+#endif
 #if defined(PBL_HEALTH)
   health_service_events_subscribe(health_handler, NULL);
 #endif
@@ -426,6 +442,9 @@ static void prv_window_load(Window *window) {
 static void prv_window_unload(Window *window) {
   if (s_flip_timer) { app_timer_cancel(s_flip_timer); s_flip_timer = NULL; }
   battery_state_service_unsubscribe();
+#if !PBL_PLATFORM_APLITE
+  unobstructed_area_service_unsubscribe();
+#endif
 #if defined(PBL_HEALTH)
   health_service_events_unsubscribe();
 #endif

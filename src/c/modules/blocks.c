@@ -1,4 +1,4 @@
-#include "flipwall.h"
+#include "../flipwall.h"
 #include "weather.h"
 
 #define SEAM_COLOR   GColorDarkGray
@@ -17,18 +17,21 @@ bool block_valid_grid(int v) {
          v == BLK_PRECIP || v == BLK_DIGITAL || v == BLK_DIGITAL_BIG ||
          v == BLK_HOURS || v == BLK_HOURS_BIG ||
          v == BLK_MINUTES || v == BLK_MINUTES_BIG ||
-         v == BLK_AMPM || v == BLK_AMPM_STACK || v == BLK_MINMAX;
+         v == BLK_AMPM || v == BLK_AMPM_STACK || v == BLK_MINMAX ||
+         v == BLK_HR || v == BLK_TEMP_ICON || v == BLK_CALENDAR;
 }
 bool block_valid_band(int v) {
   return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY) ||
          v == BLK_MONTH_DAY || v == BLK_DOW_DAY ||
          v == BLK_TEMP || v == BLK_HUMIDITY || v == BLK_MINMAX ||
-         v == BLK_PRECIP || v == BLK_DIGITAL;
+         v == BLK_PRECIP || v == BLK_DIGITAL || v == BLK_HR ||
+         v == BLK_TEMP_ICON;
 }
 bool block_is_short(QuadBlock b) {
   return !(b == BLK_DAY || b == BLK_CLOCK || b == BLK_WEATHER ||
            b == BLK_TEMP_BIG || b == BLK_DIGITAL_BIG ||
-           b == BLK_HOURS_BIG || b == BLK_MINUTES_BIG);
+           b == BLK_HOURS_BIG || b == BLK_MINUTES_BIG ||
+           b == BLK_CALENDAR);
 }
 
 // ---------------------------------------------------------------------------
@@ -254,6 +257,7 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
       break;
     case BLK_TEMP:
     case BLK_TEMP_BIG:
+    case BLK_TEMP_ICON:
       weather_temp_str(buf, n);
       break;
     case BLK_HUMIDITY: {
@@ -282,6 +286,16 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
     case BLK_MINUTES_BIG:
       minutes_str(buf, n);
       break;
+    case BLK_HR: {
+#if defined(PBL_HEALTH)
+      int bpm = (int)health_service_peek_current_value(HealthMetricHeartRateBPM);
+      if (bpm > 0) snprintf(buf, n, "%d", bpm);   // averaged over the last minute
+      else         snprintf(buf, n, "--");        // no reading yet
+#else
+      snprintf(buf, n, "--");
+#endif
+      break;
+    }
     default:
       buf[0] = '\0';
       break;
@@ -335,6 +349,28 @@ static void draw_digital_big(GContext *ctx, GRect r) {
   GRect bot = GRect(r.origin.x, r.origin.y + half, r.size.w, r.size.h - half);
   draw_centered(ctx, top, hh, half * 75 / 100, s_text_fg);
   draw_centered(ctx, bot, mm, half * 75 / 100, s_text_fg);
+  draw_seam(ctx, r);
+}
+
+// Calendar block: weekday name (small) over the day-of-month (big), split by the
+// seam. On weekends the weekday name is drawn in the accent/weekend colour.
+static void draw_calendar(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  bool weekend = (s_now.tm_wday == 0 || s_now.tm_wday == 6);
+  GColor dow_fg = weekend ? s_weekend_bg : s_text_fg;
+
+  char day[4];
+  snprintf(day, sizeof(day), "%d", s_now.tm_mday);
+
+  // Inset the content vertically for extra top/bottom margin; weekday sits in a
+  // slim top band of the inset area, day fills the rest.
+  int m = r.size.h * 12 / 100;
+  GRect in = GRect(r.origin.x, r.origin.y + m, r.size.w, r.size.h - 2 * m);
+  int top_h = in.size.h * 38 / 100;
+  GRect top = GRect(in.origin.x, in.origin.y, in.size.w, top_h);
+  GRect bot = GRect(in.origin.x, in.origin.y + top_h, in.size.w, in.size.h - top_h);
+  draw_centered(ctx, top, wday_name(), r.size.h * 19 / 100, dow_fg);   // small
+  draw_centered(ctx, bot, day, r.size.h * 46 / 100, s_text_fg);        // big
   draw_seam(ctx, r);
 }
 
@@ -444,36 +480,28 @@ static void draw_clock(GContext *ctx, GRect r) {
   graphics_fill_circle(ctx, c, 2);
 }
 
-// A big block holding a PDC (vector) icon. PDC has no scale API, so the icon is
-// recreated each redraw and its points are multiplied up to fill the block (less
-// a small padding). Stroke takes the text colour, fill the panel background, so
-// the icon reads as an outline on the panel. Cheap: only redrawn on minute ticks.
-static void draw_icon_block(GContext *ctx, GRect r, uint32_t res_id) {
-  draw_panel(ctx, r, s_panel_bg);
-
+// Draw a PDC (vector) icon scaled to fit `box` (square, centred in it), stroked
+// in `stroke` and filled in `fill`. PDC has no scale API, so the icon is
+// recreated each redraw and its points multiplied up. Shared by the weather
+// icon block and the HR block.
+static void draw_pdc_in(GContext *ctx, uint32_t res_id, GRect box,
+                        GColor stroke, GColor fill, int stroke_w) {
   GDrawCommandImage *img = gdraw_command_image_create_with_resource(res_id);
   if (!img) return;
   GSize native = gdraw_command_image_get_bounds_size(img);
   if (native.w <= 0 || native.h <= 0) { gdraw_command_image_destroy(img); return; }
 
-  const int pad = 8;
-  int side = (r.size.w < r.size.h ? r.size.w : r.size.h) - pad * 2;
+  int side = (box.size.w < box.size.h ? box.size.w : box.size.h);
   if (side < 1) side = 1;
 
   GDrawCommandList *list = gdraw_command_image_get_command_list(img);
   uint32_t n = gdraw_command_list_get_num_commands(list);
   for (uint32_t i = 0; i < n; i++) {
     GDrawCommand *cmd = gdraw_command_list_get_command(list, i);
-    gdraw_command_set_stroke_color(cmd, s_text_fg);
-    gdraw_command_set_fill_color(cmd, get_closest_accent_color(s_panel_bg));
-    if (gdraw_command_get_stroke_width(cmd) > 0) {
-      // if small screen use 3, if large use 6
-      if (is_large_screen) {
-        gdraw_command_set_stroke_width(cmd, 6);  // large screen
-      } else {
-        gdraw_command_set_stroke_width(cmd, 3);  // small screen
-      }
-    }
+    gdraw_command_set_stroke_color(cmd, stroke);
+    gdraw_command_set_fill_color(cmd, fill);
+    //if (gdraw_command_get_stroke_width(cmd) > 0)
+    //  gdraw_command_set_stroke_width(cmd, stroke_w);
     uint16_t np = gdraw_command_get_num_points(cmd);
     for (uint16_t p = 0; p < np; p++) {
       GPoint pt = gdraw_command_get_point(cmd, p);
@@ -482,13 +510,37 @@ static void draw_icon_block(GContext *ctx, GRect r, uint32_t res_id) {
       gdraw_command_set_point(cmd, p, pt);
     }
   }
-
-  GPoint offset = GPoint(r.origin.x + (r.size.w - side) / 2,
-                         r.origin.y + (r.size.h - side) / 2);
+  GPoint offset = GPoint(box.origin.x + (box.size.w - side) / 2,
+                         box.origin.y + (box.size.h - side) / 2);
   gdraw_command_image_draw(ctx, img, offset);
   gdraw_command_image_destroy(img);
+}
 
+// A big block holding a PDC icon, filling the block less a small padding.
+// Cheap: only redrawn on minute ticks.
+static void draw_icon_block(GContext *ctx, GRect r, uint32_t res_id) {
+  draw_panel(ctx, r, s_panel_bg);
+  draw_pdc_in(ctx, res_id, grect_inset(r, GEdgeInsets(8)), s_text_fg,
+              get_closest_accent_color(s_panel_bg), is_large_screen ? 5 : 2);
+  draw_seam(ctx, r);
+}
 
+// A short block: a small PDC icon on the left, the value string filling the
+// rest. The number is what changes, so it (not the icon) carries the value.
+// Shared by the HR block (heart) and the temperature-with-icon block.
+static void draw_icon_value(GContext *ctx, GRect r, uint32_t res_id,
+                            const char *txt) {
+  draw_panel(ctx, r, s_panel_bg);
+
+  int icon = r.size.h * 55 / 100;
+  GRect ibox = GRect(r.origin.x + 6, r.origin.y + (r.size.h - icon) / 2, icon, icon);
+  draw_pdc_in(ctx, res_id, ibox, s_text_fg, get_closest_accent_color(s_panel_bg), 2);
+
+  // Value centred in the space to the right of the icon.
+  GRect nr = r;
+  nr.origin.x = ibox.origin.x + icon;
+  nr.size.w   = r.origin.x + r.size.w - nr.origin.x - 4;
+  draw_centered(ctx, nr, txt, r.size.h * 52 / 100, s_text_fg);
   draw_seam(ctx, r);
 }
 
@@ -504,14 +556,31 @@ void draw_band(GContext *ctx, GRect band) {
   int text_w = text_width(ctx, buf, cap_h);
 
   const int pad_x = 8;
+  // Some banner blocks carry a PDC icon left of the value, like their grid form.
+  uint32_t icon_res = s_band_block == BLK_HR        ? RESOURCE_ID_ICON_HEART
+                    : s_band_block == BLK_TEMP_ICON ? weather_icon_resource_small()
+                    : 0;
+  int icon = icon_res ? band.size.h * 60 / 100 : 0;
+  int gap  = icon_res ? 4 : 0;
+
   GRect r;
-  r.size.w = text_w + pad_x * 2;
+  r.size.w = text_w + pad_x * 2 + icon + gap;
   r.size.h = band.size.h;
   r.origin.x = band.origin.x + (band.size.w - r.size.w) / 2;
   r.origin.y = band.origin.y;
 
   draw_panel(ctx, r, s_panel_bg);
-  draw_centered(ctx, r, buf, cap_h, s_text_fg);
+  if (icon_res) {
+    GRect ibox = GRect(r.origin.x + pad_x, r.origin.y + (r.size.h - icon) / 2,
+                       icon, icon);
+    draw_pdc_in(ctx, icon_res, ibox, s_text_fg, get_closest_accent_color(s_panel_bg), 2);
+    GRect nr = r;
+    nr.origin.x = ibox.origin.x + icon + gap;
+    nr.size.w   = r.origin.x + r.size.w - nr.origin.x - pad_x;
+    draw_centered(ctx, nr, buf, cap_h, s_text_fg);
+  } else {
+    draw_centered(ctx, r, buf, cap_h, s_text_fg);
+  }
   draw_seam(ctx, r);
 }
 
@@ -523,11 +592,20 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_MONTH:    draw_month(ctx, r);    break;
     case BLK_TEMP_BIG: draw_temp_big(ctx, r); break;
     case BLK_DIGITAL_BIG: draw_digital_big(ctx, r); break;
+    case BLK_CALENDAR: draw_calendar(ctx, r); break;
     case BLK_HOURS_BIG: { char b[4]; hours_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
     case BLK_MINUTES_BIG: { char b[4]; minutes_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
     case BLK_AMPM:     draw_ampm(ctx, r);     break;
     case BLK_AMPM_STACK: draw_ampm_stack(ctx, r); break;
     case BLK_WEATHER:  draw_icon_block(ctx, r, weather_icon_resource()); break;
+    case BLK_HR: {
+      char b[8]; block_text(BLK_HR, b, sizeof b);
+      draw_icon_value(ctx, r, RESOURCE_ID_ICON_HEART, b); break;
+    }
+    case BLK_TEMP_ICON: {
+      char b[16]; block_text(BLK_TEMP_ICON, b, sizeof b);
+      draw_icon_value(ctx, r, weather_icon_resource_small(), b); break;
+    }
     default:           draw_value_block(ctx, r, blk); break;  // steps / km / battery / temp / humidity
   }
 }
@@ -549,6 +627,8 @@ static bool block_centered_text(QuadBlock b, char *buf, size_t n) {
     case BLK_HOURS: case BLK_HOURS_BIG:
     case BLK_MINUTES: case BLK_MINUTES_BIG: case BLK_MINMAX:
       block_text(b, buf, n); return true;
+    // BLK_HR draws its own icon+number (draw_hr), so it isn't a flippable
+    // single-string block -> fall through to draw_block.
     default: return false;
   }
 }

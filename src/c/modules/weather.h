@@ -16,4 +16,5 @@ void weather_humidity_str(char *buf, size_t n); // "45%"
 void weather_minmax_str(char *buf, size_t n);   // "12/24°"
 void weather_precip_str(char *buf, size_t n);   // "5mm"
 
-uint32_t weather_icon_resource(void);           // pdc resource for the icon block
+uint32_t weather_icon_resource(void);           // large pdc (big weather block)
+uint32_t weather_icon_resource_small(void);     // small pdc (small/banner block)

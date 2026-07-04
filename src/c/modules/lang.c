@@ -1,4 +1,4 @@
-#include "flipwall.h"
+#include "../flipwall.h"
 
 // Month (%b) and weekday (%a) short names, ASCII-folded to 3 letters so they
 // render with the Latin-only bundled font. Numbers and data readouts are

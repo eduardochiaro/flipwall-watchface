@@ -9,7 +9,8 @@
 //   15 = Precipitation (small), 16 = Digital clock (small / banner),
 //   17 = Digital clock (big), 18 = Hours (small), 19 = Hours (big),
 //   20 = Minutes (small), 21 = Minutes (big), 22 = AM/PM (small),
-//   23 = AM/PM stacked (small).
+//   23 = AM/PM stacked (small), 24 = Heart rate (small),
+//   25 = Temperature + icon (small / banner), 26 = Calendar (big).
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
 // Day of month / Clock / Weather icon / Temperature (big) are "big".
 
@@ -24,7 +25,9 @@ var BLOCK_OPTIONS_SMALL = [
   { label: "Steps (small)", value: 4 },
   { label: "Distance (small)", value: 5 },
   { label: "Battery (small)", value: 6 },
+  { label: "Heart rate (small)", value: 24 },
   { label: "Temperature (small)", value: 11 },
+  { label: "Temperature + icon (small)", value: 25 },
   { label: "Max/Min temp (small)", value: 14 },
   { label: "Humidity (small)", value: 13 },
   { label: "Precipitation (small)", value: 15 }
@@ -36,6 +39,7 @@ var BLOCK_OPTIONS_BIG = [
   { label: "Hours (big)", value: 19 },
   { label: "Minutes (big)", value: 21 },
   { label: "Day of month (big)", value: 1 },
+  { label: "Calendar (big)", value: 26 },
   { label: "Weather icon (big)", value: 8 },
   { label: "Temperature (big)", value: 12 },
 ];
@@ -54,7 +58,9 @@ var BAND_OPTIONS = [
   { label: "Steps", value: 4 },
   { label: "Distance", value: 5 },
   { label: "Battery", value: 6 },
+  { label: "Heart rate", value: 24 },
   { label: "Temperature", value: 11 },
+  { label: "Temperature + icon", value: 25 },
   { label: "Humidity", value: 13 },
   { label: "Max/Min temp", value: 14 },
   { label: "Precipitation", value: 15 }

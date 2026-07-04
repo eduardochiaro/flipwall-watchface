@@ -43,6 +43,9 @@ typedef enum {
   BLK_MINUTES_BIG,// minutes only, 2-digit (big)
   BLK_AMPM,       // AM (left) / PM (right), active bright, other dim (small)
   BLK_AMPM_STACK, // AM (top) / PM (bottom), active bright, other dim (small)
+  BLK_HR,         // heart rate BPM (Health)
+  BLK_TEMP_ICON,  // current temperature + weather icon (small / banner)
+  BLK_CALENDAR,   // weekday over day-of-month, calendar style (big)
 } QuadBlock;
 
 // --- Localisation ----------------------------------------------------------
