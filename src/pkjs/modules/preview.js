@@ -325,13 +325,18 @@ function clayCustomFn() {
     if (cfg.yearTop) { bandY = topY; areaY = topY + yearH + GUTTER; }
     else { areaY = topY; bandY = topY + colH + GUTTER; }
 
-    var c = { panel: cfg.panel, weekend: cfg.weekend, text: contrast(cfg.panel),
-              showSeconds: cfg.showSeconds };
+    // Per-block panel colors: [banner, TL, TR, BL, BR]. Fall back to the single
+    // cfg.panel when a per-block value isn't supplied.
+    var panels = cfg.panels || [cfg.panel, cfg.panel, cfg.panel, cfg.panel, cfg.panel];
+    function mk(panel) {
+      return { panel: panel, weekend: cfg.weekend, text: contrast(panel),
+               showSeconds: cfg.showSeconds };
+    }
     var html = '<div style="position:relative;width:' + px(W) + ';height:' +
       px(H) + ';margin:8px auto;background:' + cfg.face + ';border-radius:' +
       px(6) + ';overflow:hidden;font-family:Arial,Helvetica,sans-serif;">';
 
-    html += bandBlock(cfg.band, MARGIN, bandY, innerW, yearH, c);
+    html += bandBlock(cfg.band, MARGIN, bandY, innerW, yearH, mk(panels[0]));
 
     for (var col = 0; col < 2; col++) {
       var topBlk = cfg.blocks[col];        // tl / tr
@@ -346,8 +351,8 @@ function clayCustomFn() {
         topH = square; botH = shortH;
       }
       var x = MARGIN + col * (colW + GUTTER);
-      html += block(topBlk, x, areaY, colW, topH, c);
-      html += block(botBlk, x, areaY + topH + GUTTER, colW, botH, c);
+      html += block(topBlk, x, areaY, colW, topH, mk(panels[1 + col]));       // TL / TR
+      html += block(botBlk, x, areaY + topH + GUTTER, colW, botH, mk(panels[3 + col]));  // BL / BR
     }
 
     html += '</div>';
@@ -383,7 +388,11 @@ function clayCustomFn() {
         blockVal('BLOCK_BOTTOM_LEFT'), blockVal('BLOCK_BOTTOM_RIGHT')
       ],
       face: colorHex('FACE_COLOR'),
-      panel: colorHex('PANEL_COLOR'),
+      panels: [
+        colorHex('PANEL_BAND_COLOR'), colorHex('PANEL_TL_COLOR'),
+        colorHex('PANEL_TR_COLOR'), colorHex('PANEL_BL_COLOR'),
+        colorHex('PANEL_BR_COLOR')
+      ],
       weekend: colorHex('WEEKEND_COLOR'),
       showSeconds: clayConfig.getItemByMessageKey('SHOW_SECONDS').get(),
       drawSeam: clayConfig.getItemByMessageKey('DRAW_SEAM').get()
@@ -394,6 +403,8 @@ function clayCustomFn() {
   // Each fills the four grid blocks (one big + one small per column), the
   // banner, top/bottom banner position, and the three colors. Block ids match
   // the QuadBlock enum; big = {1,2,8,12,17,19,21}. Colors are hex (no '#').
+  // `panel` sets every block; add `panels` {band,tl,tr,bl,br} to override
+  // individual block colors.
   var PRESETS = [
     { name: 'Standard', tl: 0, bl: 2, tr: 1, br: 3, band: 7, yearTop: true,
       face: 'FF5500', panel: '000000', weekend: 'FF0000' },
@@ -405,8 +416,9 @@ function clayCustomFn() {
       face: '005588', panel: 'FFFFFF', weekend: 'FFAA00' },
     { name: 'Sport', tl: 2, bl: 4, tr: 1, br: 5, band: 6, yearTop: false,
       face: '004400', panel: '000000', weekend: '00FF00' },
-    { name: 'Stats', tl: 6, bl: 17, tr: 1, br: 4, band: 5, yearTop: false,
-      face: '2C3E50', panel: '34495E', weekend: '1ABC9C' }
+    { name: 'Colorful', tl: 2, bl: 0, tr: 1, br: 3, band: 7, yearTop: true,
+      face: '2D3436', panel: '6C5CE7', weekend: 'FF0000',
+      panels: { band: '6C5CE7', tl: 'E17055', tr: '0984E3', bl: '00B894', br: 'D63031' } }
   ];
 
   function contrastHex(hex) {   // white text on dark bg, black on light
@@ -427,8 +439,16 @@ function clayCustomFn() {
     set('BLOCK_BAND', p.band);
     set('YEAR_TOP', p.yearTop);
     set('FACE_COLOR', parseInt(p.face, 16));
-    set('PANEL_COLOR', parseInt(p.panel, 16));
+    set('PANEL_COLOR', parseInt(p.panel, 16));   // change -> syncPanels fills all
     set('WEEKEND_COLOR', parseInt(p.weekend, 16));
+    // Per-block overrides (run after the master broadcast above).
+    if (p.panels) {
+      set('PANEL_BAND_COLOR', parseInt(p.panels.band, 16));
+      set('PANEL_TL_COLOR',   parseInt(p.panels.tl, 16));
+      set('PANEL_TR_COLOR',   parseInt(p.panels.tr, 16));
+      set('PANEL_BL_COLOR',   parseInt(p.panels.bl, 16));
+      set('PANEL_BR_COLOR',   parseInt(p.panels.br, 16));
+    }
     refreshPreview();
   }
 
@@ -471,14 +491,41 @@ function clayCustomFn() {
     b.on('change', function() { reconcile(b, a); });
   }
 
+  // "All panels" master: broadcast its value to every per-block color picker.
+  var PANEL_KEYS = ['PANEL_BAND_COLOR', 'PANEL_TL_COLOR', 'PANEL_TR_COLOR',
+    'PANEL_BL_COLOR', 'PANEL_BR_COLOR'];
+  function syncPanels() {
+    var master = clayConfig.getItemByMessageKey('PANEL_COLOR');
+    if (!master) { return; }
+    var v = master.get();
+    PANEL_KEYS.forEach(function(k) {
+      var it = clayConfig.getItemByMessageKey(k);
+      if (it) { it.set(v); }
+    });
+  }
+
   clayConfig.on(clayConfig.EVENTS.AFTER_BUILD, function() {
     link('BLOCK_TOP_LEFT', 'BLOCK_BOTTOM_LEFT');
     link('BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_RIGHT');
 
+    // Changing the master color (or a preset) refills every per-block picker.
+    var masterItem = clayConfig.getItemByMessageKey('PANEL_COLOR');
+    if (masterItem) { masterItem.on('change', syncPanels); }
+
+    // One-time migration: seed per-block colors from the saved master so
+    // existing users keep their panel color instead of jumping to the default.
+    // Flag lives in the config webview's localStorage, not a visible setting.
+    try {
+      if (!localStorage.getItem('flipwall_panel_split_init')) {
+        syncPanels();
+        localStorage.setItem('flipwall_panel_split_init', '1');
+      }
+    } catch (e) { /* no localStorage: skip the one-time seed */ }
+
     // Draw once, then redraw whenever any setting that affects the face changes.
     var watched = ['YEAR_TOP', 'LANG', 'UNITS', 'BLOCK_BAND', 'BLOCK_TOP_LEFT',
       'BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_LEFT', 'BLOCK_BOTTOM_RIGHT', 'FACE_COLOR',
-      'PANEL_COLOR', 'WEEKEND_COLOR', 'SHOW_SECONDS', 'DRAW_SEAM'];
+      'PANEL_COLOR', 'WEEKEND_COLOR', 'SHOW_SECONDS', 'DRAW_SEAM'].concat(PANEL_KEYS);
     watched.forEach(function(key) {
       var item = clayConfig.getItemByMessageKey(key);
       if (item) { item.on('change', refreshPreview); }

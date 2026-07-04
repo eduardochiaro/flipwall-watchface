@@ -21,6 +21,8 @@ var BLOCK_OPTIONS_SMALL = [
   { label: "AM/PM (small)", value: 22 },
   { label: "AM/PM stacked (small)", value: 23 },
   { label: "Month (small)", value: 3 },
+  { label: "Month + Day (small)", value: 9 },
+  { label: "Weekday + Day (small)", value: 10 },
   { label: "Day of week (small)", value: 0 },
   { label: "Steps (small)", value: 4 },
   { label: "Distance (small)", value: 5 },
@@ -151,9 +153,10 @@ module.exports = [
       {
         type: "color",
         messageKey: "PANEL_COLOR",
-        label: "Panel background",
+        label: "All panels",
         defaultValue: "000000",
-        sunlight: false
+        sunlight: false,
+        description: "Sets every block/banner below. Override any one after."
       },
       {
         type: "color",
@@ -195,6 +198,7 @@ module.exports = [
         defaultValue: 7,
         options: BAND_OPTIONS
       },
+      { type: "color", messageKey: "PANEL_BAND_COLOR", label: "Banner", defaultValue: "000000", sunlight: false },
       {
         type: "toggle",
         messageKey: "YEAR_TOP",
@@ -211,17 +215,19 @@ module.exports = [
       {
         type: "select",
         messageKey: "BLOCK_TOP_LEFT",
-        label: "Top Left",
+        label: "Top",
         defaultValue: 0,
         options: BLOCK_OPTIONS_GROUPS
       },
+      { type: "color", messageKey: "PANEL_TL_COLOR", label: "Top Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_BOTTOM_LEFT",
-        label: "Bottom Left",
+        label: "Bottom",
         defaultValue: 2,
         options: BLOCK_OPTIONS_GROUPS
       },
+      { type: "color", messageKey: "PANEL_BL_COLOR", label: "Bottom Color", defaultValue: "000000", sunlight: false },
     ]
   },
   {
@@ -231,17 +237,19 @@ module.exports = [
       {
         type: "select",
         messageKey: "BLOCK_TOP_RIGHT",
-        label: "Top Right",
+        label: "Top",
         defaultValue: 1,
         options: BLOCK_OPTIONS_GROUPS
       },
+      { type: "color", messageKey: "PANEL_TR_COLOR", label: "Top Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_BOTTOM_RIGHT",
-        label: "Bottom Right",
+        label: "Bottom",
         defaultValue: 3,
         options: BLOCK_OPTIONS_GROUPS
       },
+      { type: "color", messageKey: "PANEL_BR_COLOR", label: "Bottom Color", defaultValue: "000000", sunlight: false }
     ]
   },
   {

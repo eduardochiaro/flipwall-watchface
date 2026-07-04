@@ -38,6 +38,11 @@ int  s_lang = 0;               // 0 = English (see lang.c)
 // is derived from the panel background.
 GColor s_face_bg, s_panel_bg, s_weekend_bg, s_text_fg;
 
+// Resolved panel color per position: [0]=banner, [1]=TL, [2]=TR, [3]=BL, [4]=BR.
+// Each layer's update_proc points s_panel_bg/s_text_fg at its entry before it
+// draws, so every block in blocks.c keeps reading the same two globals.
+static GColor s_panel_colors[5];
+
 bool is_large_screen = false;   // Pebble Time / Time 2 / Round screens
 
 struct tm s_now;
@@ -62,6 +67,13 @@ typedef enum {
   PK_LANG,
   PK_FLIP_ANIM,
   PK_DRAW_SEAM,
+  // Per-block panel color overrides (banner + 4 grid quadrants). Appended last
+  // so existing persisted keys stay stable; absent = fall back to s_panel_bg.
+  PK_PANEL_BAND,
+  PK_PANEL_TL,
+  PK_PANEL_TR,
+  PK_PANEL_BL,
+  PK_PANEL_BR,
 } PersistKey;
 
 #if defined(PBL_PLATFORM_EMERY)
@@ -100,13 +112,30 @@ GPoint s_draw_origin;                 // abs origin of the block being drawn (fo
 // rounded corners, and never repainted.
 // ---------------------------------------------------------------------------
 
+// Point the shared panel/text globals at one position's resolved color, so the
+// block draws (which read s_panel_bg / s_text_fg) pick up its override.
+static void set_panel_color(int pos) {
+  s_panel_bg = s_panel_colors[pos];
+  s_text_fg  = contrast_color(s_panel_bg);
+}
+
+// Which s_panel_colors slot a given grid layer maps to (TL=1..BR=4).
+static int grid_panel_pos(Layer *layer) {
+  for (int r = 0; r < 2; r++)
+    for (int c = 0; c < 2; c++)
+      if (s_grid_layer[r][c] == layer) return 1 + r * 2 + c;
+  return 1;
+}
+
 static void band_layer_update(Layer *layer, GContext *ctx) {
   s_draw_origin = layer_get_frame(layer).origin;
+  set_panel_color(0);   // banner
   draw_band(ctx, layer_get_bounds(layer));
 }
 
 static void grid_layer_update(Layer *layer, GContext *ctx) {
   s_draw_origin = layer_get_frame(layer).origin;
+  set_panel_color(grid_panel_pos(layer));
   draw_block_layer(ctx, layer);   // flip-aware (see blocks.c)
 }
 
@@ -332,6 +361,14 @@ static void settings_load(void) {
   // ponytail: text contrast is derived from the panel bg, not configurable.
   // Weekend dow text reuses it; only wrong if panel/weekend differ in luminance.
   s_text_fg    = contrast_color(s_panel_bg);
+
+  // Per-block panel overrides fall back to the main panel color when unset.
+  static const PersistKey panel_pk[5] =
+      { PK_PANEL_BAND, PK_PANEL_TL, PK_PANEL_TR, PK_PANEL_BL, PK_PANEL_BR };
+  for (int i = 0; i < 5; i++)
+    s_panel_colors[i] = persist_exists(panel_pk[i])
+                            ? GColorFromHEX(persist_read_int(panel_pk[i]))
+                            : s_panel_bg;
 }
 
 static void apply_bool(DictionaryIterator *iter, uint32_t msg_key,
@@ -386,6 +423,13 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   apply_color(iter, MESSAGE_KEY_PANEL_COLOR,   PK_PANEL_COLOR,   &s_panel_bg);
   apply_color(iter, MESSAGE_KEY_WEEKEND_COLOR, PK_WEEKEND_COLOR, &s_weekend_bg);
   s_text_fg = contrast_color(s_panel_bg);
+
+  // Per-block panel overrides (the config page seeds these from PANEL_COLOR).
+  apply_color(iter, MESSAGE_KEY_PANEL_BAND_COLOR, PK_PANEL_BAND, &s_panel_colors[0]);
+  apply_color(iter, MESSAGE_KEY_PANEL_TL_COLOR,   PK_PANEL_TL,   &s_panel_colors[1]);
+  apply_color(iter, MESSAGE_KEY_PANEL_TR_COLOR,   PK_PANEL_TR,   &s_panel_colors[2]);
+  apply_color(iter, MESSAGE_KEY_PANEL_BL_COLOR,   PK_PANEL_BL,   &s_panel_colors[3]);
+  apply_color(iter, MESSAGE_KEY_PANEL_BR_COLOR,   PK_PANEL_BR,   &s_panel_colors[4]);
 
   apply_bool(iter, MESSAGE_KEY_SHOW_SECONDS, PK_SHOW_SECONDS, &s_show_seconds);
   apply_bool(iter, MESSAGE_KEY_FLIP_ANIM, PK_FLIP_ANIM, &s_flip_enabled);

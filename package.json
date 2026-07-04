@@ -1,7 +1,7 @@
 {
   "name": "wall-flip",
   "author": "Eduardo Chiaro",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "keywords": [
     "pebble-watchface",
     "flip",
@@ -58,7 +58,12 @@
       "WEATHER_MIN_TEMP",
       "WEATHER_MAX_TEMP",
       "FLIP_ANIM",
-      "DRAW_SEAM"
+      "DRAW_SEAM",
+      "PANEL_BAND_COLOR",
+      "PANEL_TL_COLOR",
+      "PANEL_TR_COLOR",
+      "PANEL_BL_COLOR",
+      "PANEL_BR_COLOR"
     ],
     "resources": {
       "media": [
