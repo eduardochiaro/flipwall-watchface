@@ -235,18 +235,19 @@ function clayCustomFn() {
       return panelDiv(x, y, w, h, bg, inner);
     }
     if (v === 17) {  // digital clock (big): hours over minutes, split by seam
-      var hh = '' + SAMPLE.hour;
+      var hh = (SAMPLE.hour < 10 ? '0' : '') + SAMPLE.hour;   // leading zero
       var mm = (SAMPLE.min < 10 ? '0' : '') + SAMPLE.min;
       var fontD = Math.round(h * 0.34);
-      function halfText(t, topHalf) {
+      function halfText(t, topHalf, color) {
         return '<div style="position:absolute;left:0;right:0;' +
           (topHalf ? 'top:0' : 'bottom:0') +
           ';height:50%;display:flex;align-items:center;justify-content:center;' +
-          'color:' + c.text + ';font-weight:bold;font-size:' + px(fontD) +
+          'color:' + color + ';font-weight:bold;font-size:' + px(fontD) +
           ';line-height:1;">' + t + '</div>';
       }
       return panelDiv(x, y, w, h, c.panel,
-        halfText(hh, true) + halfText(mm, false) + seam(w, h));
+        halfText(hh, true, c.text) +
+        halfText(mm, false, accent(c.text)) + seam(w, h));
     }
     if (v === 26) {  // calendar: weekday (small) over day-of-month (big)
       var dowFg = SAMPLE.weekend ? c.weekend : c.text;
@@ -286,6 +287,16 @@ function clayCustomFn() {
     var n = parseInt(hex.slice(1), 16);
     var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
     return (r * 30 + g * 59 + b * 11) / 100 < 128 ? '#FFFFFF' : '#000000';
+  }
+
+  // Lighten dark colours, darken light ones (mirrors get_closest_accent_color).
+  function accent(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+    var dark = (r * 30 + g * 59 + b * 11) / 100 < 128;
+    function adj(x) { return Math.round(dark ? x + (255 - x) * 0.3 : x * 0.7); }
+    function hx(x) { return (x < 16 ? '0' : '') + x.toString(16); }
+    return '#' + hx(adj(r)) + hx(adj(g)) + hx(adj(b));
   }
 
   // cfg: { yearTop, band, blocks:[tl,tr,bl,br], face, panel, weekend,

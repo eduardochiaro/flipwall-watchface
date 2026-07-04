@@ -342,13 +342,14 @@ static void draw_temp_big(GContext *ctx, GRect r) {
 // the seam. (The small/banner variant is just "HH:MM" via draw_value_block.)
 static void draw_digital_big(GContext *ctx, GRect r) {
   char hh[4], mm[4];
-  digital_parts(hh, sizeof(hh), mm, sizeof(mm));
+  hours_str(hh, sizeof(hh));     // keep the leading zero (2 digits)
+  minutes_str(mm, sizeof(mm));
   draw_panel(ctx, r, s_panel_bg);
   int half = r.size.h / 2;
   GRect top = GRect(r.origin.x, r.origin.y, r.size.w, half);
   GRect bot = GRect(r.origin.x, r.origin.y + half, r.size.w, r.size.h - half);
   draw_centered(ctx, top, hh, half * 75 / 100, s_text_fg);
-  draw_centered(ctx, bot, mm, half * 75 / 100, s_text_fg);
+  draw_centered(ctx, bot, mm, half * 75 / 100, get_closest_accent_color(s_text_fg));
   draw_seam(ctx, r);
 }
 
