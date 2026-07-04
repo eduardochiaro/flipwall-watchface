@@ -593,8 +593,6 @@ static void draw_pdc_in(GContext *ctx, uint32_t res_id, GRect box,
     GDrawCommand *cmd = gdraw_command_list_get_command(list, i);
     gdraw_command_set_stroke_color(cmd, stroke);
     gdraw_command_set_fill_color(cmd, fill);
-    //if (gdraw_command_get_stroke_width(cmd) > 0)
-    //  gdraw_command_set_stroke_width(cmd, stroke_w);
     uint16_t np = gdraw_command_get_num_points(cmd);
     for (uint16_t p = 0; p < np; p++) {
       GPoint pt = gdraw_command_get_point(cmd, p);
@@ -614,7 +612,7 @@ static void draw_pdc_in(GContext *ctx, uint32_t res_id, GRect box,
 static void draw_icon_block(GContext *ctx, GRect r, uint32_t res_id) {
   draw_panel(ctx, r, s_panel_bg);
   draw_pdc_in(ctx, res_id, grect_inset(r, GEdgeInsets(8)), s_text_fg,
-              get_closest_accent_color(s_panel_bg), is_large_screen ? 5 : 2);
+              get_closest_accent_color(s_panel_bg));
   draw_seam(ctx, r);
 }
 
@@ -627,7 +625,7 @@ static void draw_icon_value(GContext *ctx, GRect r, uint32_t res_id,
 
   int icon = r.size.h * 55 / 100;
   GRect ibox = GRect(r.origin.x + 6, r.origin.y + (r.size.h - icon) / 2, icon, icon);
-  draw_pdc_in(ctx, res_id, ibox, s_text_fg, get_closest_accent_color(s_panel_bg), 2);
+  draw_pdc_in(ctx, res_id, ibox, s_text_fg, get_closest_accent_color(s_panel_bg));
 
   // Value centred in the space to the right of the icon.
   GRect nr = r;
@@ -666,7 +664,7 @@ void draw_band(GContext *ctx, GRect band) {
   if (icon_res) {
     GRect ibox = GRect(r.origin.x + pad_x, r.origin.y + (r.size.h - icon) / 2,
                        icon, icon);
-    draw_pdc_in(ctx, icon_res, ibox, s_text_fg, get_closest_accent_color(s_panel_bg), 2);
+    draw_pdc_in(ctx, icon_res, ibox, s_text_fg, get_closest_accent_color(s_panel_bg));
     GRect nr = r;
     nr.origin.x = ibox.origin.x + icon + gap;
     nr.size.w   = r.origin.x + r.size.w - nr.origin.x - pad_x;

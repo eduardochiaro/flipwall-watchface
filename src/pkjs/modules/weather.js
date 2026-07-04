@@ -1,18 +1,3 @@
-function getLocation(successCallback, errorCallback) {
-  navigator.geolocation.getCurrentPosition(
-    function(position) {
-      successCallback({
-        lat: position.coords.latitude,
-        lon: position.coords.longitude
-      });
-    },
-    function(error) {
-      errorCallback(error);
-    },
-    { timeout: 15000, maximumAge: 1800000 } // 30 minute cache
-  );
-}
-
 // Imperial when the user picked it on the config page (UNITS = 1), else metric.
 // Clay persists the saved settings to localStorage under 'clay-settings'.
 function isImperial() {
@@ -78,8 +63,8 @@ function fetchWeather(lat, lon, successCallback, errorCallback) {
 }
 
 function getWeather() {
-  getLocation(function(location) {
-    fetchWeather(location.lat, location.lon, function(weatherData) {
+  navigator.geolocation.getCurrentPosition(function(position) {
+    fetchWeather(position.coords.latitude, position.coords.longitude, function(weatherData) {
       // Send weather data to C code
       Pebble.sendAppMessage({
         WEATHER_TEMPERATURE: weatherData.temperature, // already in the user's unit (see isImperial)
@@ -98,7 +83,7 @@ function getWeather() {
     });   
   }, function(error) {
     console.log('Failed to get location: ' + error.message);
-  });
+  }, { timeout: 15000, maximumAge: 1800000 }); // 30 minute cache
 }
 
 module.exports = getWeather;

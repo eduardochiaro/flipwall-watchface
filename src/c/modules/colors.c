@@ -10,7 +10,7 @@ static uint16_t luminance(GColor c) {
 GColor get_closest_accent_color(GColor c) {
   uint8_t r = (uint8_t)(c.r * 85), g = (uint8_t)(c.g * 85), b = (uint8_t)(c.b * 85);
   // Lighten dark colors, darken light ones.
-  if (luminance(c) < 128) {
+  if ((r * 30 + g * 59 + b * 11) / 100 < 128) {
     r = (uint8_t)(r + (255 - r) * 0.3);
     g = (uint8_t)(g + (255 - g) * 0.3);
     b = (uint8_t)(b + (255 - b) * 0.3);
