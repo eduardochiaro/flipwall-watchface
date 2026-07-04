@@ -3,7 +3,10 @@
 //   0 = Day of week, 1 = Day of month, 2 = Clock, 3 = Month.
 // "Big" blocks fill a square; "small" blocks are half height. Each column must
 // pair exactly one of each, so the two columns line up.
-var BIG_BLOCKS = { 1: true, 2: true, 8: true, 12: true, 17: true, 19: true, 21: true, 26: true };   // Day, Clock, Weather, Temp(big), Digital(big), Hours(big), Minutes(big), Calendar
+var BIG_BLOCKS = { 1: true, 2: true, 8: true, 12: true, 17: true, 19: true,
+  21: true, 26: true, 27: true, 28: true, 29: true, 30: true, 31: true, 32: true };
+// Day, Clock, Weather, Temp(big), Digital(big), Hours(big), Minutes(big),
+// Calendar, Humidity, Battery, Calendar+Month, HR, Distance, Max/Min (all big)
 var FALLBACK_SMALL = 0;                   // Day of week
 var FALLBACK_BIG = 2;                     // Clock
 
@@ -40,7 +43,7 @@ function clayCustomFn() {
   function isBig(v) {
     var n = parseInt(v, 10);
     return n === 1 || n === 2 || n === 8 || n === 12 || n === 17 ||
-           n === 19 || n === 21 || n === 26;
+           n === 19 || n === 21 || n === 26 || (n >= 27 && n <= 32);
   }
   var FALLBACK_SMALL = 0;   // Day of week
   var FALLBACK_BIG = 2;     // Clock
@@ -59,7 +62,9 @@ function clayCustomFn() {
   // visible; 10:09 -> AM active.
   var SAMPLE = { dow: 'Sun', day: '26', month: 'Jun', year: '2020',
                  steps: '8.2K', dist: '3.2km', batt: '82%',
-                 temp: '22°', humid: '45%', humLabel: 'Hu', minmax: '24/12°',
+                 temp: '22°', humid: '45%', humLabel: 'Hu', humLabel3: 'Hum',
+                 battLabel: 'Batt', minmax: '24/12°', tmax: '24°', tmin: '12°',
+                 distNum: '3.2', distUnit: 'KM',
                  precip: '2mm', time: '10:09', hr: '72',
                  weekend: true, isPM: false, hour: 10, min: 9, sec: 30 };
 
@@ -75,6 +80,14 @@ function clayCustomFn() {
   var HUM_LABELS = [
     'Hu','Hu','Um','Hu','Lf','Um','Vo','Wi','Ne','Ke'  // index = lang
   ];
+  // 3-letter humidity caption + battery caption — must match HUMIDITY3/BATTERY
+  // in the C source (lang.c).
+  var HUM3_LABELS = [
+    'Hum','Hum','Umi','Hum','Luf','Umi','Voc','Wil','Nem','Kel'  // index = lang
+  ];
+  var BATT_LABELS = [
+    'Batt','Bat','Bat','Batt','Batt','Batt','Batt','Bat','Pil','Bat'  // index = lang
+  ];
 
   // Block ids match the QuadBlock enum: 0 DoW, 1 Day, 2 Clock, 3 Month,
   // 4 Steps, 5 Distance, 6 Battery, 7 Year, 8 Weather, 9 Month+Day,
@@ -82,7 +95,7 @@ function clayCustomFn() {
   // 15 Precipitation. Day/Clock/Weather/Temp(big) big.
   function isShort(v) {
     return v !== 1 && v !== 2 && v !== 8 && v !== 12 && v !== 17 &&
-           v !== 19 && v !== 21 && v !== 26;
+           v !== 19 && v !== 21 && v !== 26 && !(v >= 27 && v <= 32);
   }
 
   // Display text for the data blocks (steps / distance / battery / year).
@@ -264,6 +277,43 @@ function clayCustomFn() {
         calBand(SAMPLE.day, calTop, h - calM - calTop, c.text, Math.round(h * 0.46)) +
         seam(w, h));
     }
+    // Big two-line blocks (caption + big value). label_top = caption on top.
+    // Mirrors draw_caption_value in the C source (same 12%/38% proportions).
+    if (v === 27 || v === 28 || v === 29 || v === 30 || v === 31) {
+      var cvM = Math.round(h * 0.12), cvInH = h - 2 * cvM;
+      var cvSmallH = Math.round(cvInH * 0.38);
+      var caption, value, capColor = c.text, labelTop;
+      if (v === 27) { caption = SAMPLE.humLabel3; value = SAMPLE.humid; labelTop = true; }
+      else if (v === 28) { caption = SAMPLE.battLabel; value = SAMPLE.batt; labelTop = true; }
+      else if (v === 29) { caption = SAMPLE.month; value = SAMPLE.day; labelTop = true; }
+      else if (v === 30) { caption = 'BPM'; value = SAMPLE.hr; labelTop = false; }
+      else { caption = SAMPLE.distUnit; value = SAMPLE.distNum; labelTop = false; }
+      var smallY, bigY, bigH;
+      if (labelTop) { smallY = cvM; bigY = cvM + cvSmallH; bigH = cvInH - cvSmallH; }
+      else { bigY = cvM; bigH = cvInH - cvSmallH; smallY = cvM + bigH; }
+      function cvBand(t, top, bandH, color, fpx) {
+        return '<div style="position:absolute;left:0;right:0;top:' + px(top) +
+          ';height:' + px(bandH) + ';display:flex;align-items:center;' +
+          'justify-content:center;color:' + color + ';font-weight:bold;font-size:' +
+          px(fpx) + ';line-height:1;">' + t + '</div>';
+      }
+      return panelDiv(x, y, w, h, c.panel,
+        cvBand(caption, smallY, cvSmallH, capColor, Math.round(h * 0.19)) +
+        cvBand(value, bigY, bigH, c.text, Math.round(h * 0.46)) + seam(w, h));
+    }
+    if (v === 32) {  // max/min temp (big): max over min, min in accent
+      var fontMM = Math.round(h * 0.34);
+      function mmHalf(t, topHalf, color) {
+        return '<div style="position:absolute;left:0;right:0;' +
+          (topHalf ? 'top:0' : 'bottom:0') +
+          ';height:50%;display:flex;align-items:center;justify-content:center;' +
+          'color:' + color + ';font-weight:bold;font-size:' + px(fontMM) +
+          ';line-height:1;">' + t + '</div>';
+      }
+      return panelDiv(x, y, w, h, c.panel,
+        mmHalf(SAMPLE.tmax, true, c.text) +
+        mmHalf(SAMPLE.tmin, false, accent(c.text)) + seam(w, h));
+    }
     // day number (big), temp (big), month name, or a data readout.
     var txt = v === 1 ? SAMPLE.day : (v === 3 ? SAMPLE.month : valueText(v));
     var font = (v === 1 || v === 12) ? Math.round(h * 0.6) : Math.round(h * 0.5);
@@ -307,11 +357,21 @@ function clayCustomFn() {
     SAMPLE.month = MONTHS[lang];
     SAMPLE.dow = WDAYS[lang];
     SAMPLE.humLabel = HUM_LABELS[lang];
+    SAMPLE.humLabel3 = HUM3_LABELS[lang];
+    SAMPLE.battLabel = BATT_LABELS[lang];
     if (cfg.units) {  // imperial
       SAMPLE.temp = '72°'; SAMPLE.minmax = '75/54°'; SAMPLE.precip = '0in';
+      SAMPLE.dist = '2.0mi';
     } else {          // metric
       SAMPLE.temp = '22°'; SAMPLE.minmax = '24/12°'; SAMPLE.precip = '2mm';
+      SAMPLE.dist = '3.2km';
     }
+    // Split the combined samples into the parts the big blocks show separately.
+    var mm = SAMPLE.minmax.replace('°', '').split('/');
+    SAMPLE.tmax = mm[0] + '°'; SAMPLE.tmin = mm[1] + '°';
+    var dm = /^([\d.]+)([a-z]+)$/i.exec(SAMPLE.dist);
+    SAMPLE.distNum = dm ? dm[1] : SAMPLE.dist;
+    SAMPLE.distUnit = dm ? dm[2].toUpperCase() : '';
 
     var innerW = W - 2 * MARGIN, innerH = H - 2 * MARGIN;
     var colW = Math.floor((innerW - GUTTER) / 2);

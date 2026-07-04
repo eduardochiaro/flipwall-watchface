@@ -19,7 +19,10 @@ bool block_valid_grid(int v) {
          v == BLK_MINUTES || v == BLK_MINUTES_BIG ||
          v == BLK_AMPM || v == BLK_AMPM_STACK || v == BLK_MINMAX ||
          v == BLK_HR || v == BLK_TEMP_ICON || v == BLK_CALENDAR ||
-         v == BLK_MONTH_DAY || v == BLK_DOW_DAY;
+         v == BLK_MONTH_DAY || v == BLK_DOW_DAY ||
+         v == BLK_HUMIDITY_BIG || v == BLK_BATTERY_BIG ||
+         v == BLK_MONTH_CAL || v == BLK_HR_BIG ||
+         v == BLK_KM_BIG || v == BLK_MINMAX_BIG;
 }
 bool block_valid_band(int v) {
   return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY) ||
@@ -32,7 +35,9 @@ bool block_is_short(QuadBlock b) {
   return !(b == BLK_DAY || b == BLK_CLOCK || b == BLK_WEATHER ||
            b == BLK_TEMP_BIG || b == BLK_DIGITAL_BIG ||
            b == BLK_HOURS_BIG || b == BLK_MINUTES_BIG ||
-           b == BLK_CALENDAR);
+           b == BLK_CALENDAR || b == BLK_HUMIDITY_BIG ||
+           b == BLK_BATTERY_BIG || b == BLK_MONTH_CAL ||
+           b == BLK_HR_BIG || b == BLK_KM_BIG || b == BLK_MINMAX_BIG);
 }
 
 // ---------------------------------------------------------------------------
@@ -354,25 +359,111 @@ static void draw_digital_big(GContext *ctx, GRect r) {
   draw_seam(ctx, r);
 }
 
+// Big two-line block: a small caption and a big value stacked, split by the
+// seam. label_top puts the caption above the value (calendar/humidity/battery);
+// otherwise the value sits on top (HR/distance). caption_fg lets the calendar
+// tint its weekday on weekends; everything else passes s_text_fg. Caller draws
+// the panel and seam. Mirrors the original calendar layout/proportions.
+static void draw_caption_value(GContext *ctx, GRect r, const char *caption,
+                               GColor caption_fg, const char *value,
+                               bool label_top) {
+  // Inset the content vertically for extra top/bottom margin; the caption sits
+  // in a slim band, the value fills the rest.
+  int m = r.size.h * 12 / 100;
+  GRect in = GRect(r.origin.x, r.origin.y + m, r.size.w, r.size.h - 2 * m);
+  int small_h = in.size.h * 38 / 100;
+  GRect small_r, big_r;
+  if (label_top) {
+    small_r = GRect(in.origin.x, in.origin.y, in.size.w, small_h);
+    big_r   = GRect(in.origin.x, in.origin.y + small_h, in.size.w, in.size.h - small_h);
+  } else {
+    big_r   = GRect(in.origin.x, in.origin.y, in.size.w, in.size.h - small_h);
+    small_r = GRect(in.origin.x, in.origin.y + in.size.h - small_h, in.size.w, small_h);
+  }
+  draw_centered(ctx, small_r, caption, r.size.h * 19 / 100, caption_fg);   // small
+  draw_centered(ctx, big_r, value, r.size.h * 46 / 100, s_text_fg);        // big
+}
+
 // Calendar block: weekday name (small) over the day-of-month (big), split by the
 // seam. On weekends the weekday name is drawn in the accent/weekend colour.
 static void draw_calendar(GContext *ctx, GRect r) {
   draw_panel(ctx, r, s_panel_bg);
   bool weekend = (s_now.tm_wday == 0 || s_now.tm_wday == 6);
   GColor dow_fg = weekend ? s_weekend_bg : s_text_fg;
-
   char day[4];
   snprintf(day, sizeof(day), "%d", s_now.tm_mday);
+  draw_caption_value(ctx, r, wday_name(), dow_fg, day, true);
+  draw_seam(ctx, r);
+}
 
-  // Inset the content vertically for extra top/bottom margin; weekday sits in a
-  // slim top band of the inset area, day fills the rest.
-  int m = r.size.h * 12 / 100;
-  GRect in = GRect(r.origin.x, r.origin.y + m, r.size.w, r.size.h - 2 * m);
-  int top_h = in.size.h * 38 / 100;
-  GRect top = GRect(in.origin.x, in.origin.y, in.size.w, top_h);
-  GRect bot = GRect(in.origin.x, in.origin.y + top_h, in.size.w, in.size.h - top_h);
-  draw_centered(ctx, top, wday_name(), r.size.h * 19 / 100, dow_fg);   // small
-  draw_centered(ctx, bot, day, r.size.h * 46 / 100, s_text_fg);        // big
+// Calendar variant: month name (small) over the day-of-month (big). No accent.
+static void draw_month_cal(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  char day[4];
+  snprintf(day, sizeof(day), "%d", s_now.tm_mday);
+  draw_caption_value(ctx, r, month_name(), s_text_fg, day, true);
+  draw_seam(ctx, r);
+}
+
+// Big humidity: localised "Hum" caption over the "47%" value.
+static void draw_humidity_big(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  char v[8];
+  weather_humidity_str(v, sizeof(v));
+  draw_caption_value(ctx, r, humidity_label3(), s_text_fg, v, true);
+  draw_seam(ctx, r);
+}
+
+// Big battery: localised "Batt" caption over the "82%" value.
+static void draw_battery_big(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  char v[8];
+  snprintf(v, sizeof(v), "%d%%", battery_state_service_peek().charge_percent);
+  draw_caption_value(ctx, r, battery_label(), s_text_fg, v, true);
+  draw_seam(ctx, r);
+}
+
+// Big heart rate: the BPM number over a "BPM" caption.
+static void draw_hr_big(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  char v[8];
+  block_text(BLK_HR, v, sizeof(v));
+  draw_caption_value(ctx, r, "BPM", s_text_fg, v, false);
+  draw_seam(ctx, r);
+}
+
+// Big distance: the number over its unit (KM/M/MI). Reuses the short block's
+// value formatting (same rounding / imperial handling), then splits the numeric
+// part from the trailing unit and upper-cases the unit.
+static void draw_km_big(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  char buf[16], num[8], unit[8];
+  block_text(BLK_KM, buf, sizeof(buf));   // e.g. "3.2km" or "--"
+  size_t i = 0;
+  while (buf[i] && (buf[i] == '.' || (buf[i] >= '0' && buf[i] <= '9'))) i++;
+  size_t ni = i < sizeof(num) - 1 ? i : sizeof(num) - 1;
+  memcpy(num, buf, ni);
+  num[ni] = '\0';
+  size_t u = 0;
+  for (; buf[i] && u < sizeof(unit) - 1; i++, u++)
+    unit[u] = (buf[i] >= 'a' && buf[i] <= 'z') ? buf[i] - 32 : buf[i];
+  unit[u] = '\0';
+  draw_caption_value(ctx, r, unit, s_text_fg, num, false);
+  draw_seam(ctx, r);
+}
+
+// Big max/min temp: max in the top half, min in the bottom half (in the accent
+// colour), split by the seam — same two-half treatment as the big digital clock.
+static void draw_minmax_big(GContext *ctx, GRect r) {
+  char mx[8], mn[8];
+  weather_max_str(mx, sizeof(mx));
+  weather_min_str(mn, sizeof(mn));
+  draw_panel(ctx, r, s_panel_bg);
+  int half = r.size.h / 2;
+  GRect top = GRect(r.origin.x, r.origin.y, r.size.w, half);
+  GRect bot = GRect(r.origin.x, r.origin.y + half, r.size.w, r.size.h - half);
+  draw_centered(ctx, top, mx, half * 75 / 100, s_text_fg);
+  draw_centered(ctx, bot, mn, half * 75 / 100, get_closest_accent_color(s_text_fg));
   draw_seam(ctx, r);
 }
 
@@ -487,7 +578,7 @@ static void draw_clock(GContext *ctx, GRect r) {
 // recreated each redraw and its points multiplied up. Shared by the weather
 // icon block and the HR block.
 static void draw_pdc_in(GContext *ctx, uint32_t res_id, GRect box,
-                        GColor stroke, GColor fill, int stroke_w) {
+                        GColor stroke, GColor fill) {
   GDrawCommandImage *img = gdraw_command_image_create_with_resource(res_id);
   if (!img) return;
   GSize native = gdraw_command_image_get_bounds_size(img);
@@ -595,6 +686,12 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_TEMP_BIG: draw_temp_big(ctx, r); break;
     case BLK_DIGITAL_BIG: draw_digital_big(ctx, r); break;
     case BLK_CALENDAR: draw_calendar(ctx, r); break;
+    case BLK_MONTH_CAL: draw_month_cal(ctx, r); break;
+    case BLK_HUMIDITY_BIG: draw_humidity_big(ctx, r); break;
+    case BLK_BATTERY_BIG: draw_battery_big(ctx, r); break;
+    case BLK_HR_BIG:   draw_hr_big(ctx, r);   break;
+    case BLK_KM_BIG:   draw_km_big(ctx, r);   break;
+    case BLK_MINMAX_BIG: draw_minmax_big(ctx, r); break;
     case BLK_HOURS_BIG: { char b[4]; hours_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
     case BLK_MINUTES_BIG: { char b[4]; minutes_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
     case BLK_AMPM:     draw_ampm(ctx, r);     break;

@@ -78,6 +78,16 @@ void weather_minmax_str(char *buf, size_t n) {
   else        snprintf(buf, n, "--");
 }
 
+void weather_max_str(char *buf, size_t n) {
+  if (s_have) snprintf(buf, n, "%d°", s_max);
+  else        snprintf(buf, n, "--");
+}
+
+void weather_min_str(char *buf, size_t n) {
+  if (s_have) snprintf(buf, n, "%d°", s_min);
+  else        snprintf(buf, n, "--");
+}
+
 void weather_precip_str(char *buf, size_t n) {
   if (s_have) snprintf(buf, n, "%d%s", s_precip, s_imperial ? "in" : "mm");
   else        snprintf(buf, n, "--");

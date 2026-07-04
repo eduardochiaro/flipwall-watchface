@@ -14,6 +14,8 @@ void weather_set_units(bool imperial);                 // precip suffix: in vs m
 void weather_temp_str(char *buf, size_t n);     // "22°"
 void weather_humidity_str(char *buf, size_t n); // "45%"
 void weather_minmax_str(char *buf, size_t n);   // "12/24°"
+void weather_max_str(char *buf, size_t n);      // "24°"
+void weather_min_str(char *buf, size_t n);      // "12°"
 void weather_precip_str(char *buf, size_t n);   // "5mm"
 
 uint32_t weather_icon_resource(void);           // large pdc (big weather block)

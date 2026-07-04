@@ -46,6 +46,14 @@ typedef enum {
   BLK_HR,         // heart rate BPM (Health)
   BLK_TEMP_ICON,  // current temperature + weather icon (small / banner)
   BLK_CALENDAR,   // weekday over day-of-month, calendar style (big)
+  // More big two-line blocks (caption over big value). Appended last so
+  // persisted ints stay stable.
+  BLK_HUMIDITY_BIG, // "Hum" over "47%" (big)
+  BLK_BATTERY_BIG,  // "Batt" over "82%" (big)
+  BLK_MONTH_CAL,    // month name over day-of-month, calendar style (big)
+  BLK_HR_BIG,       // heart rate number over "BPM" (big)
+  BLK_KM_BIG,       // distance number over unit (KM/M/MI) (big)
+  BLK_MINMAX_BIG,   // today's max over min temp (big, min in accent)
 } QuadBlock;
 
 // --- Localisation ----------------------------------------------------------
@@ -53,6 +61,8 @@ typedef enum {
 const char *month_name(void);     // localised %b for s_now / s_lang
 const char *wday_name(void);      // localised %a for s_now / s_lang
 const char *humidity_label(void); // localised 2-letter humidity prefix ("Hu")
+const char *humidity_label3(void);// localised 3-letter humidity caption ("Hum")
+const char *battery_label(void);  // localised battery caption ("Batt")
 
 // --- Colours ---------------------------------------------------------------
 GColor get_closest_accent_color(GColor c);   // lighten dark / darken light

@@ -47,6 +47,36 @@ static const char *const HUMIDITY[LANG_COUNT] = {
   "Ke", // id Kelembaban
 };
 
-const char *month_name(void)     { return MONTHS[s_lang][s_now.tm_mon]; }
-const char *wday_name(void)      { return WDAYS[s_lang][s_now.tm_wday]; }
-const char *humidity_label(void) { return HUMIDITY[s_lang]; }
+// 3-letter humidity caption for the big humidity block ("Hum" over "47%").
+static const char *const HUMIDITY3[LANG_COUNT] = {
+  "Hum", // en Humidity
+  "Hum", // es Humedad
+  "Umi", // pt Umidade
+  "Hum", // fr Humidite
+  "Luf", // de Luftfeuchtigkeit
+  "Umi", // it Umidita
+  "Voc", // nl Vochtigheid
+  "Wil", // pl Wilgotnosc
+  "Nem", // tr Nem
+  "Kel", // id Kelembaban
+};
+
+// Battery caption for the big battery block ("Batt" over "82%").
+static const char *const BATTERY[LANG_COUNT] = {
+  "Batt", // en Battery
+  "Bat",  // es Bateria
+  "Bat",  // pt Bateria
+  "Batt", // fr Batterie
+  "Batt", // de Batterie
+  "Batt", // it Batteria
+  "Batt", // nl Batterij
+  "Bat",  // pl Bateria
+  "Pil",  // tr Pil
+  "Bat",  // id Baterai
+};
+
+const char *month_name(void)      { return MONTHS[s_lang][s_now.tm_mon]; }
+const char *wday_name(void)       { return WDAYS[s_lang][s_now.tm_wday]; }
+const char *humidity_label(void)  { return HUMIDITY[s_lang]; }
+const char *humidity_label3(void) { return HUMIDITY3[s_lang]; }
+const char *battery_label(void)   { return BATTERY[s_lang]; }

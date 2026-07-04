@@ -10,7 +10,9 @@
 //   17 = Digital clock (big), 18 = Hours (small), 19 = Hours (big),
 //   20 = Minutes (small), 21 = Minutes (big), 22 = AM/PM (small),
 //   23 = AM/PM stacked (small), 24 = Heart rate (small),
-//   25 = Temperature + icon (small / banner), 26 = Calendar (big).
+//   25 = Temperature + icon (small / banner), 26 = Calendar (big),
+//   27 = Humidity (big), 28 = Battery (big), 29 = Calendar + Month (big),
+//   30 = Heart rate (big), 31 = Distance (big), 32 = Max/Min temp (big).
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
 // Day of month / Clock / Weather icon / Temperature (big) are "big".
 
@@ -42,8 +44,14 @@ var BLOCK_OPTIONS_BIG = [
   { label: "Minutes (big)", value: 21 },
   { label: "Day of month (big)", value: 1 },
   { label: "Calendar (big)", value: 26 },
+  { label: "Calendar + Month (big)", value: 29 },
   { label: "Weather icon (big)", value: 8 },
   { label: "Temperature (big)", value: 12 },
+  { label: "Max/Min temp (big)", value: 32 },
+  { label: "Humidity (big)", value: 27 },
+  { label: "Battery (big)", value: 28 },
+  { label: "Heart rate (big)", value: 30 },
+  { label: "Distance (big)", value: 31 },
 ];
 
 var BLOCK_OPTIONS_GROUPS = [

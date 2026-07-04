@@ -262,14 +262,19 @@ static Trigger block_trigger(QuadBlock b) {
     case BLK_AMPM_STACK:  return TRG_CLOCK;
     case BLK_STEPS:
     case BLK_KM:
-    case BLK_HR:       return TRG_HEALTH;
-    case BLK_BATTERY:  return TRG_BATTERY;
+    case BLK_KM_BIG:
+    case BLK_HR:
+    case BLK_HR_BIG:   return TRG_HEALTH;
+    case BLK_BATTERY:
+    case BLK_BATTERY_BIG: return TRG_BATTERY;
     case BLK_WEATHER:
     case BLK_TEMP:
     case BLK_TEMP_BIG:
     case BLK_TEMP_ICON:
     case BLK_HUMIDITY:
+    case BLK_HUMIDITY_BIG:
     case BLK_MINMAX:
+    case BLK_MINMAX_BIG:
     case BLK_PRECIP:   return TRG_WEATHER;
     default:           return TRG_DATE;   // dow / day / month / year / *_day
   }
