@@ -462,22 +462,22 @@ function clayCustomFn() {
   // --- Presets ------------------------------------------------------------
   // Each fills the four grid blocks (one big + one small per column), the
   // banner, top/bottom banner position, and the three colors. Block ids match
-  // the QuadBlock enum; big = {1,2,8,12,17,19,21}. Colors are hex (no '#').
-  // `panel` sets every block; add `panels` {band,tl,tr,bl,br} to override
-  // individual block colors.
+  // the QuadBlock enum. Colors are hex (no '#'). `panel` sets every block; add
+  // `panels` {band,tl,tr,bl,br} to override individual block colors. `drawSeam`
+  // toggles the seam line (omit = on, the default).
   var PRESETS = [
     { name: 'Standard', tl: 0, bl: 2, tr: 1, br: 3, band: 7, yearTop: true,
-      face: 'FF5500', panel: '000000', weekend: 'FF0000' },
+      face: 'FF5500', panel: '000000', weekend: 'FF0000', drawSeam: true },
     { name: 'Digital', tl: 17, bl: 0, tr: 1, br: 3, band: 7, yearTop: true,
-      face: '16213E', panel: '1A1A2E', weekend: 'E94560' },
+      face: '9A7099', panel: '004387', weekend: '004387', drawSeam: false },
     { name: 'Flip Clock', tl: 19, bl: 22, tr: 21, br: 3, band: 10, yearTop: false,
-      face: '222222', panel: 'EEEEEE', weekend: 'FF0000' },
+      face: '222222', panel: 'EEEEEE', weekend: 'FF0000', drawSeam: true },
     { name: 'Weather Station', tl: 8, bl: 15, tr: 12, br: 13, band: 16, yearTop: true,
-      face: '005588', panel: 'FFFFFF', weekend: 'FFAA00' },
-    { name: 'Sport', tl: 2, bl: 4, tr: 1, br: 5, band: 6, yearTop: false,
-      face: '004400', panel: '000000', weekend: '00FF00' },
+      face: '005588', panel: 'FFFFFF', weekend: 'FFAA00', drawSeam: false },
+    { name: 'Sport', tl: 17, bl: 4, tr: 1, br: 5, band: 6, yearTop: false,
+      face: '004400', panel: '000000', weekend: '00FF00', drawSeam: false },
     { name: 'Colorful', tl: 2, bl: 0, tr: 1, br: 3, band: 7, yearTop: true,
-      face: '2D3436', panel: '6C5CE7', weekend: 'FF0000',
+      face: 'FFEEAB', panel: '6C5CE7', weekend: 'FF0000',
       panels: { band: '6C5CE7', tl: 'E17055', tr: '0984E3', bl: '00B894', br: 'D63031' } }
   ];
 
@@ -498,6 +498,7 @@ function clayCustomFn() {
     set('BLOCK_TOP_RIGHT', p.tr);    set('BLOCK_BOTTOM_RIGHT', p.br);
     set('BLOCK_BAND', p.band);
     set('YEAR_TOP', p.yearTop);
+    set('DRAW_SEAM', p.drawSeam !== false);   // omitted = seam on (the default)
     set('FACE_COLOR', parseInt(p.face, 16));
     set('PANEL_COLOR', parseInt(p.panel, 16));   // change -> syncPanels fills all
     set('WEEKEND_COLOR', parseInt(p.weekend, 16));
