@@ -2,6 +2,9 @@
 #include "weather.h"
 
 #define SEAM_COLOR   GColorDarkGray
+// Not localised: the UV index is labelled the same way everywhere. Only the big
+// block is captioned; the short block uses the UV icon instead.
+#define UV_LABEL_BIG "UV Index"
 #define SECOND_FG    PBL_IF_COLOR_ELSE(GColorRed, GColorWhite)
 
 // ---------------------------------------------------------------------------
@@ -22,14 +25,18 @@ bool block_valid_grid(int v) {
          v == BLK_MONTH_DAY || v == BLK_DOW_DAY ||
          v == BLK_HUMIDITY_BIG || v == BLK_BATTERY_BIG ||
          v == BLK_MONTH_CAL || v == BLK_HR_BIG ||
-         v == BLK_KM_BIG || v == BLK_MINMAX_BIG;
+         v == BLK_KM_BIG || v == BLK_MINMAX_BIG ||
+         v == BLK_UV || v == BLK_UV_BIG ||
+         v == BLK_WIND || v == BLK_WIND_BIG ||
+         v == BLK_WIND_DIR || v == BLK_WIND_DIR_BIG;
 }
 bool block_valid_band(int v) {
   return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY) ||
          v == BLK_MONTH_DAY || v == BLK_DOW_DAY ||
          v == BLK_TEMP || v == BLK_HUMIDITY || v == BLK_MINMAX ||
          v == BLK_PRECIP || v == BLK_DIGITAL || v == BLK_HR ||
-         v == BLK_TEMP_ICON;
+         v == BLK_TEMP_ICON || v == BLK_UV ||
+         v == BLK_WIND || v == BLK_WIND_DIR;
 }
 bool block_is_short(QuadBlock b) {
   return !(b == BLK_DAY || b == BLK_CLOCK || b == BLK_WEATHER ||
@@ -37,7 +44,8 @@ bool block_is_short(QuadBlock b) {
            b == BLK_HOURS_BIG || b == BLK_MINUTES_BIG ||
            b == BLK_CALENDAR || b == BLK_HUMIDITY_BIG ||
            b == BLK_BATTERY_BIG || b == BLK_MONTH_CAL ||
-           b == BLK_HR_BIG || b == BLK_KM_BIG || b == BLK_MINMAX_BIG);
+           b == BLK_HR_BIG || b == BLK_KM_BIG || b == BLK_MINMAX_BIG ||
+           b == BLK_UV_BIG || b == BLK_WIND_BIG || b == BLK_WIND_DIR_BIG);
 }
 
 // ---------------------------------------------------------------------------
@@ -278,6 +286,15 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
     case BLK_PRECIP:
       weather_precip_str(buf, n);
       break;
+    case BLK_UV:
+      weather_uv_str(buf, n);   // icon carries the meaning, so just the number
+      break;
+    case BLK_WIND:
+      weather_wind_str(buf, n);
+      break;
+    case BLK_WIND_DIR:
+      weather_wind_dir_str(buf, n);   // the arrow icon carries the angle
+      break;
     case BLK_DIGITAL: {
       char hh[4], mm[4];
       digital_parts(hh, sizeof(hh), mm, sizeof(mm));
@@ -363,14 +380,18 @@ static void draw_digital_big(GContext *ctx, GRect r) {
 // seam. label_top puts the caption above the value (calendar/humidity/battery);
 // otherwise the value sits on top (HR/distance). caption_fg lets the calendar
 // tint its weekday on weekends; everything else passes s_text_fg. Caller draws
-// the panel and seam. Mirrors the original calendar layout/proportions.
+// the panel and seam.
 static void draw_caption_value(GContext *ctx, GRect r, const char *caption,
                                GColor caption_fg, const char *value,
                                bool label_top) {
-  // Inset the content vertically for extra top/bottom margin; the caption sits
-  // in a slim band, the value fills the rest.
-  int m = r.size.h * 12 / 100;
-  GRect in = GRect(r.origin.x, r.origin.y + m, r.size.w, r.size.h - 2 * m);
+  // Inset the content vertically for extra top/bottom margin; the caption sits in
+  // a slim band, the value fills the rest at a big cap (so it crosses the seam,
+  // like the other big-number blocks). `mx` keeps both lines clear of the side
+  // borders — a wide caption is shrunk to that inner width by draw_centered.
+  int m  = r.size.h * 12 / 100;
+  int mx = r.size.w * 10 / 100;
+  GRect in = GRect(r.origin.x + mx, r.origin.y + m, r.size.w - 2 * mx,
+                   r.size.h - 2 * m);
   int small_h = in.size.h * 38 / 100;
   GRect small_r, big_r;
   if (label_top) {
@@ -432,22 +453,47 @@ static void draw_hr_big(GContext *ctx, GRect r) {
   draw_seam(ctx, r);
 }
 
+// Big UV index: the big number over a "UV I" caption (same as the HR block).
+static void draw_uv_big(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  char v[8];
+  weather_uv_str(v, sizeof(v));
+  draw_caption_value(ctx, r, UV_LABEL_BIG, s_text_fg, v, false);
+  draw_seam(ctx, r);
+}
+
+// Split a short block's value ("3.2km", "12km/h") into its numeric part and an
+// upper-cased unit, so a big block can stack the two. "--" yields an empty unit.
+static void split_num_unit(const char *src, char *num, size_t nn,
+                           char *unit, size_t un) {
+  size_t i = 0;
+  while (src[i] && (src[i] == '.' || (src[i] >= '0' && src[i] <= '9'))) i++;
+  size_t ni = i < nn - 1 ? i : nn - 1;
+  memcpy(num, src, ni);
+  num[ni] = '\0';
+  size_t u = 0;
+  for (; src[i] && u < un - 1; i++, u++)
+    unit[u] = (src[i] >= 'a' && src[i] <= 'z') ? src[i] - 32 : src[i];
+  unit[u] = '\0';
+}
+
 // Big distance: the number over its unit (KM/M/MI). Reuses the short block's
-// value formatting (same rounding / imperial handling), then splits the numeric
-// part from the trailing unit and upper-cases the unit.
+// value formatting (same rounding / imperial handling).
 static void draw_km_big(GContext *ctx, GRect r) {
   draw_panel(ctx, r, s_panel_bg);
   char buf[16], num[8], unit[8];
   block_text(BLK_KM, buf, sizeof(buf));   // e.g. "3.2km" or "--"
-  size_t i = 0;
-  while (buf[i] && (buf[i] == '.' || (buf[i] >= '0' && buf[i] <= '9'))) i++;
-  size_t ni = i < sizeof(num) - 1 ? i : sizeof(num) - 1;
-  memcpy(num, buf, ni);
-  num[ni] = '\0';
-  size_t u = 0;
-  for (; buf[i] && u < sizeof(unit) - 1; i++, u++)
-    unit[u] = (buf[i] >= 'a' && buf[i] <= 'z') ? buf[i] - 32 : buf[i];
-  unit[u] = '\0';
+  split_num_unit(buf, num, sizeof(num), unit, sizeof(unit));
+  draw_caption_value(ctx, r, unit, s_text_fg, num, false);
+  draw_seam(ctx, r);
+}
+
+// Big wind speed: the number over its unit (KM/H or MPH), like the distance block.
+static void draw_wind_big(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  char buf[16], num[8], unit[8];
+  weather_wind_str(buf, sizeof(buf));     // e.g. "12km/h" or "--"
+  split_num_unit(buf, num, sizeof(num), unit, sizeof(unit));
   draw_caption_value(ctx, r, unit, s_text_fg, num, false);
   draw_seam(ctx, r);
 }
@@ -574,11 +620,12 @@ static void draw_clock(GContext *ctx, GRect r) {
 }
 
 // Draw a PDC (vector) icon scaled to fit `box` (square, centred in it), stroked
-// in `stroke` and filled in `fill`. PDC has no scale API, so the icon is
-// recreated each redraw and its points multiplied up. Shared by the weather
-// icon block and the HR block.
+// in `stroke` and filled in `fill`, optionally rotated clockwise by `angle` (a
+// TRIG_MAX_ANGLE value; 0 = upright) about the icon's centre. PDC has no scale or
+// rotate API, so the icon is recreated each redraw and its points transformed.
+// Shared by the weather icon block, the HR block and the wind arrow.
 static void draw_pdc_in(GContext *ctx, uint32_t res_id, GRect box,
-                        GColor stroke, GColor fill) {
+                        GColor stroke, GColor fill, int32_t angle) {
   GDrawCommandImage *img = gdraw_command_image_create_with_resource(res_id);
   if (!img) return;
   GSize native = gdraw_command_image_get_bounds_size(img);
@@ -587,17 +634,32 @@ static void draw_pdc_in(GContext *ctx, uint32_t res_id, GRect box,
   int side = (box.size.w < box.size.h ? box.size.w : box.size.h);
   if (side < 1) side = 1;
 
+  // Rotation is about the scaled icon's centre, so every point stays within
+  // `side` of it -> the icon can't spill out of the (square) box at any angle.
+  // Precise-path commands store their points in 1/8 pixel, so their centre sits
+  // at 8x the pixel one (side/2 * 8); plain paths/circles are whole pixels.
+  int32_t sn = angle ? sin_lookup(angle) : 0;
+  int32_t cs = angle ? cos_lookup(angle) : 0;
+
   GDrawCommandList *list = gdraw_command_image_get_command_list(img);
   uint32_t n = gdraw_command_list_get_num_commands(list);
   for (uint32_t i = 0; i < n; i++) {
     GDrawCommand *cmd = gdraw_command_list_get_command(list, i);
     gdraw_command_set_stroke_color(cmd, stroke);
     gdraw_command_set_fill_color(cmd, fill);
+    int32_t half = gdraw_command_get_type(cmd) == GDrawCommandTypePrecisePath
+                       ? side * 4 : side / 2;
     uint16_t np = gdraw_command_get_num_points(cmd);
     for (uint16_t p = 0; p < np; p++) {
       GPoint pt = gdraw_command_get_point(cmd, p);
       pt.x = pt.x * side / native.w;
       pt.y = pt.y * side / native.h;
+      if (angle) {
+        // Screen y grows downward, so this matrix turns the icon clockwise.
+        int32_t dx = pt.x - half, dy = pt.y - half;
+        pt.x = half + (dx * cs - dy * sn) / TRIG_MAX_RATIO;
+        pt.y = half + (dx * sn + dy * cs) / TRIG_MAX_RATIO;
+      }
       gdraw_command_set_point(cmd, p, pt);
     }
   }
@@ -612,26 +674,46 @@ static void draw_pdc_in(GContext *ctx, uint32_t res_id, GRect box,
 static void draw_icon_block(GContext *ctx, GRect r, uint32_t res_id) {
   draw_panel(ctx, r, s_panel_bg);
   draw_pdc_in(ctx, res_id, grect_inset(r, GEdgeInsets(8)), s_text_fg,
-              get_closest_accent_color(s_panel_bg));
+              get_closest_accent_color(s_panel_bg), 0);
   draw_seam(ctx, r);
 }
 
 // A short block: a small PDC icon on the left, the value string filling the
 // rest. The number is what changes, so it (not the icon) carries the value.
-// Shared by the HR block (heart) and the temperature-with-icon block.
+// Shared by the HR block (heart), the temperature-with-icon block and the wind
+// direction block (whose icon is rotated by `angle`).
 static void draw_icon_value(GContext *ctx, GRect r, uint32_t res_id,
-                            const char *txt) {
+                            const char *txt, int32_t angle) {
   draw_panel(ctx, r, s_panel_bg);
 
   int icon = r.size.h * 55 / 100;
   GRect ibox = GRect(r.origin.x + 6, r.origin.y + (r.size.h - icon) / 2, icon, icon);
-  draw_pdc_in(ctx, res_id, ibox, s_text_fg, get_closest_accent_color(s_panel_bg));
+  draw_pdc_in(ctx, res_id, ibox, s_text_fg, get_closest_accent_color(s_panel_bg),
+              angle);
 
   // Value centred in the space to the right of the icon.
   GRect nr = r;
   nr.origin.x = ibox.origin.x + icon;
   nr.size.w   = r.origin.x + r.size.w - nr.origin.x - 4;
   draw_centered(ctx, nr, txt, r.size.h * 52 / 100, s_text_fg);
+  draw_seam(ctx, r);
+}
+
+// Big wind direction: the arrow (rotated to the wind's bearing) over the compass
+// word. Same 12% margin / 19%-cap caption as draw_caption_value, but the big
+// line is an icon instead of text.
+static void draw_wind_dir_big(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  char dir[8];
+  weather_wind_dir_str(dir, sizeof(dir));
+  int m    = r.size.h * 12 / 100;
+  int band = r.size.h * 30 / 100;         // bottom caption band
+  GRect ibox = GRect(r.origin.x, r.origin.y + m, r.size.w,
+                     r.size.h - m - band);
+  draw_pdc_in(ctx, RESOURCE_ID_ICON_WIND_DIRECTION_N, ibox, s_text_fg,
+              get_closest_accent_color(s_panel_bg), weather_wind_angle());
+  GRect cr = GRect(r.origin.x, r.origin.y + r.size.h - band, r.size.w, band - m);
+  draw_centered(ctx, cr, dir, r.size.h * 19 / 100, s_text_fg);
   draw_seam(ctx, r);
 }
 
@@ -649,8 +731,12 @@ void draw_band(GContext *ctx, GRect band) {
   const int pad_x = 8;
   // Some banner blocks carry a PDC icon left of the value, like their grid form.
   uint32_t icon_res = s_band_block == BLK_HR        ? RESOURCE_ID_ICON_HEART
+                    : s_band_block == BLK_UV        ? RESOURCE_ID_ICON_UV
+                    : s_band_block == BLK_WIND_DIR  ? RESOURCE_ID_ICON_WIND_DIRECTION_N
                     : s_band_block == BLK_TEMP_ICON ? weather_icon_resource_small()
                     : 0;
+  // Only the wind arrow turns; every other banner icon is drawn upright.
+  int32_t icon_angle = s_band_block == BLK_WIND_DIR ? weather_wind_angle() : 0;
   int icon = icon_res ? band.size.h * 60 / 100 : 0;
   int gap  = icon_res ? 4 : 0;
 
@@ -664,7 +750,8 @@ void draw_band(GContext *ctx, GRect band) {
   if (icon_res) {
     GRect ibox = GRect(r.origin.x + pad_x, r.origin.y + (r.size.h - icon) / 2,
                        icon, icon);
-    draw_pdc_in(ctx, icon_res, ibox, s_text_fg, get_closest_accent_color(s_panel_bg));
+    draw_pdc_in(ctx, icon_res, ibox, s_text_fg, get_closest_accent_color(s_panel_bg),
+                icon_angle);
     GRect nr = r;
     nr.origin.x = ibox.origin.x + icon + gap;
     nr.size.w   = r.origin.x + r.size.w - nr.origin.x - pad_x;
@@ -690,6 +777,9 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_HR_BIG:   draw_hr_big(ctx, r);   break;
     case BLK_KM_BIG:   draw_km_big(ctx, r);   break;
     case BLK_MINMAX_BIG: draw_minmax_big(ctx, r); break;
+    case BLK_UV_BIG:   draw_uv_big(ctx, r);   break;
+    case BLK_WIND_BIG: draw_wind_big(ctx, r); break;
+    case BLK_WIND_DIR_BIG: draw_wind_dir_big(ctx, r); break;
     case BLK_HOURS_BIG: { char b[4]; hours_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
     case BLK_MINUTES_BIG: { char b[4]; minutes_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
     case BLK_AMPM:     draw_ampm(ctx, r);     break;
@@ -697,11 +787,20 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_WEATHER:  draw_icon_block(ctx, r, weather_icon_resource()); break;
     case BLK_HR: {
       char b[8]; block_text(BLK_HR, b, sizeof b);
-      draw_icon_value(ctx, r, RESOURCE_ID_ICON_HEART, b); break;
+      draw_icon_value(ctx, r, RESOURCE_ID_ICON_HEART, b, 0); break;
     }
     case BLK_TEMP_ICON: {
       char b[16]; block_text(BLK_TEMP_ICON, b, sizeof b);
-      draw_icon_value(ctx, r, weather_icon_resource_small(), b); break;
+      draw_icon_value(ctx, r, weather_icon_resource_small(), b, 0); break;
+    }
+    case BLK_UV: {
+      char b[8]; block_text(BLK_UV, b, sizeof b);
+      draw_icon_value(ctx, r, RESOURCE_ID_ICON_UV, b, 0); break;
+    }
+    case BLK_WIND_DIR: {
+      char b[8]; block_text(BLK_WIND_DIR, b, sizeof b);
+      draw_icon_value(ctx, r, RESOURCE_ID_ICON_WIND_DIRECTION_N, b,
+                      weather_wind_angle()); break;
     }
     default:           draw_value_block(ctx, r, blk); break;  // steps / km / battery / temp / humidity
   }
@@ -720,7 +819,7 @@ static bool block_centered_text(QuadBlock b, char *buf, size_t n) {
     case BLK_MONTH: snprintf(buf, n, "%s", month_name());  return true;
     case BLK_STEPS: case BLK_KM:  case BLK_BATTERY:
     case BLK_TEMP:  case BLK_TEMP_BIG: case BLK_HUMIDITY:
-    case BLK_PRECIP: case BLK_DIGITAL:
+    case BLK_PRECIP: case BLK_DIGITAL: case BLK_WIND:
     case BLK_HOURS: case BLK_HOURS_BIG:
     case BLK_MINUTES: case BLK_MINUTES_BIG: case BLK_MINMAX:
     case BLK_MONTH_DAY: case BLK_DOW_DAY:

@@ -54,6 +54,12 @@ typedef enum {
   BLK_HR_BIG,       // heart rate number over "BPM" (big)
   BLK_KM_BIG,       // distance number over unit (KM/M/MI) (big)
   BLK_MINMAX_BIG,   // today's max over min temp (big, min in accent)
+  BLK_UV,           // UV icon + "7" - today's max UV index (small / banner)
+  BLK_UV_BIG,       // UV index number over a "UV I" caption (big)
+  BLK_WIND,         // wind speed + unit, "12km/h" (small / banner)
+  BLK_WIND_BIG,     // wind speed number over its unit (big)
+  BLK_WIND_DIR,     // wind arrow + compass word, "-> WNW" (small / banner)
+  BLK_WIND_DIR_BIG, // big wind arrow over the compass word (big)
 } QuadBlock;
 
 // --- Localisation ----------------------------------------------------------

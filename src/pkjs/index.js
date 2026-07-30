@@ -85,7 +85,7 @@ Pebble.addEventListener('webviewclosed', function(e) {
 
   Pebble.sendAppMessage(dict, function() {
     console.log('Sent config data to Pebble');
-    getWeather();   // units may have changed; refresh now instead of waiting
+    getWeather();   // blocks may have changed, so the field set may have too
   }, function(error) {
     console.log('Failed to send config data: ' + JSON.stringify(error));
   });

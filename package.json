@@ -1,7 +1,7 @@
 {
   "name": "wall-flip",
   "author": "Eduardo Chiaro",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "keywords": [
     "pebble-watchface",
     "flip",
@@ -57,6 +57,9 @@
       "WEATHER_PRECIPITATION",
       "WEATHER_MIN_TEMP",
       "WEATHER_MAX_TEMP",
+      "WEATHER_UV",
+      "WEATHER_WIND_SPEED",
+      "WEATHER_WIND_DIR",
       "FLIP_ANIM",
       "DRAW_SEAM",
       "PANEL_BAND_COLOR",
@@ -167,6 +170,16 @@
           "type": "raw",
           "name": "ICON_HEART",
           "file": "icons/heart.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_UV",
+          "file": "weather/uv_index.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_WIND_DIRECTION_N",
+          "file": "weather/wind_direction_n.pdc"
         },
         {
           "type": "raw",

@@ -59,19 +59,23 @@ Configure via the Pebble app settings page.
 ### Layout
 Each grid quadrant and the banner is assigned a block. Blocks come in two sizes — **big** (fills a square quadrant) and **small** (half height). Each column pairs one big block with one small block; picking two of the same size auto-swaps the other.
 
-- **Banner block** — full-width banner content: Year, Digital clock, Month + Day, Weekday + Day, Steps, Distance, Battery, Heart rate, Temperature, Temperature + icon, Humidity, Max/Min temp, or Precipitation.
+- **Banner block** — full-width banner content: Year, Digital clock, Month + Day, Weekday + Day, Steps, Distance, Battery, Heart rate, Temperature, Temperature + icon, Humidity, Max/Min temp, Precipitation, UV index, Wind speed, or Wind direction.
 - **Banner at top** — banner above the grid (on) or below it (off).
 - **Top-left / Top-right / Bottom-left / Bottom-right block** — fill each quadrant with:
   - **Date/time:** Day of week, Day of month, Calendar (weekday over day), Calendar + Month (month over day), Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Month
   - **Activity:** Steps, Distance (small or big), Battery (small or big), Heart rate (small or big)
-  - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Humidity (small or big), Max/Min temp (small or big), Precipitation
+  - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Humidity (small or big), Max/Min temp (small or big), Precipitation, UV index (small or big), Wind speed (small or big), Wind direction (small or big)
 
-  Big two-line blocks stack a caption over a large value: Calendar, Calendar + Month, Humidity (`Hum` / `47%`), Battery (`Batt` / `82%`), Heart rate (number / `BPM`), Distance (number / `KM`·`M`·`MI`). Max/Min temp (big) stacks the max over the min, with the min drawn in the accent color like the big digital clock. Captions (`Hum`, `Batt`) are translated with the language setting.
+  Big two-line blocks stack a caption over a large value: Calendar, Calendar + Month, Humidity (`Hum` / `47%`), Battery (`Batt` / `82%`), Heart rate (number / `BPM`), Distance (number / `KM`·`M`·`MI`), UV index (`UV Index` / `7`), Wind speed (number / `KM/H`·`MPH`). Max/Min temp (big) stacks the max over the min, with the min drawn in the accent color like the big digital clock. Captions (`Hum`, `Batt`) are translated with the language setting; `UV Index` is not, it reads the same everywhere.
+
+  Wind direction draws an arrow rotated to the reported bearing (where the wind blows from) over the 16-point compass word (`WNW`). The small/banner variants of UV index and wind direction pair their icon with the value; wind speed shows its unit inline (`12km/h`).
 
   Hours and Minutes are shown as standalone two-digit blocks (leading zero kept). AM/PM highlights the active half in the text color and dims the other, like the weekday block.
 
 ### Weather
-Weather blocks (icon, temperature, humidity, precipitation, max/min) pull current conditions from Open-Meteo using the phone's location. The icon maps WMO weather codes to condition glyphs, and ships in two sizes: a large icon for the big weather block and a small one for the banner and the **Temperature + icon** block. Values render in the selected unit system.
+Weather blocks (icon, temperature, humidity, precipitation, max/min, UV index, wind speed, wind direction) pull current conditions from Open-Meteo using the phone's location. The icon maps WMO weather codes to condition glyphs, and ships in two sizes: a large icon for the big weather block and a small one for the banner and the **Temperature + icon** block. UV index is today's maximum.
+
+Only the fields the current layout actually needs are requested, and a layout with no weather block skips the fetch (and the GPS fix) entirely. The phone always sends metric; the watch converts to °F, inches and mph on screen, so switching **Units** repaints immediately from the cached reading instead of waiting for the next fetch.
 
 ### Colors
 - **Face background** — color behind the panels.

@@ -12,7 +12,10 @@
 //   23 = AM/PM stacked (small), 24 = Heart rate (small),
 //   25 = Temperature + icon (small / banner), 26 = Calendar (big),
 //   27 = Humidity (big), 28 = Battery (big), 29 = Calendar + Month (big),
-//   30 = Heart rate (big), 31 = Distance (big), 32 = Max/Min temp (big).
+//   30 = Heart rate (big), 31 = Distance (big), 32 = Max/Min temp (big),
+//   33 = UV index (small / banner), 34 = UV index (big),
+//   35 = Wind speed (small / banner), 36 = Wind speed (big),
+//   37 = Wind direction (small / banner), 38 = Wind direction (big).
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
 // Day of month / Clock / Weather icon / Temperature (big) are "big".
 
@@ -34,7 +37,10 @@ var BLOCK_OPTIONS_SMALL = [
   { label: "Temperature + icon (small)", value: 25 },
   { label: "Max/Min temp (small)", value: 14 },
   { label: "Humidity (small)", value: 13 },
-  { label: "Precipitation (small)", value: 15 }
+  { label: "Precipitation (small)", value: 15 },
+  { label: "UV index (small)", value: 33 },
+  { label: "Wind speed (small)", value: 35 },
+  { label: "Wind direction (small)", value: 37 }
 ];
 
 var BLOCK_OPTIONS_BIG = [
@@ -49,6 +55,9 @@ var BLOCK_OPTIONS_BIG = [
   { label: "Temperature (big)", value: 12 },
   { label: "Max/Min temp (big)", value: 32 },
   { label: "Humidity (big)", value: 27 },
+  { label: "UV index (big)", value: 34 },
+  { label: "Wind speed (big)", value: 36 },
+  { label: "Wind direction (big)", value: 38 },
   { label: "Battery (big)", value: 28 },
   { label: "Heart rate (big)", value: 30 },
   { label: "Distance (big)", value: 31 },
@@ -73,7 +82,10 @@ var BAND_OPTIONS = [
   { label: "Temperature + icon", value: 25 },
   { label: "Humidity", value: 13 },
   { label: "Max/Min temp", value: 14 },
-  { label: "Precipitation", value: 15 }
+  { label: "Precipitation", value: 15 },
+  { label: "UV index", value: 33 },
+  { label: "Wind speed", value: 35 },
+  { label: "Wind direction", value: 37 }
 ];
 
 // Month/weekday names are translated to these 10 Latin-script languages

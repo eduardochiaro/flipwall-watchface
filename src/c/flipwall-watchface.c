@@ -275,7 +275,13 @@ static Trigger block_trigger(QuadBlock b) {
     case BLK_HUMIDITY_BIG:
     case BLK_MINMAX:
     case BLK_MINMAX_BIG:
-    case BLK_PRECIP:   return TRG_WEATHER;
+    case BLK_PRECIP:
+    case BLK_UV:
+    case BLK_UV_BIG:
+    case BLK_WIND:
+    case BLK_WIND_BIG:
+    case BLK_WIND_DIR:
+    case BLK_WIND_DIR_BIG: return TRG_WEATHER;
     default:           return TRG_DATE;   // dow / day / month / year / *_day
   }
 }

@@ -4,9 +4,11 @@
 // "Big" blocks fill a square; "small" blocks are half height. Each column must
 // pair exactly one of each, so the two columns line up.
 var BIG_BLOCKS = { 1: true, 2: true, 8: true, 12: true, 17: true, 19: true,
-  21: true, 26: true, 27: true, 28: true, 29: true, 30: true, 31: true, 32: true };
+  21: true, 26: true, 27: true, 28: true, 29: true, 30: true, 31: true, 32: true,
+  34: true, 36: true, 38: true };
 // Day, Clock, Weather, Temp(big), Digital(big), Hours(big), Minutes(big),
-// Calendar, Humidity, Battery, Calendar+Month, HR, Distance, Max/Min (all big)
+// Calendar, Humidity, Battery, Calendar+Month, HR, Distance, Max/Min, UV,
+// Wind speed, Wind direction (big)
 var FALLBACK_SMALL = 0;                   // Day of week
 var FALLBACK_BIG = 2;                     // Clock
 
@@ -43,7 +45,8 @@ function clayCustomFn() {
   function isBig(v) {
     var n = parseInt(v, 10);
     return n === 1 || n === 2 || n === 8 || n === 12 || n === 17 ||
-           n === 19 || n === 21 || n === 26 || (n >= 27 && n <= 32);
+           n === 19 || n === 21 || n === 26 || (n >= 27 && n <= 32) ||
+           n === 34 || n === 36 || n === 38;
   }
   var FALLBACK_SMALL = 0;   // Day of week
   var FALLBACK_BIG = 2;     // Clock
@@ -65,7 +68,9 @@ function clayCustomFn() {
                  temp: '22°', humid: '45%', humLabel: 'Hu', humLabel3: 'Hum',
                  battLabel: 'Batt', minmax: '24/12°', tmax: '24°', tmin: '12°',
                  distNum: '3.2', distUnit: 'KM',
-                 precip: '2mm', time: '10:09', hr: '72',
+                 precip: '2mm', time: '10:09', hr: '72', uv: '7',
+                 wind: '12km/h', windNum: '12', windUnit: 'KM/H',
+                 windDir: 'WNW', windDeg: 292,
                  weekend: true, isPM: false, hour: 10, min: 9, sec: 30 };
 
   // Localised month/weekday names — must match MONTHS/WDAYS in the C source.
@@ -95,7 +100,15 @@ function clayCustomFn() {
   // 15 Precipitation. Day/Clock/Weather/Temp(big) big.
   function isShort(v) {
     return v !== 1 && v !== 2 && v !== 8 && v !== 12 && v !== 17 &&
-           v !== 19 && v !== 21 && v !== 26 && !(v >= 27 && v <= 32);
+           v !== 19 && v !== 21 && v !== 26 && !(v >= 27 && v <= 32) &&
+           v !== 34 && v !== 36 && v !== 38;
+  }
+
+  // The wind arrow, approximated to the nearest of 8 glyphs (the watch rotates
+  // the real pdc to the exact bearing). 0 deg = north = up.
+  function windArrow(deg) {
+    return ['↑', '↗', '→', '↘',
+            '↓', '↙', '←', '↖'][Math.round(deg / 45) % 8];
   }
 
   // Display text for the data blocks (steps / distance / battery / year).
@@ -114,6 +127,9 @@ function clayCustomFn() {
     if (v === 20 || v === 21) { return (SAMPLE.min < 10 ? '0' : '') + SAMPLE.min; }
     if (v === 24) { return '♥' + SAMPLE.hr; }   // heart + BPM
     if (v === 25) { return '☀' + SAMPLE.temp; } // icon + temperature
+    if (v === 33) { return '☼' + SAMPLE.uv; }   // UV icon + index
+    if (v === 35) { return SAMPLE.wind; }
+    if (v === 37) { return windArrow(SAMPLE.windDeg) + ' ' + SAMPLE.windDir; }
     return SAMPLE.year;
   }
 
@@ -264,13 +280,16 @@ function clayCustomFn() {
     }
     if (v === 26) {  // calendar: weekday (small) over day-of-month (big)
       var dowFg = SAMPLE.weekend ? c.weekend : c.text;
+      // Caption in a slim band over the big value (mirrors draw_caption_value).
       var calM = Math.round(h * 0.12), calInH = h - 2 * calM;
       var calTop = calM + Math.round(calInH * 0.38);
+      var calMX = Math.round(w * 0.10);
       function calBand(t, top, bandH, color, fpx) {
-        return '<div style="position:absolute;left:0;right:0;top:' + px(top) +
+        return '<div style="position:absolute;left:' + px(calMX) + ';right:' +
+          px(calMX) + ';top:' + px(top) +
           ';height:' + px(bandH) + ';display:flex;align-items:center;' +
-          'justify-content:center;color:' + color + ';font-weight:bold;font-size:' +
-          px(fpx) + ';line-height:1;">' + t + '</div>';
+          'justify-content:center;white-space:nowrap;color:' + color +
+          ';font-weight:bold;font-size:' + px(fpx) + ';line-height:1;">' + t + '</div>';
       }
       return panelDiv(x, y, w, h, c.panel,
         calBand(SAMPLE.dow, calM, calTop - calM, dowFg, Math.round(h * 0.19)) +
@@ -279,7 +298,8 @@ function clayCustomFn() {
     }
     // Big two-line blocks (caption + big value). label_top = caption on top.
     // Mirrors draw_caption_value in the C source (same 12%/38% proportions).
-    if (v === 27 || v === 28 || v === 29 || v === 30 || v === 31) {
+    if (v === 27 || v === 28 || v === 29 || v === 30 || v === 31 || v === 34 ||
+        v === 36 || v === 38) {
       var cvM = Math.round(h * 0.12), cvInH = h - 2 * cvM;
       var cvSmallH = Math.round(cvInH * 0.38);
       var caption, value, capColor = c.text, labelTop;
@@ -287,18 +307,28 @@ function clayCustomFn() {
       else if (v === 28) { caption = SAMPLE.battLabel; value = SAMPLE.batt; labelTop = true; }
       else if (v === 29) { caption = SAMPLE.month; value = SAMPLE.day; labelTop = true; }
       else if (v === 30) { caption = 'BPM'; value = SAMPLE.hr; labelTop = false; }
+      else if (v === 34) { caption = 'UV Index'; value = SAMPLE.uv; labelTop = false; }
+      else if (v === 36) { caption = SAMPLE.windUnit; value = SAMPLE.windNum; labelTop = false; }
+      // Wind direction: the arrow takes the big line, the compass word captions it.
+      else if (v === 38) { caption = SAMPLE.windDir; value = windArrow(SAMPLE.windDeg); labelTop = false; }
       else { caption = SAMPLE.distUnit; value = SAMPLE.distNum; labelTop = false; }
-      var smallY, bigY, bigH;
+      var smallY, smallH = cvSmallH, bigY, bigH;
       if (labelTop) { smallY = cvM; bigY = cvM + cvSmallH; bigH = cvInH - cvSmallH; }
       else { bigY = cvM; bigH = cvInH - cvSmallH; smallY = cvM + bigH; }
+      var cvMX = Math.round(w * 0.10);   // side padding, keeps text off the border
       function cvBand(t, top, bandH, color, fpx) {
-        return '<div style="position:absolute;left:0;right:0;top:' + px(top) +
+        // Mirror draw_centered's one-pass shrink so a wide caption ("UV Index")
+        // stays on one line inside the padding instead of wrapping or clipping.
+        var tw = t.length * fpx * 0.62, avail = w - 2 * cvMX;
+        if (tw > avail) { fpx = Math.round(fpx * avail / tw); }
+        return '<div style="position:absolute;left:' + px(cvMX) + ';right:' +
+          px(cvMX) + ';top:' + px(top) +
           ';height:' + px(bandH) + ';display:flex;align-items:center;' +
-          'justify-content:center;color:' + color + ';font-weight:bold;font-size:' +
-          px(fpx) + ';line-height:1;">' + t + '</div>';
+          'justify-content:center;white-space:nowrap;color:' + color +
+          ';font-weight:bold;font-size:' + px(fpx) + ';line-height:1;">' + t + '</div>';
       }
       return panelDiv(x, y, w, h, c.panel,
-        cvBand(caption, smallY, cvSmallH, capColor, Math.round(h * 0.19)) +
+        cvBand(caption, smallY, smallH, capColor, Math.round(h * 0.19)) +
         cvBand(value, bigY, bigH, c.text, Math.round(h * 0.46)) + seam(w, h));
     }
     if (v === 32) {  // max/min temp (big): max over min, min in accent
@@ -360,11 +390,11 @@ function clayCustomFn() {
     SAMPLE.humLabel3 = HUM3_LABELS[lang];
     SAMPLE.battLabel = BATT_LABELS[lang];
     if (cfg.units) {  // imperial
-      SAMPLE.temp = '72°'; SAMPLE.minmax = '75/54°'; SAMPLE.precip = '0in';
-      SAMPLE.dist = '2.0mi';
+      SAMPLE.temp = '72°'; SAMPLE.minmax = '75/54°'; SAMPLE.precip = '0.1in';
+      SAMPLE.dist = '2.0mi'; SAMPLE.wind = '7mph';
     } else {          // metric
       SAMPLE.temp = '22°'; SAMPLE.minmax = '24/12°'; SAMPLE.precip = '2mm';
-      SAMPLE.dist = '3.2km';
+      SAMPLE.dist = '3.2km'; SAMPLE.wind = '12km/h';
     }
     // Split the combined samples into the parts the big blocks show separately.
     var mm = SAMPLE.minmax.replace('°', '').split('/');
@@ -372,6 +402,9 @@ function clayCustomFn() {
     var dm = /^([\d.]+)([a-z]+)$/i.exec(SAMPLE.dist);
     SAMPLE.distNum = dm ? dm[1] : SAMPLE.dist;
     SAMPLE.distUnit = dm ? dm[2].toUpperCase() : '';
+    var wm = /^([\d.]+)([a-z/]+)$/i.exec(SAMPLE.wind);
+    SAMPLE.windNum = wm ? wm[1] : SAMPLE.wind;
+    SAMPLE.windUnit = wm ? wm[2].toUpperCase() : '';
 
     var innerW = W - 2 * MARGIN, innerH = H - 2 * MARGIN;
     var colW = Math.floor((innerW - GUTTER) / 2);
