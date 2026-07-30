@@ -1,7 +1,7 @@
 {
   "name": "wall-flip",
   "author": "Eduardo Chiaro",
-  "version": "2.6.0",
+  "version": "2.7.0",
   "keywords": [
     "pebble-watchface",
     "flip",
@@ -11,6 +11,7 @@
   "private": true,
   "scripts": {
     "build": "pebble clean && pebble build",
+    "test": "./test/run.sh",
     "emulator": "npm run build && pebble install --emulator ",
     "phone": "npm run build && pebble install --phone",
     "config": "pebble emu-app-config --emulator",

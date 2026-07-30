@@ -105,10 +105,11 @@ function clayCustomFn() {
   }
 
   // The wind arrow, approximated to the nearest of 8 glyphs (the watch rotates
-  // the real pdc to the exact bearing). 0 deg = north = up.
+  // the real pdc to the exact bearing). 0 deg = north = up. The bearing is where
+  // the wind blows from, so the arrow points the opposite way.
   function windArrow(deg) {
     return ['↑', '↗', '→', '↘',
-            '↓', '↙', '←', '↖'][Math.round(deg / 45) % 8];
+            '↓', '↙', '←', '↖'][Math.round((deg + 180) / 45) % 8];
   }
 
   // Display text for the data blocks (steps / distance / battery / year).

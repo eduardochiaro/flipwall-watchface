@@ -22,8 +22,8 @@ void weather_uv_str(char *buf, size_t n);       // "7" (today's max UV index)
 void weather_wind_str(char *buf, size_t n);     // "12km/h"   / "7mph"
 void weather_wind_dir_str(char *buf, size_t n); // "WNW" (16-point compass)
 // Rotation for the ICON_WIND_DIRECTION_N arrow: the icon points north at 0, and
-// the arrow ends up pointing at the direction named by weather_wind_dir_str
-// (i.e. where the wind blows *from*, as reported).
+// the arrow ends up pointing where the wind blows *to* - the opposite of the
+// direction named by weather_wind_dir_str (which is the reported "from").
 int32_t weather_wind_angle(void);
 
 uint32_t weather_icon_resource(void);           // large pdc (big weather block)

@@ -153,7 +153,9 @@ void weather_wind_dir_str(char *buf, size_t n) {
 }
 
 int32_t weather_wind_angle(void) {
-  return TRIG_MAX_ANGLE * (s_wind_dir % 360) / 360;
+  // The reported bearing is where the wind blows *from*; the arrow shows where
+  // it blows *to*, so it points 180 degrees the other way.
+  return TRIG_MAX_ANGLE * ((s_wind_dir + 180) % 360) / 360;
 }
 
 // Open-Meteo WMO weather codes -> bundled pdc icon.
