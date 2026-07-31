@@ -1,7 +1,7 @@
 {
   "name": "wall-flip",
   "author": "Eduardo Chiaro",
-  "version": "2.8.0",
+  "version": "3.0.0",
   "keywords": [
     "pebble-watchface",
     "flip",
@@ -68,7 +68,10 @@
       "PANEL_TL_COLOR",
       "PANEL_TR_COLOR",
       "PANEL_BL_COLOR",
-      "PANEL_BR_COLOR"
+      "PANEL_BR_COLOR",
+      "LAYOUT",
+      "BLOCK_SIXTH",
+      "PANEL_SIXTH_COLOR"
     ],
     "resources": {
       "media": [

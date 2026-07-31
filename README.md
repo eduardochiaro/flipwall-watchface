@@ -57,10 +57,16 @@ Configure via the Pebble app settings page.
 - **Seam line** — thin line across each block's middle for the flip-display look (on by default).
 
 ### Layout
-Each grid quadrant and the banner is assigned a block. Blocks come in two sizes — **big** (fills a square quadrant) and **small** (half height). Each column pairs one big block with one small block; picking two of the same size auto-swaps the other.
+Blocks come in two sizes — **big** (fills a square quadrant) and **small** (half height). There are two faces to put them on, picked with the **Layout** setting:
 
-- **Banner block** — full-width banner content: Year, Digital clock, .beat time, Month + Day, Weekday + Day, Steps, Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, or Wind direction.
-- **Banner at top** — banner above the grid (on) or below it (off).
+- **Classic (5 blocks)** — a banner sized to its text, above or below a 2×2 grid. Each grid *column* pairs one big block with one small block.
+- **Rows (6 blocks)** — the banner becomes a full block and a sixth one joins it. On rectangular screens the face is two square-tall rows, each holding one big block beside two stacked small ones, so each *row* is the pair that needs one of each size. Round screens can't take a full-width row, so there the grid stays as it is and the two extra blocks become small strips above and below it — which keeps the circular shape.
+
+Picking two blocks of the same size in a pair auto-swaps the other one.
+
+- **Banner block** — the banner (classic), row 1's stacked small block (6-block, rectangular) or the top strip (6-block, round): Year, Digital clock, .beat time, Month + Day, Weekday + Day, Steps, Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, or Wind direction.
+- **Banner at top** — banner above the grid (on) or below it (off). Classic layout only.
+- **Sixth block** — row 2's stacked small block, or the bottom strip on round screens. Same choices as the banner block. Used by the 6-block layout only.
 - **Top-left / Top-right / Bottom-left / Bottom-right block** — fill each quadrant with:
   - **Date/time:** Day of week, Day of month, Calendar (weekday over day), Calendar + Month (month over day), Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Month, .beat time (big or small)
   - **Activity:** Steps, Distance (small or big), Battery (small or big), Heart rate (small or big)
@@ -88,7 +94,7 @@ Only the fields the current layout actually needs are requested, and a layout wi
 ### Colors
 - **Face background** — color behind the panels.
 - **All panels** — master panel color; sets every block and the banner at once. Override any individual one afterward.
-- **Per-block panel colors** — each quadrant (Top/Bottom × Left/Right) and the banner has its own color picker, so blocks can differ. Changing **All panels** (or applying a preset) refills them.
+- **Per-block panel colors** — each quadrant (Top/Bottom × Left/Right), the banner and the sixth block have their own color picker, so blocks can differ. Changing **All panels** (or applying a preset) refills them.
 - **Weekend / accent** — day-of-week panel color on weekends, also used for the inactive AM/PM label.
 
 Text color is automatic: black on light backgrounds, white on dark ones. On the big digital clock (minutes) and the big Max/Min temp (min), the secondary value is drawn in an auto-derived accent shade of the text color (lighter on dark panels, darker on light ones).

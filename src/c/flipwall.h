@@ -87,7 +87,8 @@ GColor contrast_color(GColor bg);            // black on light, white on dark
 
 // --- Blocks ----------------------------------------------------------------
 void draw_block(GContext *ctx, QuadBlock blk, GRect r);
-void draw_band(GContext *ctx, GRect band);   // the banner panel
+// A banner panel: the block drawn as a pill hugging its text, centred in `band`.
+void draw_band(GContext *ctx, GRect band, QuadBlock blk);
 bool block_is_short(QuadBlock b);     // false = "big" (square) block
 bool block_valid_grid(int v);         // may sit in the 2x2 grid
 bool block_valid_band(int v);         // may sit in the banner
@@ -118,5 +119,4 @@ extern bool   s_show_seconds;
 extern bool   s_flip_enabled;   // config: animate blocks on value change
 extern bool   s_seam_enabled;   // config: draw the seam line across blocks
 extern int    s_lang;
-extern QuadBlock s_band_block;
 extern struct tm s_now;
