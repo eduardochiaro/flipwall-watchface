@@ -378,7 +378,8 @@ PLATFORMS.forEach(function(platform) {
   });
 })();
 
-// Presets: each must land on a valid arrangement for the layout it asks for.
+// Presets: each is a share code, so tapping one has to land the face it packs —
+// unchanged and valid — and leave the wearer's own settings alone.
 global.document = makeDocument();
 var clay = makeClay('basalt');
 clayCustomFn.call(clay);
@@ -386,23 +387,30 @@ clay.build();
 var presets = /var PRESETS = (\[[\s\S]*?\n  \]);/.exec(clayCustomFn.toString());
 assert.ok(presets, 'could not read PRESETS');
 eval('var P = ' + presets[1] + ';');
-P.forEach(function(p) {
+var mine = { LANG: clay.vals.LANG, UNITS: clay.vals.UNITS,
+             SHOW_SECONDS: clay.vals.SHOW_SECONDS, FLIP_ANIM: clay.vals.FLIP_ANIM };
+P.forEach(function(p, i) {
+  document.querySelector('[data-preset="' + i + '"]').click();
+
+  // The page exports what it just took in: a preset code that survives its own
+  // round trip is a code the share box could have produced.
+  assert.strictEqual(document.querySelector('[data-transfer="code"]').value,
+    p.code, 'preset "' + p.name + '": the face it applied is not its code');
+
   COLUMNS.forEach(function(col) {
-    var m = { BLOCK_TOP_LEFT: p.tl, BLOCK_TOP_RIGHT: p.tr,
-              BLOCK_MID_LEFT: p.ml, BLOCK_MID_RIGHT: p.mr,
-              BLOCK_BOTTOM_LEFT: p.bl, BLOCK_BOTTOM_RIGHT: p.br };
-    // A 6-block preset has to be valid as a column of three too (that is what
-    // rect screens draw); a classic one only pairs top with bottom.
-    var keys = p.layout === 1 ? col : [col[0], col[2]];
-    var bigs = keys.filter(function(k) { return isBig(m[k]); });
+    // A 6-block preset has to be valid as a column of three (that is what rect
+    // screens draw); a classic one only pairs top with bottom.
+    var keys = clay.vals.LAYOUT === 1 ? col : [col[0], col[2]];
+    var bigs = keys.filter(function(k) { return isBig(clay.vals[k]); });
     assert.strictEqual(bigs.length, 1,
       'preset "' + p.name + '": ' + keys.join(' + ') + ' hold ' + bigs.length +
       ' big blocks');
   });
-  // A 6-block preset fills the column middles; a classic one fills the banner.
-  assert.ok(p.layout === 1 ? (p.ml !== undefined && p.mr !== undefined)
-                           : p.band !== undefined,
-    'preset "' + p.name + '": missing blocks for its layout');
+
+  Object.keys(mine).forEach(function(key) {
+    assert.strictEqual(clay.vals[key], mine[key],
+      'preset "' + p.name + '" overwrote ' + key);
+  });
   checks++;
 });
 
