@@ -2,9 +2,9 @@
 //
 // Block selector values map to the QuadBlock enum on the C side:
 //   0 = Day of week, 1 = Day of month, 2 = Clock, 3 = Month,
-//   4 = Steps, 5 = Distance, 6 = Battery, 7 = Year (banner only),
-//   8 = Weather icon (big), 9 = Month + Day (banner only),
-//   10 = Weekday + Day (banner only), 11 = Temperature (small),
+//   4 = Steps, 5 = Distance, 6 = Battery, 7 = Year (small / banner),
+//   8 = Weather icon (big), 9 = Month + Day (small / banner),
+//   10 = Weekday + Day (small / banner), 11 = Temperature (small),
 //   12 = Temperature (big), 13 = Humidity (small), 14 = Max/Min (small / banner),
 //   15 = Precipitation (small), 16 = Digital clock (small / banner),
 //   17 = Digital clock (big), 18 = Hours (small), 19 = Hours (big),
@@ -73,6 +73,7 @@ var SMALL_TIME = [
 var SMALL_DATE = [
   { label: "Day of week (small)", value: 0 },
   { label: "Month (small)", value: 3 },
+  { label: "Year (small)", value: 7 },
   { label: "Month + Day (small)", value: 9 },
   { label: "Weekday + Day (small)", value: 10 }
 ];
@@ -109,20 +110,8 @@ var BLOCK_OPTIONS_GROUPS = [
   { label: "Small - Weather", value: SMALL_WEATHER }
 ];
 
-// The six-block column middles take the same blocks as the grid — each column
-// holds one big and two small blocks, in any order — plus Year, which is
-// otherwise banner-only but belongs here because the round layout draws these
-// two positions as strips. clayCustomFn trims the list back to the banner set
-// on round screens for that reason.
-var MID_OPTIONS_GROUPS = BLOCK_OPTIONS_GROUPS.map(function(group) {
-  return group.label === "Small - Date"
-    ? { label: group.label,
-        value: group.value.concat([{ label: "Year (small)", value: 7 }]) }
-    : group;
-});
-
 // The banner is a single short block, so it only needs the content grouping.
-// Year is banner-only; the rest mirror their small-block counterparts.
+// Every entry mirrors its small-block counterpart.
 var BAND_OPTIONS = [
   { label: "Date & time", value: [
     { label: "Year", value: 7 },
@@ -272,7 +261,7 @@ module.exports = [
     type: "section",
     items: [
       { type: "heading", defaultValue: "Presets" },
-      { type: "text", defaultValue: "Tap a preset to fill in blocks and colors. Tweak anything after." },
+      { type: "text", defaultValue: "Swipe the row for more. Tap a preset to fill in blocks and colors. Tweak anything after." },
       // Buttons + click handlers are injected by clayCustomFn (needs the webview DOM).
       { type: "text", id: "PRESETS", label: "", defaultValue: "" },
     ]
@@ -339,7 +328,7 @@ module.exports = [
         messageKey: "BLOCK_MID_LEFT",
         label: "Middle",
         defaultValue: 16,
-        options: MID_OPTIONS_GROUPS
+        options: BLOCK_OPTIONS_GROUPS
       },
       { type: "color", messageKey: "PANEL_ML_COLOR", label: "Middle Color", defaultValue: "000000", sunlight: false },
       {
@@ -369,7 +358,7 @@ module.exports = [
         messageKey: "BLOCK_MID_RIGHT",
         label: "Middle",
         defaultValue: 4,
-        options: MID_OPTIONS_GROUPS
+        options: BLOCK_OPTIONS_GROUPS
       },
       { type: "color", messageKey: "PANEL_MR_COLOR", label: "Middle Color", defaultValue: "000000", sunlight: false },
       {

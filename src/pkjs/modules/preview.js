@@ -181,10 +181,13 @@ function clayCustomFn() {
     return null;
   }
 
-  // .beat time draws its "@" in the panel's accent colour (draw_beat_text in
-  // the C source); everything after it stays in the text colour.
-  function beatMarkup(txt, panel) {
-    return '<span style="color:' + accent(panel) + ';">@</span>' + txt.slice(1);
+  // .beat time draws its "@" in the text's accent colour (as the big digital
+  // clock does its minutes), lifted off the shared baseline it otherwise hangs
+  // below (draw_beat_text in the C source, where the same lift is cap_h / 6);
+  // everything after it stays in the plain text colour.
+  function beatMarkup(txt, text) {
+    return '<span style="color:' + accent(text) +
+      ';position:relative;top:-0.17em;">@</span>' + txt.slice(1);
   }
 
   function px(n) { return (n * SCALE).toFixed(2) + 'px'; }
@@ -370,7 +373,9 @@ function clayCustomFn() {
       else if (v === 34) { caption = 'UV Index'; value = SAMPLE.uv; labelTop = false; }
       else if (v === 36) { caption = SAMPLE.windUnit; value = SAMPLE.windNum; labelTop = false; }
       else if (v === 40) { caption = 'AQI'; value = SAMPLE.aqi; labelTop = false; }
-      else if (v === 46) { caption = '.beat'; value = SAMPLE.beat; labelTop = false; }
+      // ".beat" captions in the accent colour, like the "@" on the small block.
+      else if (v === 46) { caption = '.beat'; value = SAMPLE.beat; labelTop = false;
+                           capColor = accent(c.text); }
       // Wind direction: the arrow takes the big line, the compass word captions it.
       else if (v === 38) { caption = SAMPLE.windDir; value = windArrow(SAMPLE.windDeg); labelTop = false; }
       else { caption = SAMPLE.distUnit; value = SAMPLE.distNum; labelTop = false; }
@@ -409,7 +414,7 @@ function clayCustomFn() {
     // day number (big), temp (big), month name, or a data readout.
     var txt = v === 1 ? SAMPLE.day : (v === 3 ? SAMPLE.month : valueText(v));
     var font = (v === 1 || v === 12) ? Math.round(h * 0.6) : Math.round(h * 0.5);
-    if (v === 45) { txt = beatMarkup(txt, c.panel); }
+    if (v === 45) { txt = beatMarkup(txt, c.text); }
     return panelDiv(x, y, w, h, c.panel,
       textDiv(txt, c.text, font, 'center', 0) + seam(w, h));
   }
@@ -425,7 +430,7 @@ function clayCustomFn() {
     // Width the panel to the text (mirrors draw_band sizing to content), so
     // longer strings like "Jun 26" don't wrap onto a second line.
     var pw = Math.max(Math.round(h * 1.9), Math.round(txt.length * font * 0.62) + 12);
-    if (v === 45) { txt = beatMarkup(txt, c.panel); }
+    if (v === 45) { txt = beatMarkup(txt, c.text); }
     var px0 = x + Math.floor((w - pw) / 2);
     return panelDiv(px0, y, pw, h, c.panel,
       textDiv(txt, c.text, font, 'center', 0) + seam(pw, h));
@@ -643,35 +648,32 @@ function clayCustomFn() {
   }
 
   // --- Presets ------------------------------------------------------------
-  // Each fills the four grid blocks (one big + one small per column), the
-  // banner, the two column middles, the top/bottom banner position, and the
-  // three colors. Block ids match the QuadBlock enum. Colors are hex (no '#').
-  // `panel` sets every block; add `panels` {band,ml,mr,tl,tr,bl,br} to override
-  // individual block colors. `drawSeam` toggles the seam line (omit = on, the
-  // default). `layout` picks the face: 0 = classic 5 blocks (the default),
-  // 1 = 6 blocks, which shows `ml`/`mr` instead of the banner.
+  // A preset is just a saved face, so each one is stored as the share code the
+  // Share Settings box exports (see the code format below): blocks, colors,
+  // layout, banner side and seam, all in one string. To change a preset or add
+  // one, build the face on this page, copy its code and paste it in here.
   var PRESETS = [
-    { name: 'Standard', tl: 0, bl: 2, tr: 1, br: 3, band: 7, yearTop: true,
-      face: 'FF5500', panel: '000000', weekend: 'FF0000', drawSeam: true },
-    { name: 'Digital', tl: 17, bl: 0, tr: 1, br: 3, band: 7, yearTop: true,
-      face: '9A7099', panel: '004387', weekend: '004387', drawSeam: false },
-    { name: 'Flip Clock', tl: 19, bl: 22, tr: 21, br: 3, band: 10, yearTop: false,
-      face: '222222', panel: 'EEEEEE', weekend: 'FF0000', drawSeam: true },
-    { name: 'Weather Station', tl: 12, bl: 43, tr: 8, br: 13, band: 16, yearTop: true,
-      face: '005588', panel: 'FFFFFF', weekend: 'FFAA00', drawSeam: false },
-    { name: 'Sport', tl: 17, bl: 4, tr: 1, br: 5, band: 6, yearTop: false,
-      face: '004400', panel: '000000', weekend: '00FF00', drawSeam: false },
-    { name: 'Colorful', tl: 2, bl: 0, tr: 1, br: 3, band: 7, yearTop: true,
-      face: 'FFEEAB', panel: '6C5CE7', weekend: 'FF0000',
-      panels: { band: '6C5CE7', ml: '6C5CE7', mr: '6C5CE7', tl: 'E17055',
-                tr: '0984E3', bl: '00B894', br: 'D63031' } },
-    { name: 'Six Up', layout: 1, tl: 2, ml: 16, bl: 0, tr: 1, mr: 4, br: 3,
-      yearTop: true, face: 'FF5500', panel: '000000', weekend: 'FF0000',
-      drawSeam: true },
-    { name: 'Six Weather', layout: 1, tl: 8, ml: 35, bl: 33, tr: 12, mr: 43,
-      br: 13, yearTop: true, face: '005588', panel: 'FFFFFF',
-      weekend: 'FFAA00', drawSeam: false }
+    { name: 'Standard',
+      code: '0403800G080G80R7ZYN0000003ZG000000000000000000000000000000000000ZR' },
+    { name: 'Digital',
+      code: '0401848G000G80R7K9R9J023GW0471R08E3G0GW7011RE023GW0471R08E3G0GW708' },
+    { name: 'Flip Clock',
+      code: '040304RG2RAG80RA48H25VQEXVZG007EXVQEXVQEXVQEXVQEXVQEXVQEXVQEXVQE8M' },
+    { name: 'Weather Station',
+      code: '0401830G5C40838G01ARHZZZZZZTM07ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZYC' },
+    { name: 'Sport',
+      code: '0401048G0G0G818601200000000FY00000000000000000000000000000000000H4' },
+    { name: 'Colorful',
+      code: '040380GG000G80R7ZZQAPV2WWZZG0071E1APRQ7702W982C4WDP5SSYP60RPRQ7788' },
+    { name: 'Six Up',
+      code: '0403A1R2000G80R7ZYN0000003ZG000000000000000000000000000000000000YR' },
+    { name: 'Six Weather',
+      code: '0401A2135482P30701ATNZZZZZZTM07ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ90' }
   ];
+
+  // A code carries the whole face, but a preset is about the look, so tapping
+  // one must not reset the wearer's own settings. These four are theirs.
+  var PRESET_SKIP = ['LANG', 'UNITS', 'SHOW_SECONDS', 'FLIP_ANIM'];
 
   function contrastHex(hex) {   // white text on dark bg, black on light
     var n = parseInt(hex, 16);
@@ -680,35 +682,12 @@ function clayCustomFn() {
   }
 
   function applyPreset(p) {
-    function set(key, val) {
-      var it = clayConfig.getItemByMessageKey(key);
-      if (it) { it.set(val); }
-    }
-    // Set top before bottom in each column so the reconcile (which only touches
-    // the partner) settles on our valid pair rather than a fallback.
-    set('LAYOUT', p.layout || 0);
-    set('BLOCK_TOP_LEFT', p.tl);     set('BLOCK_BOTTOM_LEFT', p.bl);
-    set('BLOCK_TOP_RIGHT', p.tr);    set('BLOCK_BOTTOM_RIGHT', p.br);
-    if (p.band !== undefined) { set('BLOCK_BAND', p.band); }
-    if (p.ml !== undefined) { set('BLOCK_MID_LEFT', p.ml); }
-    if (p.mr !== undefined) { set('BLOCK_MID_RIGHT', p.mr); }
-    set('YEAR_TOP', p.yearTop);
-    set('DRAW_SEAM', p.drawSeam !== false);   // omitted = seam on (the default)
-    set('FACE_COLOR', parseInt(p.face, 16));
-    set('PANEL_COLOR', parseInt(p.panel, 16));   // change -> syncPanels fills all
-    set('WEEKEND_COLOR', parseInt(p.weekend, 16));
-    // Per-block overrides (run after the master broadcast above).
-    if (p.panels) {
-      set('PANEL_BAND_COLOR', parseInt(p.panels.band, 16));
-      set('PANEL_ML_COLOR',   parseInt(p.panels.ml || p.panels.band, 16));
-      set('PANEL_MR_COLOR',   parseInt(p.panels.mr || p.panels.band, 16));
-      set('PANEL_TL_COLOR',   parseInt(p.panels.tl, 16));
-      set('PANEL_TR_COLOR',   parseInt(p.panels.tr, 16));
-      set('PANEL_BL_COLOR',   parseInt(p.panels.bl, 16));
-      set('PANEL_BR_COLOR',   parseInt(p.panels.br, 16));
-    }
+    var values = decodeCode(p.code);
+    if (typeof values === 'string') { return; }   // a broken preset code
+    setCodeValues(values, PRESET_SKIP);
     applyLayoutVisibility();
     refreshPreview();
+    refreshCode();
   }
 
   // --- Export / import ----------------------------------------------------
@@ -800,8 +779,9 @@ function clayCustomFn() {
     return b32encode(bytes);
   }
 
-  // Returns null on success, or a message explaining why the code was rejected.
-  function importCode(text) {
+  // Unpack a code into a { messageKey: value } map, or return a string saying
+  // why it was rejected.
+  function decodeCode(text) {
     // Be generous about what a pasted code may carry: spaces or dashes someone
     // added for readability, and the letters base32 folds onto digits.
     var clean = String(text || '').toUpperCase().replace(/[\s-]/g, '')
@@ -835,11 +815,22 @@ function clayCustomFn() {
       values[key] = (bytes[at] << 16) | (bytes[at + 1] << 8) | bytes[at + 2];
       at += 3;
     });
+    return values;
+  }
 
+  // Write a decoded code onto the page, leaving out any key in `skip`.
+  function setCodeValues(values, skip) {
     CODE_KEYS.forEach(function(key) {
-      var it = clayConfig.getItemByMessageKey(key);
-      if (it) { it.set(values[key]); }
+      if (skip && skip.indexOf(key) > -1) { return; }
+      setBlock(key, values[key]);
     });
+  }
+
+  // Returns null on success, or a message explaining why the code was rejected.
+  function importCode(text) {
+    var values = decodeCode(text);
+    if (typeof values === 'string') { return values; }
+    setCodeValues(values);
     return null;
   }
 
@@ -917,12 +908,19 @@ function clayCustomFn() {
   function buildPresetButtons() {
     var item = clayConfig.getItemById('PRESETS');
     if (!item) { return; }
-    var html = '<div style="display:flex;flex-wrap:wrap;gap:6px;">';
+    // One row that scrolls sideways, so the list stays one line however many
+    // presets there are. Each button keeps its own width and never wraps.
+    var html = '<div style="display:flex;gap:6px;overflow-x:auto;' +
+      'padding-bottom:6px;-webkit-overflow-scrolling:touch;">';
     PRESETS.forEach(function(p, i) {
-      html += '<button type="button" data-preset="' + i + '" style="flex:1 1 40%;' +
-        'padding:10px 6px;border:none;border-radius:6px;cursor:pointer;' +
-        'font-weight:bold;font-size:14px;background:#' + p.panel +
-        ';color:' + contrastHex(p.panel) + ';">' + p.name + '</button>';
+      // The button wears the preset's own panel color, read back out of its code.
+      var values = decodeCode(p.code);
+      var panel = typeof values === 'string' ? '000000'
+        : ('00000' + values.PANEL_COLOR.toString(16)).slice(-6).toUpperCase();
+      html += '<button type="button" data-preset="' + i + '" style="flex:0 0 auto;' +
+        'padding:10px 14px;border:none;border-radius:6px;cursor:pointer;' +
+        'white-space:nowrap;font-weight:bold;font-size:14px;background:#' + panel +
+        ';color:' + contrastHex(panel) + ';">' + p.name + '</button>';
     });
     item.set(html + '</div>');
     PRESETS.forEach(function(p, i) {

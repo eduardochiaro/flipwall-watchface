@@ -64,9 +64,9 @@ Both faces are two columns. Blocks come in two sizes — **big** (fills a square
 
 - **Banner block** — banner content, classic layout only: Year, Digital clock, .beat time, Month + Day, Weekday + Day, Steps, Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, or Wind direction.
 - **Banner at top** — banner above the columns (on) or below them (off). Classic layout only.
-- **Left / Right column middle block** — 6-block layout only. Same choices as the top and bottom blocks below, big or small, plus Year — so a column can carry its big block in the middle. On round screens these two leave their columns and become the strips above and below the grid, so there they are limited to the banner block list, and every block in the column shifts: the left column is drawn strip / top / bottom and the right column top / bottom / strip. The settings page relabels and reorders both columns to match, so each one always reads in the order it is drawn.
+- **Left / Right column middle block** — 6-block layout only. Same choices as the top and bottom blocks below, big or small — so a column can carry its big block in the middle. On round screens these two leave their columns and become the strips above and below the grid, so there they are limited to the banner block list, and every block in the column shifts: the left column is drawn strip / top / bottom and the right column top / bottom / strip. The settings page relabels and reorders both columns to match, so each one always reads in the order it is drawn.
 - **Top / Middle / Bottom block of each column** — fill each slot with:
-  - **Date/time:** Day of week, Day of month, Calendar (weekday over day), Calendar + Month (month over day), Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Month, .beat time (big or small)
+  - **Date/time:** Day of week, Day of month, Calendar (weekday over day), Calendar + Month (month over day), Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Month, Year, Month + Day, Weekday + Day, .beat time (big or small)
   - **Activity:** Steps, Distance (small or big), Battery (small or big), Heart rate (small or big)
   - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Max/Min temp (small or big), Humidity (small or big), Precipitation, UV index (small or big, plain or `- color`), Air quality (small or big, plain or `- color`), Wind speed (small or big), Wind direction (small or big)
 
@@ -97,6 +97,8 @@ The **Share Settings** section shows a code for the current face — every block
 ```
 
 Copy it to back a face up or pass it to someone else; paste one into the box and tap **Import** to load it, then **Save** to send it to the watch.
+
+The **Presets** buttons are the same thing: each preset is a stored code, applied the way a pasted one is — everything except **Language**, **Units**, **Show seconds** and **Flip animation**, which stay yours. So a new preset is made by building the face, copying its code and dropping it into the `PRESETS` list in `src/pkjs/modules/preview.js`.
 
 The alphabet is [Crockford base32](https://www.crockford.com/base32.html) — digits and uppercase letters only, with `I`, `L`, `O` and `U` left out so nothing gets misread as a digit. Case doesn't matter on the way in, `I`/`L` are read as `1` and `O` as `0`, and any spaces or dashes added for readability are ignored, so a code survives being retyped or wrapped by a chat app. Codes carry a version marker and a checksum, so one from a different version, or one that lost characters on the way, is refused instead of half-applied.
 

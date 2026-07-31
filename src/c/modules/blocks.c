@@ -13,8 +13,8 @@
 
 // Grid blocks span BLK_DOW..BLK_BATTERY plus the weather blocks. Day, Clock,
 // Weather and the big temperature are "big" (square); everything else is a
-// "short" half-height block. BLK_YEAR draws as plain text, so a column block
-// takes it too (the six-block middles offer it, since on round they are strips).
+// "short" half-height block. BLK_YEAR draws as plain text, so it sits in a
+// column slot as happily as in the banner.
 bool block_valid_grid(int v) {
   return (v >= BLK_DOW && v <= BLK_BATTERY) || v == BLK_YEAR || v == BLK_WEATHER ||
          v == BLK_TEMP || v == BLK_TEMP_BIG || v == BLK_HUMIDITY ||
@@ -409,8 +409,8 @@ static void draw_value_block(GContext *ctx, GRect r, QuadBlock blk) {
   draw_seam(ctx, r);
 }
 
-// "@642" with the "@" in the panel's accent colour (the dim shade the icons and
-// the inactive AM/PM use), so the marker reads as a prefix and not a digit.
+// "@642" with the "@" in the text's accent colour (the shade the big digital
+// clock gives its minutes), so the marker reads as a prefix and not a digit.
 // Shrinks to fit like draw_centered, then lays the two pieces out side by side
 // about the block's centre.
 static void draw_beat_text(GContext *ctx, GRect r, const char *txt, int cap_h) {
@@ -422,10 +422,15 @@ static void draw_beat_text(GContext *ctx, GRect r, const char *txt, int cap_h) {
   }
   int w_at = text_width(ctx, "@", cap_h);
   int x = r.origin.x + (r.size.w - w) / 2;
+  // The "@" hangs below the baseline where the digits sit on it, so sharing a
+  // baseline reads as the marker sitting low. Lift it off the shared line.
+  // ponytail: empirical knob, ~3px at the usual short-block cap height. Shrink
+  // the divisor to lift it further.
+  int lift = cap_h / 6;
   // Both pieces run to the block's right edge so neither layout box clips.
-  GRect at = GRect(x, r.origin.y, r.origin.x + r.size.w - x, r.size.h);
+  GRect at = GRect(x, r.origin.y - lift, r.origin.x + r.size.w - x, r.size.h);
   GRect num = GRect(x + w_at, r.origin.y, r.origin.x + r.size.w - x - w_at, r.size.h);
-  text_in_rect(ctx, at, "@", cap_h, get_closest_accent_color(s_panel_bg),
+  text_in_rect(ctx, at, "@", cap_h, get_closest_accent_color(s_text_fg),
                GTextAlignmentLeft);
   text_in_rect(ctx, num, txt + 1, cap_h, s_text_fg, GTextAlignmentLeft);
 }
@@ -563,12 +568,13 @@ static void draw_uv_big(GContext *ctx, GRect r) {
   draw_seam(ctx, r);
 }
 
-// Big .beat time: the beat count over a ".beat" caption (like the HR block).
+// Big .beat time: the beat count over a ".beat" caption (like the HR block), the
+// caption in the text's accent colour to match the "@" on the small block.
 static void draw_beat_big(GContext *ctx, GRect r) {
   draw_panel(ctx, r, s_panel_bg);
   char v[8];
   snprintf(v, sizeof(v), "%03d", beat_time());
-  draw_caption_value(ctx, r, ".beat", s_text_fg, v, false);
+  draw_caption_value(ctx, r, ".beat", get_closest_accent_color(s_text_fg), v, false);
   draw_seam(ctx, r);
 }
 
