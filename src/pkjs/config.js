@@ -15,77 +15,129 @@
 //   30 = Heart rate (big), 31 = Distance (big), 32 = Max/Min temp (big),
 //   33 = UV index (small / banner), 34 = UV index (big),
 //   35 = Wind speed (small / banner), 36 = Wind speed (big),
-//   37 = Wind direction (small / banner), 38 = Wind direction (big).
+//   37 = Wind direction (small / banner), 38 = Wind direction (big),
+//   39 = Air quality (small / banner), 40 = Air quality (big),
+//   41/42 = UV index - color (small / big), 43/44 = Air quality - color,
+//   45 = .beat time (small / banner), 46 = .beat time (big).
+// The "- color" variants draw like their plain counterpart but paint the panel
+// with the index's own band color (see block_panel_color in blocks.c).
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
 // Day of month / Clock / Weather icon / Temperature (big) are "big".
 
-var BLOCK_OPTIONS_SMALL = [
+// Selector contents. Blocks are grouped the way the config page reads them:
+// size first (the column rule pairs one big with one small, so that is the
+// choice that matters), then by what the block shows - time, date, activity,
+// weather - and in the same order everywhere. Values are the QuadBlock enum.
+var BIG_TIME = [
+  { label: "Analog clock (big)", value: 2 },
+  { label: "Digital clock (big)", value: 17 },
+  { label: "Hours (big)", value: 19 },
+  { label: "Minutes (big)", value: 21 },
+  { label: ".beat time (big)", value: 46 }
+];
+
+var BIG_DATE = [
+  { label: "Day of month (big)", value: 1 },
+  { label: "Calendar (big)", value: 26 },
+  { label: "Calendar + Month (big)", value: 29 }
+];
+
+var BIG_ACTIVITY = [
+  { label: "Battery (big)", value: 28 },
+  { label: "Distance (big)", value: 31 },
+  { label: "Heart rate (big)", value: 30 }
+];
+
+var BIG_WEATHER = [
+  { label: "Weather icon (big)", value: 8 },
+  { label: "Temperature (big)", value: 12 },
+  { label: "Max/Min temp (big)", value: 32 },
+  { label: "Humidity (big)", value: 27 },
+  { label: "UV index (big)", value: 34 },
+  { label: "UV index - color (big)", value: 42 },
+  { label: "Air quality (big)", value: 40 },
+  { label: "Air quality - color (big)", value: 44 },
+  { label: "Wind speed (big)", value: 36 },
+  { label: "Wind direction (big)", value: 38 }
+];
+
+var SMALL_TIME = [
   { label: "Digital clock (small)", value: 16 },
   { label: "Hours (small)", value: 18 },
   { label: "Minutes (small)", value: 20 },
   { label: "AM/PM (small)", value: 22 },
   { label: "AM/PM stacked (small)", value: 23 },
+  { label: ".beat time (small)", value: 45 }
+];
+
+var SMALL_DATE = [
+  { label: "Day of week (small)", value: 0 },
   { label: "Month (small)", value: 3 },
   { label: "Month + Day (small)", value: 9 },
-  { label: "Weekday + Day (small)", value: 10 },
-  { label: "Day of week (small)", value: 0 },
+  { label: "Weekday + Day (small)", value: 10 }
+];
+
+var SMALL_ACTIVITY = [
   { label: "Steps (small)", value: 4 },
   { label: "Distance (small)", value: 5 },
   { label: "Battery (small)", value: 6 },
-  { label: "Heart rate (small)", value: 24 },
+  { label: "Heart rate (small)", value: 24 }
+];
+
+var SMALL_WEATHER = [
   { label: "Temperature (small)", value: 11 },
   { label: "Temperature + icon (small)", value: 25 },
   { label: "Max/Min temp (small)", value: 14 },
   { label: "Humidity (small)", value: 13 },
   { label: "Precipitation (small)", value: 15 },
   { label: "UV index (small)", value: 33 },
+  { label: "UV index - color (small)", value: 41 },
+  { label: "Air quality (small)", value: 39 },
+  { label: "Air quality - color (small)", value: 43 },
   { label: "Wind speed (small)", value: 35 },
   { label: "Wind direction (small)", value: 37 }
 ];
 
-var BLOCK_OPTIONS_BIG = [
-  { label: "Analog Clock (big)", value: 2 },
-  { label: "Digital clock (big)", value: 17 },
-  { label: "Hours (big)", value: 19 },
-  { label: "Minutes (big)", value: 21 },
-  { label: "Day of month (big)", value: 1 },
-  { label: "Calendar (big)", value: 26 },
-  { label: "Calendar + Month (big)", value: 29 },
-  { label: "Weather icon (big)", value: 8 },
-  { label: "Temperature (big)", value: 12 },
-  { label: "Max/Min temp (big)", value: 32 },
-  { label: "Humidity (big)", value: 27 },
-  { label: "UV index (big)", value: 34 },
-  { label: "Wind speed (big)", value: 36 },
-  { label: "Wind direction (big)", value: 38 },
-  { label: "Battery (big)", value: 28 },
-  { label: "Heart rate (big)", value: 30 },
-  { label: "Distance (big)", value: 31 },
-];
-
 var BLOCK_OPTIONS_GROUPS = [
-  { label: "Big blocks", value: BLOCK_OPTIONS_BIG },
-  { label: "Small blocks", value: BLOCK_OPTIONS_SMALL }
+  { label: "Big - Time", value: BIG_TIME },
+  { label: "Big - Date", value: BIG_DATE },
+  { label: "Big - Activity", value: BIG_ACTIVITY },
+  { label: "Big - Weather", value: BIG_WEATHER },
+  { label: "Small - Time", value: SMALL_TIME },
+  { label: "Small - Date", value: SMALL_DATE },
+  { label: "Small - Activity", value: SMALL_ACTIVITY },
+  { label: "Small - Weather", value: SMALL_WEATHER }
 ];
 
-// The banner is a single short block: year or one of the data readouts.
+// The banner is a single short block, so it only needs the content grouping.
+// Year is banner-only; the rest mirror their small-block counterparts.
 var BAND_OPTIONS = [
-  { label: "Year", value: 7 },
-  { label: "Digital clock", value: 16 },
-  { label: "Month + Day", value: 9 },
-  { label: "Weekday + Day", value: 10 },
-  { label: "Steps", value: 4 },
-  { label: "Distance", value: 5 },
-  { label: "Battery", value: 6 },
-  { label: "Heart rate", value: 24 },
-  { label: "Temperature", value: 11 },
-  { label: "Temperature + icon", value: 25 },
-  { label: "Humidity", value: 13 },
-  { label: "Max/Min temp", value: 14 },
-  { label: "Precipitation", value: 15 },
-  { label: "UV index", value: 33 },
-  { label: "Wind speed", value: 35 },
-  { label: "Wind direction", value: 37 }
+  { label: "Date & time", value: [
+    { label: "Year", value: 7 },
+    { label: "Digital clock", value: 16 },
+    { label: "Month + Day", value: 9 },
+    { label: "Weekday + Day", value: 10 },
+    { label: ".beat time", value: 45 }
+  ] },
+  { label: "Activity", value: [
+    { label: "Steps", value: 4 },
+    { label: "Distance", value: 5 },
+    { label: "Battery", value: 6 },
+    { label: "Heart rate", value: 24 }
+  ] },
+  { label: "Weather", value: [
+    { label: "Temperature", value: 11 },
+    { label: "Temperature + icon", value: 25 },
+    { label: "Max/Min temp", value: 14 },
+    { label: "Humidity", value: 13 },
+    { label: "Precipitation", value: 15 },
+    { label: "UV index", value: 33 },
+    { label: "UV index - color", value: 41 },
+    { label: "Air quality", value: 39 },
+    { label: "Air quality - color", value: 43 },
+    { label: "Wind speed", value: 35 },
+    { label: "Wind direction", value: 37 }
+  ] }
 ];
 
 // Month/weekday names are translated to these 10 Latin-script languages

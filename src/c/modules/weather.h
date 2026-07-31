@@ -4,7 +4,8 @@
 // Weather comes from the phone (see src/pkjs/modules/weather.js) over AppMessage
 // in metric units (Celsius, %, mm). The last reading is cached to persistent
 // storage so a block shows real data immediately after the watch reboots,
-// instead of "--" until the next 30-minute fetch.
+// instead of "--" until the next 30-minute fetch. UV and AQI come from
+// Open-Meteo's air-quality endpoint, merged into the same push.
 
 void weather_init(void);                               // load cached reading
 bool weather_handle_message(DictionaryIterator *iter); // true if it held weather
@@ -18,13 +19,21 @@ void weather_minmax_str(char *buf, size_t n);   // "12/24°"   / "54/75°"
 void weather_max_str(char *buf, size_t n);      // "24°"      / "75°"
 void weather_min_str(char *buf, size_t n);      // "12°"      / "54°"
 void weather_precip_str(char *buf, size_t n);   // "5mm"      / "0.2in"
-void weather_uv_str(char *buf, size_t n);       // "7" (today's max UV index)
+void weather_uv_str(char *buf, size_t n);       // "7" (current UV index)
+void weather_aqi_str(char *buf, size_t n);      // "42" (European or US AQI)
 void weather_wind_str(char *buf, size_t n);     // "12km/h"   / "7mph"
 void weather_wind_dir_str(char *buf, size_t n); // "WNW" (16-point compass)
 // Rotation for the ICON_WIND_DIRECTION_N arrow: the icon points north at 0, and
 // the arrow ends up pointing where the wind blows *to* - the opposite of the
 // direction named by weather_wind_dir_str (which is the reported "from").
 int32_t weather_wind_angle(void);
+
+// Which band of the index scale the current reading falls in, for the coloured
+// block variants; -1 when there is no reading yet. UV is the 5-band WHO scale
+// (low..extreme); AQI is 6 bands of whichever scale the phone sent (US when the
+// units are imperial, European otherwise - the rule buildAirUrl uses).
+int weather_uv_band(void);   // 0..4
+int weather_aqi_band(void);  // 0..5
 
 uint32_t weather_icon_resource(void);           // large pdc (big weather block)
 uint32_t weather_icon_resource_small(void);     // small pdc (small/banner block)

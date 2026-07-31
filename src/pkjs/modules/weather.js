@@ -31,16 +31,20 @@ var BLOCK_FIELDS = {
   15: ['precipitation'],                             // Precipitation
   14: ['temperature_2m_min', 'temperature_2m_max'],  // Max/Min temp (small)
   32: ['temperature_2m_min', 'temperature_2m_max'],  // Max/Min temp (big)
-  33: ['uv_index_max'],                              // UV index (small)
-  34: ['uv_index_max'],                              // UV index (big)
+  33: ['uv_index'],                                  // UV index (small)
+  34: ['uv_index'],                                  // UV index (big)
   35: ['wind_speed_10m'],                            // Wind speed (small)
   36: ['wind_speed_10m'],                            // Wind speed (big)
   37: ['wind_direction_10m'],                        // Wind direction (small)
-  38: ['wind_direction_10m']                         // Wind direction (big)
+  38: ['wind_direction_10m'],                        // Wind direction (big)
+  39: ['aqi'],                                       // Air quality (small)
+  40: ['aqi']                                        // Air quality (big)
 };
 
-// The daily=... fields; everything else in BLOCK_FIELDS is a current=... field.
-var DAILY = { temperature_2m_min: 1, temperature_2m_max: 1, uv_index_max: 1 };
+// The daily=... fields of the forecast API; AIR fields come from the separate
+// air-quality endpoint instead. Everything else is a forecast current=... field.
+var DAILY = { temperature_2m_min: 1, temperature_2m_max: 1 };
+var AIR = { uv_index: 1, aqi: 1 };
 
 // Union of the fields needed by the blocks currently on screen.
 // Returns null when no block uses weather.
@@ -59,10 +63,11 @@ function requestedFields(s) {
 
   var current = ['temperature_2m'];
   var daily = [];
+  var air = [];
   Object.keys(want).forEach(function(f) {
-    (DAILY[f] ? daily : current).push(f);
+    (AIR[f] ? air : DAILY[f] ? daily : current).push(f);
   });
-  return { current: current, daily: daily };
+  return { current: current, daily: daily, air: air };
 }
 
 // Always metric (Open-Meteo's default): the watch converts to °F / inches at
@@ -75,6 +80,18 @@ function buildUrl(lat, lon, fields) {
     url += '&daily=' + fields.daily.join(',') + '&forecast_days=1';
   }
   return url + '&timezone=auto';
+}
+
+// Air quality lives on its own Open-Meteo host. The two AQI scales are on very
+// different ranges (European ~0..100, US ~0..500), and the phone picks one:
+// ponytail: imperial units => US scale, rather than a config option nobody asked
+// for. Add an AQI_SCALE select if metric users ask for the US number.
+function buildAirUrl(lat, lon, air, imperial) {
+  var fields = air.map(function(f) {
+    return f === 'aqi' ? (imperial ? 'us_aqi' : 'european_aqi') : f;
+  });
+  return 'https://air-quality-api.open-meteo.com/v1/air-quality?latitude=' + lat +
+         '&longitude=' + lon + '&current=' + fields.join(',') + '&timezone=auto';
 }
 
 // AppMessage carries int32s; round so floats don't get mangled. Only the keys
@@ -106,14 +123,22 @@ function buildMessage(data) {
   if (daily.temperature_2m_max) {
     msg.WEATHER_MAX_TEMP = Math.round(daily.temperature_2m_max[0]);
   }
-  if (daily.uv_index_max) {
-    // uv_index_max is null on some responses -> send 0 rather than NaN
-    msg.WEATHER_UV = Math.round(daily.uv_index_max[0] || 0);
-  }
   return msg;
 }
 
-function fetchWeather(url, successCallback, errorCallback) {
+// Air-quality response -> the same message. Merged into the forecast message so
+// the watch gets one push (weather.c keys off WEATHER_TEMPERATURE).
+function addAirMessage(msg, data) {
+  var current = data.current || {};
+  var aqi = current.european_aqi !== undefined ? current.european_aqi
+                                               : current.us_aqi;
+  // Either field can come back null; send 0 rather than NaN.
+  if (current.uv_index !== undefined) { msg.WEATHER_UV = Math.round(current.uv_index || 0); }
+  if (aqi !== undefined) { msg.WEATHER_AQI = Math.round(aqi || 0); }
+  return msg;
+}
+
+function fetchJson(url, successCallback, errorCallback) {
   var xhr = new XMLHttpRequest();
 
   xhr.onreadystatechange = function() {
@@ -122,7 +147,7 @@ function fetchWeather(url, successCallback, errorCallback) {
         try {
           var data = JSON.parse(xhr.responseText);
           if (data.current) {
-            successCallback(buildMessage(data));
+            successCallback(data);
           } else {
             errorCallback('Invalid weather data received');
           }
@@ -149,19 +174,33 @@ function fetchWeather(url, successCallback, errorCallback) {
 }
 
 function getWeather() {
-  var fields = requestedFields(settings());
+  var s = settings();
+  var fields = requestedFields(s);
   if (!fields) {
     console.log('No weather block in the layout, skipping weather fetch');
     return;
   }
+  var imperial = parseInt(readValue(s, 'UNITS'), 10) === 1;
+
+  function send(msg) {
+    Pebble.sendAppMessage(msg, function() {
+      console.log('Weather data sent to Pebble successfully');
+    }, function(error) {
+      console.log('Failed to send weather data to Pebble: ' + JSON.stringify(error));
+    });
+  }
 
   navigator.geolocation.getCurrentPosition(function(position) {
-    var url = buildUrl(position.coords.latitude, position.coords.longitude, fields);
-    fetchWeather(url, function(msg) {
-      Pebble.sendAppMessage(msg, function() {
-        console.log('Weather data sent to Pebble successfully');
+    var lat = position.coords.latitude, lon = position.coords.longitude;
+    fetchJson(buildUrl(lat, lon, fields), function(data) {
+      var msg = buildMessage(data);
+      if (!fields.air.length) { return send(msg); }
+      // Air quality is a second request; a failure there still ships the rest.
+      fetchJson(buildAirUrl(lat, lon, fields.air, imperial), function(air) {
+        send(addAirMessage(msg, air));
       }, function(error) {
-        console.log('Failed to send weather data to Pebble: ' + JSON.stringify(error));
+        console.log('Failed to fetch air quality data: ' + error);
+        send(msg);
       });
     }, function(error) {
       console.log('Failed to fetch weather data: ' + error);
@@ -174,3 +213,4 @@ function getWeather() {
 module.exports = getWeather;
 module.exports.requestedFields = requestedFields;
 module.exports.buildUrl = buildUrl;
+module.exports.buildAirUrl = buildAirUrl;

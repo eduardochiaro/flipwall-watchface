@@ -28,7 +28,10 @@ bool block_valid_grid(int v) {
          v == BLK_KM_BIG || v == BLK_MINMAX_BIG ||
          v == BLK_UV || v == BLK_UV_BIG ||
          v == BLK_WIND || v == BLK_WIND_BIG ||
-         v == BLK_WIND_DIR || v == BLK_WIND_DIR_BIG;
+         v == BLK_WIND_DIR || v == BLK_WIND_DIR_BIG ||
+         v == BLK_AQI || v == BLK_AQI_BIG ||
+         (v >= BLK_UV_COLOR && v <= BLK_AQI_BIG_COLOR) ||
+         v == BLK_BEAT || v == BLK_BEAT_BIG;
 }
 bool block_valid_band(int v) {
   return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY) ||
@@ -36,7 +39,8 @@ bool block_valid_band(int v) {
          v == BLK_TEMP || v == BLK_HUMIDITY || v == BLK_MINMAX ||
          v == BLK_PRECIP || v == BLK_DIGITAL || v == BLK_HR ||
          v == BLK_TEMP_ICON || v == BLK_UV ||
-         v == BLK_WIND || v == BLK_WIND_DIR;
+         v == BLK_WIND || v == BLK_WIND_DIR || v == BLK_AQI ||
+         v == BLK_UV_COLOR || v == BLK_AQI_COLOR || v == BLK_BEAT;
 }
 bool block_is_short(QuadBlock b) {
   return !(b == BLK_DAY || b == BLK_CLOCK || b == BLK_WEATHER ||
@@ -45,7 +49,59 @@ bool block_is_short(QuadBlock b) {
            b == BLK_CALENDAR || b == BLK_HUMIDITY_BIG ||
            b == BLK_BATTERY_BIG || b == BLK_MONTH_CAL ||
            b == BLK_HR_BIG || b == BLK_KM_BIG || b == BLK_MINMAX_BIG ||
-           b == BLK_UV_BIG || b == BLK_WIND_BIG || b == BLK_WIND_DIR_BIG);
+           b == BLK_UV_BIG || b == BLK_WIND_BIG || b == BLK_WIND_DIR_BIG ||
+           b == BLK_AQI_BIG || b == BLK_UV_BIG_COLOR ||
+           b == BLK_AQI_BIG_COLOR || b == BLK_BEAT_BIG);
+}
+
+// A "- colour" variant draws exactly like the block it mirrors; only the panel
+// colour differs (see block_panel_color).
+static QuadBlock base_block(QuadBlock b) {
+  switch (b) {
+    case BLK_UV_COLOR:      return BLK_UV;
+    case BLK_UV_BIG_COLOR:  return BLK_UV_BIG;
+    case BLK_AQI_COLOR:     return BLK_AQI;
+    case BLK_AQI_BIG_COLOR: return BLK_AQI_BIG;
+    default:                return b;
+  }
+}
+
+#ifdef PBL_COLOR
+// The index ramps: WHO UV bands run green -> purple, AQI green -> maroon. Index
+// with weather_uv_band() / weather_aqi_band().
+static const uint8_t UV_BAND_ARGB[5] = {
+  GColorGreenARGB8, GColorYellowARGB8, GColorOrangeARGB8, GColorRedARGB8,
+  GColorPurpleARGB8
+};
+static const uint8_t AQI_BAND_ARGB[6] = {
+  GColorGreenARGB8, GColorYellowARGB8, GColorOrangeARGB8, GColorRedARGB8,
+  GColorPurpleARGB8, GColorBulgarianRoseARGB8
+};
+#endif
+
+// The panel colour a block draws on: the reading's band colour for the "- colour"
+// variants, otherwise the configured panel colour (which is also the fallback
+// before the first reading, and on the black-and-white platforms).
+static GColor block_panel_color(QuadBlock b) {
+#ifdef PBL_COLOR
+  int band;
+  switch (b) {
+    case BLK_UV_COLOR:
+    case BLK_UV_BIG_COLOR:
+      band = weather_uv_band();
+      if (band >= 0) return (GColor){ .argb = UV_BAND_ARGB[band] };
+      break;
+    case BLK_AQI_COLOR:
+    case BLK_AQI_BIG_COLOR:
+      band = weather_aqi_band();
+      if (band >= 0) return (GColor){ .argb = AQI_BAND_ARGB[band] };
+      break;
+    default: break;
+  }
+#else
+  (void)b;
+#endif
+  return s_panel_bg;
 }
 
 // ---------------------------------------------------------------------------
@@ -217,10 +273,16 @@ static void minutes_str(char *buf, size_t n) {
   strftime(buf, n, "%M", &s_now);
 }
 
+// Swatch Internet Time: the day split into 1000 beats, counted from midnight in
+// Biel (UTC+1) with no timezones and no DST, so it is the same number worldwide.
+static int beat_time(void) {
+  return (int)(((time(NULL) + 3600) % 86400) * 1000 / 86400);
+}
+
 // Compact value text for the data blocks (year / steps / km / battery / weather).
 // Health metrics fall back to "--" on platforms without Health (e.g. aplite).
 static void block_text(QuadBlock blk, char *buf, size_t n) {
-  switch (blk) {
+  switch (base_block(blk)) {
     case BLK_YEAR:
       strftime(buf, n, "%Y", &s_now);
       break;
@@ -292,8 +354,17 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
     case BLK_WIND:
       weather_wind_str(buf, n);
       break;
+    case BLK_AQI: {
+      char v[8];
+      weather_aqi_str(v, sizeof(v));
+      snprintf(buf, n, "AQI %s", v);   // no icon for AQI, so the value is labelled
+      break;
+    }
     case BLK_WIND_DIR:
       weather_wind_dir_str(buf, n);   // the arrow icon carries the angle
+      break;
+    case BLK_BEAT:
+      snprintf(buf, n, "@%03d", beat_time());
       break;
     case BLK_DIGITAL: {
       char hh[4], mm[4];
@@ -334,6 +405,35 @@ static void draw_value_block(GContext *ctx, GRect r, QuadBlock blk) {
   // Big cap (matches the month block); draw_centered shrinks it to fit width if
   // the string (a wide "°"/prefix value) would overflow.
   draw_centered(ctx, r, buf, r.size.h * 52 / 100, s_text_fg);
+  draw_seam(ctx, r);
+}
+
+// "@642" with the "@" in the panel's accent colour (the dim shade the icons and
+// the inactive AM/PM use), so the marker reads as a prefix and not a digit.
+// Shrinks to fit like draw_centered, then lays the two pieces out side by side
+// about the block's centre.
+static void draw_beat_text(GContext *ctx, GRect r, const char *txt, int cap_h) {
+  int avail = r.size.w - 6;
+  int w = text_width(ctx, txt, cap_h);
+  if (w > avail && avail > 0) {
+    cap_h = cap_h * avail / w;
+    w = text_width(ctx, txt, cap_h);
+  }
+  int w_at = text_width(ctx, "@", cap_h);
+  int x = r.origin.x + (r.size.w - w) / 2;
+  // Both pieces run to the block's right edge so neither layout box clips.
+  GRect at = GRect(x, r.origin.y, r.origin.x + r.size.w - x, r.size.h);
+  GRect num = GRect(x + w_at, r.origin.y, r.origin.x + r.size.w - x - w_at, r.size.h);
+  text_in_rect(ctx, at, "@", cap_h, get_closest_accent_color(s_panel_bg),
+               GTextAlignmentLeft);
+  text_in_rect(ctx, num, txt + 1, cap_h, s_text_fg, GTextAlignmentLeft);
+}
+
+static void draw_beat(GContext *ctx, GRect r) {
+  char buf[8];
+  block_text(BLK_BEAT, buf, sizeof(buf));
+  draw_panel(ctx, r, s_panel_bg);
+  draw_beat_text(ctx, r, buf, r.size.h * 52 / 100);   // same cap as draw_value_block
   draw_seam(ctx, r);
 }
 
@@ -459,6 +559,24 @@ static void draw_uv_big(GContext *ctx, GRect r) {
   char v[8];
   weather_uv_str(v, sizeof(v));
   draw_caption_value(ctx, r, UV_LABEL_BIG, s_text_fg, v, false);
+  draw_seam(ctx, r);
+}
+
+// Big .beat time: the beat count over a ".beat" caption (like the HR block).
+static void draw_beat_big(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  char v[8];
+  snprintf(v, sizeof(v), "%03d", beat_time());
+  draw_caption_value(ctx, r, ".beat", s_text_fg, v, false);
+  draw_seam(ctx, r);
+}
+
+// Big air quality: the index over an "AQI" caption (same shape as the UV block).
+static void draw_aqi_big(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  char v[8];
+  weather_aqi_str(v, sizeof(v));
+  draw_caption_value(ctx, r, "AQI", s_text_fg, v, false);
   draw_seam(ctx, r);
 }
 
@@ -721,8 +839,15 @@ static void draw_wind_dir_big(GContext *ctx, GRect r) {
 // wider than the text (not full width), centred in that band. The panel fills
 // the band's height (which the caller sizes to the text).
 void draw_band(GContext *ctx, GRect band) {
+  // Same colour override as draw_block for the "- colour" variants, restored
+  // before returning; blk is the block the banner actually draws.
+  GColor save_bg = s_panel_bg, save_fg = s_text_fg;
+  s_panel_bg = block_panel_color(s_band_block);
+  if (!gcolor_equal(s_panel_bg, save_bg)) s_text_fg = contrast_color(s_panel_bg);
+  QuadBlock blk = base_block(s_band_block);
+
   char buf[16];
-  block_text(s_band_block, buf, sizeof(buf));
+  block_text(blk, buf, sizeof(buf));
   int cap_h = band.size.h * 60 / 100;
 
   // Measure the string so the panel hugs the text.
@@ -730,13 +855,13 @@ void draw_band(GContext *ctx, GRect band) {
 
   const int pad_x = 8;
   // Some banner blocks carry a PDC icon left of the value, like their grid form.
-  uint32_t icon_res = s_band_block == BLK_HR        ? RESOURCE_ID_ICON_HEART
-                    : s_band_block == BLK_UV        ? RESOURCE_ID_ICON_UV
-                    : s_band_block == BLK_WIND_DIR  ? RESOURCE_ID_ICON_WIND_DIRECTION_N
-                    : s_band_block == BLK_TEMP_ICON ? weather_icon_resource_small()
+  uint32_t icon_res = blk == BLK_HR        ? RESOURCE_ID_ICON_HEART
+                    : blk == BLK_UV        ? RESOURCE_ID_ICON_UV
+                    : blk == BLK_WIND_DIR  ? RESOURCE_ID_ICON_WIND_DIRECTION_N
+                    : blk == BLK_TEMP_ICON ? weather_icon_resource_small()
                     : 0;
   // Only the wind arrow turns; every other banner icon is drawn upright.
-  int32_t icon_angle = s_band_block == BLK_WIND_DIR ? weather_wind_angle() : 0;
+  int32_t icon_angle = blk == BLK_WIND_DIR ? weather_wind_angle() : 0;
   int icon = icon_res ? band.size.h * 60 / 100 : 0;
   int gap  = icon_res ? 4 : 0;
 
@@ -756,14 +881,25 @@ void draw_band(GContext *ctx, GRect band) {
     nr.origin.x = ibox.origin.x + icon + gap;
     nr.size.w   = r.origin.x + r.size.w - nr.origin.x - pad_x;
     draw_centered(ctx, nr, buf, cap_h, s_text_fg);
+  } else if (blk == BLK_BEAT) {
+    draw_beat_text(ctx, r, buf, cap_h);
   } else {
     draw_centered(ctx, r, buf, cap_h, s_text_fg);
   }
   draw_seam(ctx, r);
+
+  s_panel_bg = save_bg;
+  s_text_fg  = save_fg;
 }
 
 void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
-  switch (blk) {
+  // Paint on the index colour for the "- colour" variants (a no-op otherwise);
+  // the text and icon accent follow from s_panel_bg, so both are restored after.
+  GColor save_bg = s_panel_bg, save_fg = s_text_fg;
+  s_panel_bg = block_panel_color(blk);
+  if (!gcolor_equal(s_panel_bg, save_bg)) s_text_fg = contrast_color(s_panel_bg);
+
+  switch (base_block(blk)) {
     case BLK_DOW:      draw_dow(ctx, r);      break;
     case BLK_DAY:      draw_day(ctx, r);      break;
     case BLK_CLOCK:    draw_clock(ctx, r);    break;
@@ -780,6 +916,9 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_UV_BIG:   draw_uv_big(ctx, r);   break;
     case BLK_WIND_BIG: draw_wind_big(ctx, r); break;
     case BLK_WIND_DIR_BIG: draw_wind_dir_big(ctx, r); break;
+    case BLK_AQI_BIG:  draw_aqi_big(ctx, r);  break;
+    case BLK_BEAT_BIG: draw_beat_big(ctx, r); break;
+    case BLK_BEAT:     draw_beat(ctx, r);     break;
     case BLK_HOURS_BIG: { char b[4]; hours_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
     case BLK_MINUTES_BIG: { char b[4]; minutes_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
     case BLK_AMPM:     draw_ampm(ctx, r);     break;
@@ -802,8 +941,11 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
       draw_icon_value(ctx, r, RESOURCE_ID_ICON_WIND_DIRECTION_N, b,
                       weather_wind_angle()); break;
     }
-    default:           draw_value_block(ctx, r, blk); break;  // steps / km / battery / temp / humidity
+    default:           draw_value_block(ctx, r, base_block(blk)); break;  // steps / km / battery / temp / humidity
   }
+
+  s_panel_bg = save_bg;
+  s_text_fg  = save_fg;
 }
 
 // ---------------------------------------------------------------------------
@@ -819,7 +961,7 @@ static bool block_centered_text(QuadBlock b, char *buf, size_t n) {
     case BLK_MONTH: snprintf(buf, n, "%s", month_name());  return true;
     case BLK_STEPS: case BLK_KM:  case BLK_BATTERY:
     case BLK_TEMP:  case BLK_TEMP_BIG: case BLK_HUMIDITY:
-    case BLK_PRECIP: case BLK_DIGITAL: case BLK_WIND:
+    case BLK_PRECIP: case BLK_DIGITAL: case BLK_WIND: case BLK_AQI:
     case BLK_HOURS: case BLK_HOURS_BIG:
     case BLK_MINUTES: case BLK_MINUTES_BIG: case BLK_MINMAX:
     case BLK_MONTH_DAY: case BLK_DOW_DAY:

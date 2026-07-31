@@ -34,6 +34,7 @@ static inline Tuple *dict_find(DictionaryIterator *i, uint32_t k) {
 #define MESSAGE_KEY_WEATHER_UV            6
 #define MESSAGE_KEY_WEATHER_WIND_SPEED    7
 #define MESSAGE_KEY_WEATHER_WIND_DIR      8
+#define MESSAGE_KEY_WEATHER_AQI           9
 
 // Resource ids are opaque handles on the watch; distinct values are all the
 // code->icon test needs.

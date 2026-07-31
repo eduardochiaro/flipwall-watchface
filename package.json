@@ -1,7 +1,7 @@
 {
   "name": "wall-flip",
   "author": "Eduardo Chiaro",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "keywords": [
     "pebble-watchface",
     "flip",
@@ -16,7 +16,7 @@
     "phone": "npm run build && pebble install --phone",
     "config": "pebble emu-app-config --emulator",
     "logs": "pebble logs",
-    "font": "node scripts/gen-svg-font.js resources/fonts/Lekton-Bold.ttf resources/fonts/mono.svg mono \" %-./0123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°\" && fctx-compiler resources/fonts/mono.svg && mv resources/mono.ffont resources/fonts/mono.ffont"
+    "font": "node scripts/gen-svg-font.js resources/fonts/Lekton-Bold.ttf resources/fonts/mono.svg mono \" %-./0123456789:@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°\" && fctx-compiler resources/fonts/mono.svg && mv resources/mono.ffont resources/fonts/mono.ffont"
   },
   "pebble": {
     "displayName": "Wall Flip",
@@ -61,6 +61,7 @@
       "WEATHER_UV",
       "WEATHER_WIND_SPEED",
       "WEATHER_WIND_DIR",
+      "WEATHER_AQI",
       "FLIP_ANIM",
       "DRAW_SEAM",
       "PANEL_BAND_COLOR",

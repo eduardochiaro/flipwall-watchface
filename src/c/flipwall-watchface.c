@@ -259,7 +259,9 @@ static Trigger block_trigger(QuadBlock b) {
     case BLK_MINUTES:
     case BLK_MINUTES_BIG:
     case BLK_AMPM:
-    case BLK_AMPM_STACK:  return TRG_CLOCK;
+    case BLK_AMPM_STACK:
+    case BLK_BEAT:
+    case BLK_BEAT_BIG:    return TRG_CLOCK;
     case BLK_STEPS:
     case BLK_KM:
     case BLK_KM_BIG:
@@ -281,7 +283,13 @@ static Trigger block_trigger(QuadBlock b) {
     case BLK_WIND:
     case BLK_WIND_BIG:
     case BLK_WIND_DIR:
-    case BLK_WIND_DIR_BIG: return TRG_WEATHER;
+    case BLK_WIND_DIR_BIG:
+    case BLK_AQI:
+    case BLK_AQI_BIG:
+    case BLK_UV_COLOR:
+    case BLK_UV_BIG_COLOR:
+    case BLK_AQI_COLOR:
+    case BLK_AQI_BIG_COLOR: return TRG_WEATHER;
     default:           return TRG_DATE;   // dow / day / month / year / *_day
   }
 }

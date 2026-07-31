@@ -5,10 +5,10 @@
 // pair exactly one of each, so the two columns line up.
 var BIG_BLOCKS = { 1: true, 2: true, 8: true, 12: true, 17: true, 19: true,
   21: true, 26: true, 27: true, 28: true, 29: true, 30: true, 31: true, 32: true,
-  34: true, 36: true, 38: true };
+  34: true, 36: true, 38: true, 40: true, 42: true, 44: true, 46: true };
 // Day, Clock, Weather, Temp(big), Digital(big), Hours(big), Minutes(big),
 // Calendar, Humidity, Battery, Calendar+Month, HR, Distance, Max/Min, UV,
-// Wind speed, Wind direction (big)
+// Wind speed, Wind direction, Air quality (big)
 var FALLBACK_SMALL = 0;                   // Day of week
 var FALLBACK_BIG = 2;                     // Clock
 
@@ -46,7 +46,8 @@ function clayCustomFn() {
     var n = parseInt(v, 10);
     return n === 1 || n === 2 || n === 8 || n === 12 || n === 17 ||
            n === 19 || n === 21 || n === 26 || (n >= 27 && n <= 32) ||
-           n === 34 || n === 36 || n === 38;
+           n === 34 || n === 36 || n === 38 || n === 40 ||
+           n === 42 || n === 44 || n === 46;
   }
   var FALLBACK_SMALL = 0;   // Day of week
   var FALLBACK_BIG = 2;     // Clock
@@ -58,6 +59,7 @@ function clayCustomFn() {
   var MARGIN = 3, GUTTER = 3;
   var SEAM = '#555555';            // GColorDarkGray
   var drawSeam = true;             // set per-render from cfg.drawSeam
+  var imperial = false;            // set per-render from cfg.units (AQI scale)
   var DIM = '#555555';
   var SECOND = '#FF0000';          // SECOND_FG (red on color screens)
 
@@ -70,7 +72,7 @@ function clayCustomFn() {
                  distNum: '3.2', distUnit: 'KM',
                  precip: '2mm', time: '10:09', hr: '72', uv: '7',
                  wind: '12km/h', windNum: '12', windUnit: 'KM/H',
-                 windDir: 'WNW', windDeg: 292,
+                 windDir: 'WNW', windDeg: 292, aqi: '34', beat: '642',
                  weekend: true, isPM: false, hour: 10, min: 9, sec: 30 };
 
   // Localised month/weekday names — must match MONTHS/WDAYS in the C source.
@@ -101,7 +103,8 @@ function clayCustomFn() {
   function isShort(v) {
     return v !== 1 && v !== 2 && v !== 8 && v !== 12 && v !== 17 &&
            v !== 19 && v !== 21 && v !== 26 && !(v >= 27 && v <= 32) &&
-           v !== 34 && v !== 36 && v !== 38;
+           v !== 34 && v !== 36 && v !== 38 && v !== 40 &&
+           v !== 42 && v !== 44 && v !== 46;
   }
 
   // The wind arrow, approximated to the nearest of 8 glyphs (the watch rotates
@@ -131,7 +134,41 @@ function clayCustomFn() {
     if (v === 33) { return '☼' + SAMPLE.uv; }   // UV icon + index
     if (v === 35) { return SAMPLE.wind; }
     if (v === 37) { return windArrow(SAMPLE.windDeg) + ' ' + SAMPLE.windDir; }
+    if (v === 39) { return 'AQI ' + SAMPLE.aqi; }
+    if (v === 45) { return '@' + SAMPLE.beat; }
     return SAMPLE.year;
+  }
+
+  // The "- color" variants (41..44) draw like their plain counterpart, but the
+  // panel takes the reading's band color. Ramps and thresholds mirror
+  // block_panel_color in blocks.c and weather_*_band in weather.c.
+  var UV_RAMP = ['#00FF00', '#FFFF00', '#FFAA00', '#FF0000', '#AA00AA'];
+  var AQI_RAMP = UV_RAMP.concat(['#550000']);
+  var BASE_BLOCK = { 41: 33, 42: 34, 43: 39, 44: 40 };
+
+  function bandOf(value, edges) {
+    var b = 0;
+    while (b < edges.length && value >= edges[b]) { b++; }
+    return b;
+  }
+
+  // The band color for a color variant, or null for every other block.
+  function indexColor(v) {
+    if (v === 41 || v === 42) {
+      return UV_RAMP[bandOf(parseInt(SAMPLE.uv, 10), [3, 6, 8, 11])];
+    }
+    if (v === 43 || v === 44) {
+      return AQI_RAMP[bandOf(parseInt(SAMPLE.aqi, 10),
+                             imperial ? [51, 101, 151, 201, 301]
+                                      : [20, 40, 60, 80, 100])];
+    }
+    return null;
+  }
+
+  // .beat time draws its "@" in the panel's accent colour (draw_beat_text in
+  // the C source); everything after it stays in the text colour.
+  function beatMarkup(txt, panel) {
+    return '<span style="color:' + accent(panel) + ';">@</span>' + txt.slice(1);
   }
 
   function px(n) { return (n * SCALE).toFixed(2) + 'px'; }
@@ -223,6 +260,12 @@ function clayCustomFn() {
 
   // Render one grid block (by QuadBlock id) into the given rect.
   function block(v, x, y, w, h, c) {
+    var band = indexColor(v);
+    if (band) {
+      c = { panel: band, text: contrast(band), weekend: c.weekend,
+            showSeconds: c.showSeconds };
+      v = BASE_BLOCK[v];
+    }
     if (v === 2) {  // clock
       return clockBlock(x, y, w, h, c.panel, c.text, c.showSeconds);
     }
@@ -300,7 +343,7 @@ function clayCustomFn() {
     // Big two-line blocks (caption + big value). label_top = caption on top.
     // Mirrors draw_caption_value in the C source (same 12%/38% proportions).
     if (v === 27 || v === 28 || v === 29 || v === 30 || v === 31 || v === 34 ||
-        v === 36 || v === 38) {
+        v === 36 || v === 38 || v === 40 || v === 46) {
       var cvM = Math.round(h * 0.12), cvInH = h - 2 * cvM;
       var cvSmallH = Math.round(cvInH * 0.38);
       var caption, value, capColor = c.text, labelTop;
@@ -310,6 +353,8 @@ function clayCustomFn() {
       else if (v === 30) { caption = 'BPM'; value = SAMPLE.hr; labelTop = false; }
       else if (v === 34) { caption = 'UV Index'; value = SAMPLE.uv; labelTop = false; }
       else if (v === 36) { caption = SAMPLE.windUnit; value = SAMPLE.windNum; labelTop = false; }
+      else if (v === 40) { caption = 'AQI'; value = SAMPLE.aqi; labelTop = false; }
+      else if (v === 46) { caption = '.beat'; value = SAMPLE.beat; labelTop = false; }
       // Wind direction: the arrow takes the big line, the compass word captions it.
       else if (v === 38) { caption = SAMPLE.windDir; value = windArrow(SAMPLE.windDeg); labelTop = false; }
       else { caption = SAMPLE.distUnit; value = SAMPLE.distNum; labelTop = false; }
@@ -348,16 +393,23 @@ function clayCustomFn() {
     // day number (big), temp (big), month name, or a data readout.
     var txt = v === 1 ? SAMPLE.day : (v === 3 ? SAMPLE.month : valueText(v));
     var font = (v === 1 || v === 12) ? Math.round(h * 0.6) : Math.round(h * 0.5);
+    if (v === 45) { txt = beatMarkup(txt, c.panel); }
     return panelDiv(x, y, w, h, c.panel,
       textDiv(txt, c.text, font, 'center', 0) + seam(w, h));
   }
 
   function bandBlock(v, x, y, w, h, c) {
+    var band = indexColor(v);
+    if (band) {
+      c = { panel: band, text: contrast(band), weekend: c.weekend };
+      v = BASE_BLOCK[v];
+    }
     var txt = valueText(v);
     var font = Math.round(h * 0.62);
     // Width the panel to the text (mirrors draw_band sizing to content), so
     // longer strings like "Jun 26" don't wrap onto a second line.
     var pw = Math.max(Math.round(h * 1.9), Math.round(txt.length * font * 0.62) + 12);
+    if (v === 45) { txt = beatMarkup(txt, c.panel); }
     var px0 = x + Math.floor((w - pw) / 2);
     return panelDiv(px0, y, pw, h, c.panel,
       textDiv(txt, c.text, font, 'center', 0) + seam(pw, h));
@@ -384,6 +436,7 @@ function clayCustomFn() {
   //        showSeconds }. Mirrors main_layer_update() in the C source.
   function build(cfg) {
     drawSeam = cfg.drawSeam !== false;   // gate the seam line on the config toggle
+    imperial = !!cfg.units;              // picks the AQI scale for the color ramp
     var lang = cfg.lang || 0;
     SAMPLE.month = MONTHS[lang];
     SAMPLE.dow = WDAYS[lang];
@@ -506,7 +559,7 @@ function clayCustomFn() {
       face: '9A7099', panel: '004387', weekend: '004387', drawSeam: false },
     { name: 'Flip Clock', tl: 19, bl: 22, tr: 21, br: 3, band: 10, yearTop: false,
       face: '222222', panel: 'EEEEEE', weekend: 'FF0000', drawSeam: true },
-    { name: 'Weather Station', tl: 8, bl: 15, tr: 12, br: 13, band: 16, yearTop: true,
+    { name: 'Weather Station', tl: 12, bl: 43, tr: 8, br: 13, band: 16, yearTop: true,
       face: '005588', panel: 'FFFFFF', weekend: 'FFAA00', drawSeam: false },
     { name: 'Sport', tl: 17, bl: 4, tr: 1, br: 5, band: 6, yearTop: false,
       face: '004400', panel: '000000', weekend: '00FF00', drawSeam: false },

@@ -59,21 +59,29 @@ Configure via the Pebble app settings page.
 ### Layout
 Each grid quadrant and the banner is assigned a block. Blocks come in two sizes — **big** (fills a square quadrant) and **small** (half height). Each column pairs one big block with one small block; picking two of the same size auto-swaps the other.
 
-- **Banner block** — full-width banner content: Year, Digital clock, Month + Day, Weekday + Day, Steps, Distance, Battery, Heart rate, Temperature, Temperature + icon, Humidity, Max/Min temp, Precipitation, UV index, Wind speed, or Wind direction.
+- **Banner block** — full-width banner content: Year, Digital clock, .beat time, Month + Day, Weekday + Day, Steps, Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, or Wind direction.
 - **Banner at top** — banner above the grid (on) or below it (off).
 - **Top-left / Top-right / Bottom-left / Bottom-right block** — fill each quadrant with:
-  - **Date/time:** Day of week, Day of month, Calendar (weekday over day), Calendar + Month (month over day), Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Month
+  - **Date/time:** Day of week, Day of month, Calendar (weekday over day), Calendar + Month (month over day), Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Month, .beat time (big or small)
   - **Activity:** Steps, Distance (small or big), Battery (small or big), Heart rate (small or big)
-  - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Humidity (small or big), Max/Min temp (small or big), Precipitation, UV index (small or big), Wind speed (small or big), Wind direction (small or big)
+  - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Max/Min temp (small or big), Humidity (small or big), Precipitation, UV index (small or big, plain or `- color`), Air quality (small or big, plain or `- color`), Wind speed (small or big), Wind direction (small or big)
 
-  Big two-line blocks stack a caption over a large value: Calendar, Calendar + Month, Humidity (`Hum` / `47%`), Battery (`Batt` / `82%`), Heart rate (number / `BPM`), Distance (number / `KM`·`M`·`MI`), UV index (`UV Index` / `7`), Wind speed (number / `KM/H`·`MPH`). Max/Min temp (big) stacks the max over the min, with the min drawn in the accent color like the big digital clock. Captions (`Hum`, `Batt`) are translated with the language setting; `UV Index` is not, it reads the same everywhere.
+  The selectors group the blocks by size first (the column rule pairs one big with one small) and then by content — Time, Date, Activity, Weather — in that order.
 
-  Wind direction draws an arrow rotated to the reported bearing (where the wind blows from) over the 16-point compass word (`WNW`). The small/banner variants of UV index and wind direction pair their icon with the value; wind speed shows its unit inline (`12km/h`).
+  Big two-line blocks stack a caption over a large value: Calendar, Calendar + Month, Humidity (`Hum` / `47%`), Battery (`Batt` / `82%`), Heart rate (number / `BPM`), Distance (number / `KM`·`M`·`MI`), UV index (`UV Index` / `7`), Wind speed (number / `KM/H`·`MPH`), Air quality (number / `AQI`). Max/Min temp (big) stacks the max over the min, with the min drawn in the accent color like the big digital clock. Captions (`Hum`, `Batt`) are translated with the language setting; `UV Index` is not, it reads the same everywhere.
+
+  Wind direction draws an arrow rotated to the reported bearing (where the wind blows from) over the 16-point compass word (`WNW`). The small/banner variants of UV index and wind direction pair their icon with the value; wind speed shows its unit inline (`12km/h`), and air quality labels itself (`AQI 42`).
+
+  .beat time is Swatch Internet Time: the day cut into 1000 beats counted from midnight in Biel (UTC+1), with no timezones and no DST, so it reads the same number everywhere. The small block shows `@642`, with the `@` in the panel's accent shade (the same dim colour the icons and the inactive AM/PM use); the big one stacks the count over a `.beat` caption. It advances every 86.4 seconds, repainted on the minute tick.
 
   Hours and Minutes are shown as standalone two-digit blocks (leading zero kept). AM/PM highlights the active half in the text color and dims the other, like the weekday block.
 
 ### Weather
-Weather blocks (icon, temperature, humidity, precipitation, max/min, UV index, wind speed, wind direction) pull current conditions from Open-Meteo using the phone's location. The icon maps WMO weather codes to condition glyphs, and ships in two sizes: a large icon for the big weather block and a small one for the banner and the **Temperature + icon** block. UV index is today's maximum.
+Weather blocks (icon, temperature, humidity, precipitation, max/min, UV index, wind speed, wind direction, air quality) pull current conditions from Open-Meteo using the phone's location. The icon maps WMO weather codes to condition glyphs, and ships in two sizes: a large icon for the big weather block and a small one for the banner and the **Temperature + icon** block.
+
+UV index and air quality come from Open-Meteo's air-quality endpoint (a second request, made only when one of those blocks is placed, and merged into the same push to the watch). Both are current values. The AQI scale follows the **Units** setting: metric sends the European AQI (~0–100), imperial the US AQI (~0–500).
+
+The `- color` variants of UV index and Air quality draw exactly like their plain counterparts, but the panel takes the reading's own band color instead of the configured panel color (the text flips to black or white for contrast). UV follows the WHO bands — green, yellow, orange, red, purple at 0/3/6/8/11. AQI runs green → yellow → orange → red → purple → maroon, banded on whichever scale was fetched (20/40/60/80/100 European, 50/100/150/200/300 US). Before the first reading, and on the black-and-white watches, they fall back to the configured panel color.
 
 Only the fields the current layout actually needs are requested, and a layout with no weather block skips the fetch (and the GPS fix) entirely. The phone always sends metric; the watch converts to °F, inches and mph on screen, so switching **Units** repaints immediately from the cached reading instead of waiting for the next fetch.
 

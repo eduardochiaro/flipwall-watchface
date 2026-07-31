@@ -60,6 +60,17 @@ typedef enum {
   BLK_WIND_BIG,     // wind speed number over its unit (big)
   BLK_WIND_DIR,     // wind arrow + compass word, "-> WNW" (small / banner)
   BLK_WIND_DIR_BIG, // big wind arrow over the compass word (big)
+  BLK_AQI,          // air quality index, "AQI 42" (small / banner)
+  BLK_AQI_BIG,      // air quality number over an "AQI" caption (big)
+  // "- colour" variants: same drawing, but the panel is painted with the
+  // index's own band colour (green -> purple for UV, green -> maroon for AQI)
+  // instead of the configured panel colour. See block_panel_color in blocks.c.
+  BLK_UV_COLOR,
+  BLK_UV_BIG_COLOR,
+  BLK_AQI_COLOR,
+  BLK_AQI_BIG_COLOR,
+  BLK_BEAT,       // Swatch Internet Time, "@642" (small / banner)
+  BLK_BEAT_BIG,   // beat number over a ".beat" caption (big)
 } QuadBlock;
 
 // --- Localisation ----------------------------------------------------------

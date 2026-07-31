@@ -58,6 +58,28 @@ int main(void) {
   EQ(s_wind_dir = 292, weather_wind_dir_str, "WNW");
   EQ(s_wind_dir = 180, weather_wind_dir_str, "S");
 
+  group("air quality (scale chosen on the phone, watch shows the number)");
+  EQ(s_aqi = 34,  weather_aqi_str, "34");
+  EQ(s_aqi = 152, weather_aqi_str, "152");   // US scale runs to 500
+
+  // Band index feeds the colour ramps in blocks.c (green -> purple / maroon).
+  group("index bands");
+  s_imperial = false;
+  EQ_INT(s_uv = 0,   weather_uv_band(),  0);   // low       -> green
+  EQ_INT(s_uv = 5,   weather_uv_band(),  1);   // moderate  -> yellow
+  EQ_INT(s_uv = 11,  weather_uv_band(),  4);   // extreme   -> purple
+  EQ_INT(s_aqi = 19, weather_aqi_band(), 0);   // European good
+  EQ_INT(s_aqi = 20, weather_aqi_band(), 1);   // first fair value
+  EQ_INT(s_aqi = 120, weather_aqi_band(), 5);  // extremely poor -> maroon
+  s_imperial = true;
+  EQ_INT(s_aqi = 50,  weather_aqi_band(), 0);  // US good (0..50)
+  EQ_INT(s_aqi = 120, weather_aqi_band(), 2);  // unhealthy for sensitive groups
+  EQ_INT(s_aqi = 400, weather_aqi_band(), 5);  // hazardous -> maroon
+  s_imperial = false;
+  EQ_INT(s_have = false, weather_uv_band(),  -1);   // no reading -> no colour
+  EQ_INT((void)0,        weather_aqi_band(), -1);
+  s_have = true;
+
   group("metric display");
   EQ(s_wind = 12,  weather_wind_str,   "12km/h");
   EQ(s_temp = 20,  weather_temp_str,   "20°");
@@ -75,6 +97,7 @@ int main(void) {
   EQ((void)0,        weather_wind_str,     "--");
   EQ((void)0,        weather_wind_dir_str, "--");
   EQ((void)0,        weather_precip_str,   "--");
+  EQ((void)0,        weather_aqi_str,      "--");
 
   group("WMO code -> icon");
   EQ_INT(s_code = 0,  weather_icon_resource(),       RESOURCE_ID_ICON_SUNNY);

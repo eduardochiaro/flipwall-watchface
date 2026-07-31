@@ -17,10 +17,11 @@ typedef enum {
   PK_W_UV,
   PK_W_WIND,
   PK_W_WIND_DIR,
+  PK_W_AQI,
 } WeatherPersistKey;
 
 static bool s_have = false;
-static int  s_temp, s_code, s_humidity, s_min, s_max, s_precip, s_uv;
+static int  s_temp, s_code, s_humidity, s_min, s_max, s_precip, s_uv, s_aqi;
 // Wind speed in km/h (Open-Meteo's default) and the direction it blows from, in
 // degrees clockwise from north.
 static int  s_wind, s_wind_dir;
@@ -48,6 +49,7 @@ void weather_init(void) {
   s_uv       = persist_read_int(PK_W_UV);   // 0 when cached before UV existed
   s_wind     = persist_read_int(PK_W_WIND);       // 0 when cached before wind
   s_wind_dir = persist_read_int(PK_W_WIND_DIR);   // existed
+  s_aqi      = persist_read_int(PK_W_AQI);        // 0 when cached before AQI
 }
 
 void weather_set_units(bool imperial) {
@@ -78,6 +80,8 @@ bool weather_handle_message(DictionaryIterator *iter) {
   if (ws) s_wind = ws->value->int32;
   Tuple *wd = dict_find(iter, MESSAGE_KEY_WEATHER_WIND_DIR);
   if (wd) s_wind_dir = wd->value->int32;
+  Tuple *aq = dict_find(iter, MESSAGE_KEY_WEATHER_AQI);
+  if (aq) s_aqi = aq->value->int32;
 
   s_have = true;
   persist_write_bool(PK_W_VALID, true);
@@ -90,6 +94,7 @@ bool weather_handle_message(DictionaryIterator *iter) {
   persist_write_int(PK_W_UV, s_uv);
   persist_write_int(PK_W_WIND, s_wind);
   persist_write_int(PK_W_WIND_DIR, s_wind_dir);
+  persist_write_int(PK_W_AQI, s_aqi);
   return true;
 }
 
@@ -134,6 +139,13 @@ void weather_uv_str(char *buf, size_t n) {
   else        snprintf(buf, n, "--");
 }
 
+// The scale (European 0..100+ or US 0..500) is picked on the phone; the watch
+// just shows the number it was sent.
+void weather_aqi_str(char *buf, size_t n) {
+  if (s_have) snprintf(buf, n, "%d", s_aqi);
+  else        snprintf(buf, n, "--");
+}
+
 void weather_wind_str(char *buf, size_t n) {
   if (!s_have) { snprintf(buf, n, "--"); return; }
   // km/h -> mph, rounded (1 mile = 1.609344 km).
@@ -156,6 +168,25 @@ int32_t weather_wind_angle(void) {
   // The reported bearing is where the wind blows *from*; the arrow shows where
   // it blows *to*, so it points 180 degrees the other way.
   return TRIG_MAX_ANGLE * ((s_wind_dir + 180) % 360) / 360;
+}
+
+// Thresholds are the first value of each band, so the loop counts how many the
+// reading has passed.
+static int band_of(int v, const int *edges, int n) {
+  int b = 0;
+  while (b < n && v >= edges[b]) b++;
+  return b;
+}
+
+int weather_uv_band(void) {
+  static const int WHO[4] = { 3, 6, 8, 11 };   // moderate / high / very high / extreme
+  return s_have ? band_of(s_uv, WHO, 4) : -1;
+}
+
+int weather_aqi_band(void) {
+  static const int EU[5] = { 20, 40, 60, 80, 100 };     // fair..extremely poor
+  static const int US[5] = { 51, 101, 151, 201, 301 };  // moderate..hazardous
+  return s_have ? band_of(s_aqi, s_imperial ? US : EU, 5) : -1;
 }
 
 // Open-Meteo WMO weather codes -> bundled pdc icon.
