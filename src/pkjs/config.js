@@ -149,6 +149,14 @@ var UNITS_OPTIONS = [
   { label: "Imperial (°F, in)", value: 1 }
 ];
 
+// Face layout. Classic is the 5-block face (banner pill + 2x2 grid); the
+// 6-block layout turns the banner into a real block and adds a sixth one.
+// See the layout comment in flipwall-watchface.c for how each one is arranged.
+var LAYOUT_OPTIONS = [
+  { label: "Classic (5 blocks)", value: 0 },
+  { label: "Rows (6 blocks)", value: 1 }
+];
+
 var LANG_OPTIONS = [
   { label: "English", value: 0 },
   { label: "Espanol", value: 1 },
@@ -172,6 +180,16 @@ module.exports = [
     type: "section",
     items: [
       { type: "heading", defaultValue: "General" },
+      {
+        type: "select",
+        messageKey: "LAYOUT",
+        label: "Layout",
+        defaultValue: 0,
+        options: LAYOUT_OPTIONS,
+        description: "Classic: banner + 2x2 grid. Rows: two rows of one big " +
+          "block beside two small ones (round screens keep the grid and put " +
+          "the two extra small blocks in a strip above and below it)."
+      },
       {
         type: "select",
         messageKey: "LANG",
@@ -259,6 +277,50 @@ module.exports = [
     ]
   },
 
+  // The four grid positions. They keep the same names in both layouts: the
+  // classic face pairs them into columns, the 6-block face into rows.
+  {
+    type: "section",
+    items: [
+      { type: "heading", defaultValue: "Grid Blocks" },
+      {
+        type: "select",
+        messageKey: "BLOCK_TOP_LEFT",
+        label: "Top left",
+        defaultValue: 0,
+        options: BLOCK_OPTIONS_GROUPS
+      },
+      { type: "color", messageKey: "PANEL_TL_COLOR", label: "Top left color", defaultValue: "000000", sunlight: false },
+      {
+        type: "select",
+        messageKey: "BLOCK_TOP_RIGHT",
+        label: "Top right",
+        defaultValue: 1,
+        options: BLOCK_OPTIONS_GROUPS
+      },
+      { type: "color", messageKey: "PANEL_TR_COLOR", label: "Top right color", defaultValue: "000000", sunlight: false },
+      {
+        type: "select",
+        messageKey: "BLOCK_BOTTOM_LEFT",
+        label: "Bottom left",
+        defaultValue: 2,
+        options: BLOCK_OPTIONS_GROUPS
+      },
+      { type: "color", messageKey: "PANEL_BL_COLOR", label: "Bottom left color", defaultValue: "000000", sunlight: false },
+      {
+        type: "select",
+        messageKey: "BLOCK_BOTTOM_RIGHT",
+        label: "Bottom right",
+        defaultValue: 3,
+        options: BLOCK_OPTIONS_GROUPS
+      },
+      { type: "color", messageKey: "PANEL_BR_COLOR", label: "Bottom right color", defaultValue: "000000", sunlight: false }
+    ]
+  },
+  { type: "text", id: "LAYOUT_TIP", defaultValue: "" },
+
+  // The two small blocks that live outside the grid. Both are always small, so
+  // they share the banner option list.
   {
     type: "section",
     items: [
@@ -279,55 +341,19 @@ module.exports = [
       },
     ]
   },
-
   {
     type: "section",
     items: [
-      { type: "heading", defaultValue: "Left Column" },
+      { type: "heading", defaultValue: "Sixth Block" },
       {
         type: "select",
-        messageKey: "BLOCK_TOP_LEFT",
-        label: "Top",
-        defaultValue: 0,
-        options: BLOCK_OPTIONS_GROUPS
+        messageKey: "BLOCK_SIXTH",
+        label: "Type",
+        defaultValue: 4,
+        options: BAND_OPTIONS
       },
-      { type: "color", messageKey: "PANEL_TL_COLOR", label: "Top Color", defaultValue: "000000", sunlight: false },
-      {
-        type: "select",
-        messageKey: "BLOCK_BOTTOM_LEFT",
-        label: "Bottom",
-        defaultValue: 2,
-        options: BLOCK_OPTIONS_GROUPS
-      },
-      { type: "color", messageKey: "PANEL_BL_COLOR", label: "Bottom Color", defaultValue: "000000", sunlight: false },
+      { type: "color", messageKey: "PANEL_SIXTH_COLOR", label: "Sixth", defaultValue: "000000", sunlight: false }
     ]
-  },
-  {
-    type: "section",
-    items: [
-      { type: "heading", defaultValue: "Right Column" },
-      {
-        type: "select",
-        messageKey: "BLOCK_TOP_RIGHT",
-        label: "Top",
-        defaultValue: 1,
-        options: BLOCK_OPTIONS_GROUPS
-      },
-      { type: "color", messageKey: "PANEL_TR_COLOR", label: "Top Color", defaultValue: "000000", sunlight: false },
-      {
-        type: "select",
-        messageKey: "BLOCK_BOTTOM_RIGHT",
-        label: "Bottom",
-        defaultValue: 3,
-        options: BLOCK_OPTIONS_GROUPS
-      },
-      { type: "color", messageKey: "PANEL_BR_COLOR", label: "Bottom Color", defaultValue: "000000", sunlight: false }
-    ]
-  },
-  {
-    type: "text",
-    defaultValue:
-      "Tip: Each column pairs one big block and one small block. Picking two of the same size auto-swaps the other."
   },
 
   {

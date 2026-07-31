@@ -838,13 +838,13 @@ static void draw_wind_dir_big(GContext *ctx, GRect r) {
 // The banner sits in a horizontal band but the panel itself is only a little
 // wider than the text (not full width), centred in that band. The panel fills
 // the band's height (which the caller sizes to the text).
-void draw_band(GContext *ctx, GRect band) {
+void draw_band(GContext *ctx, GRect band, QuadBlock band_blk) {
   // Same colour override as draw_block for the "- colour" variants, restored
   // before returning; blk is the block the banner actually draws.
   GColor save_bg = s_panel_bg, save_fg = s_text_fg;
-  s_panel_bg = block_panel_color(s_band_block);
+  s_panel_bg = block_panel_color(band_blk);
   if (!gcolor_equal(s_panel_bg, save_bg)) s_text_fg = contrast_color(s_panel_bg);
-  QuadBlock blk = base_block(s_band_block);
+  QuadBlock blk = base_block(band_blk);
 
   char buf[16];
   block_text(blk, buf, sizeof(buf));

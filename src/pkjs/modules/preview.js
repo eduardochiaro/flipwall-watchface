@@ -16,11 +16,16 @@ function isBig(v) {
   return !!BIG_BLOCKS[parseInt(v, 10)];
 }
 
-// The two block selectors that make up one column (top + bottom).
-var COLUMNS = [
-  ['BLOCK_TOP_LEFT', 'BLOCK_BOTTOM_LEFT'],
-  ['BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_RIGHT']
-];
+// The grid selectors that must hold one big + one short block each. Which
+// pairing applies depends on the face: `col` for the classic layout (and for
+// the 6-block layout on round screens, which keeps the 2x2 grid), `row` for the
+// 6-block layout on rectangular screens.
+var GRID_PAIRS = {
+  col: [['BLOCK_TOP_LEFT', 'BLOCK_BOTTOM_LEFT'],
+        ['BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_RIGHT']],
+  row: [['BLOCK_TOP_LEFT', 'BLOCK_TOP_RIGHT'],
+        ['BLOCK_BOTTOM_LEFT', 'BLOCK_BOTTOM_RIGHT']]
+};
 
 // ---------------------------------------------------------------------------
 // Config-page logic. Clay serialises this function with .toString() and runs
@@ -54,8 +59,21 @@ function clayCustomFn() {
 
   // --- Live preview -------------------------------------------------------
   var PREVIEW = (function() {
-  var SCALE = 1.4;                 // device px -> preview px
-  var W = 144, H = 168;            // base (aplite/basalt) screen
+  // Screen geometry per platform. `side` mirrors SIDE_MARGIN in the C source
+  // (round faces pull in so the panels clear the circle); `gutter` mirrors
+  // GUTTER. Set per render from cfg.platform in build().
+  var SPECS = {
+    aplite:  { w: 144, h: 168, round: false, side: 0,  gutter: 3 },
+    basalt:  { w: 144, h: 168, round: false, side: 0,  gutter: 3 },
+    diorite: { w: 144, h: 168, round: false, side: 0,  gutter: 3 },
+    flint:   { w: 144, h: 168, round: false, side: 0,  gutter: 3 },
+    emery:   { w: 200, h: 228, round: false, side: 4,  gutter: 6 },
+    chalk:   { w: 180, h: 180, round: true,  side: 22, gutter: 3 },
+    gabbro:  { w: 260, h: 260, round: true,  side: 30, gutter: 3 }
+  };
+  var SCALE = 1.4;                 // device px -> preview px (200px wide face)
+  var W = 144, H = 168;            // screen, set per render
+  var SIDE = 0, ROUND = false;     // side inset / circular face
   var MARGIN = 3, GUTTER = 3;
   var SEAM = '#555555';            // GColorDarkGray
   var drawSeam = true;             // set per-render from cfg.drawSeam
@@ -432,9 +450,13 @@ function clayCustomFn() {
     return '#' + hx(adj(r)) + hx(adj(g)) + hx(adj(b));
   }
 
-  // cfg: { yearTop, band, blocks:[tl,tr,bl,br], face, panel, weekend,
-  //        showSeconds }. Mirrors main_layer_update() in the C source.
+  // cfg: { platform, layout, yearTop, band, sixth, blocks:[tl,tr,bl,br], face,
+  //        panels, weekend, showSeconds }. Mirrors layout() in the C source.
   function build(cfg) {
+    var spec = SPECS[cfg.platform] || SPECS.basalt;
+    W = spec.w; H = spec.h; SIDE = spec.side; ROUND = spec.round;
+    GUTTER = spec.gutter;
+    SCALE = 200 / W;                     // every face previews ~200px wide
     drawSeam = cfg.drawSeam !== false;   // gate the seam line on the config toggle
     imperial = !!cfg.units;              // picks the AQI scale for the color ramp
     var lang = cfg.lang || 0;
@@ -460,46 +482,94 @@ function clayCustomFn() {
     SAMPLE.windNum = wm ? wm[1] : SAMPLE.wind;
     SAMPLE.windUnit = wm ? wm[2].toUpperCase() : '';
 
-    var innerW = W - 2 * MARGIN, innerH = H - 2 * MARGIN;
+    var innerX = MARGIN + SIDE;
+    var innerW = W - 2 * innerX, innerH = H - 2 * MARGIN;
     var colW = Math.floor((innerW - GUTTER) / 2);
     var square = colW, shortH = Math.floor(square / 2);
     var colH = square + GUTTER + shortH;
-    var yearH = 22;
-    var groupH = yearH + GUTTER + colH;
-    var topY = MARGIN + Math.floor((innerH - groupH) / 2);
+    var yearH = Math.floor(square * 45 / 100);
 
-    var bandY, areaY;
-    if (cfg.yearTop) { bandY = topY; areaY = topY + yearH + GUTTER; }
-    else { areaY = topY; bandY = topY + colH + GUTTER; }
-
-    // Per-block panel colors: [banner, TL, TR, BL, BR]. Fall back to the single
-    // cfg.panel when a per-block value isn't supplied.
-    var panels = cfg.panels || [cfg.panel, cfg.panel, cfg.panel, cfg.panel, cfg.panel];
+    // Per-block panel colors, indexed like BlockPos in the C source:
+    // [TL, TR, BL, BR, banner, sixth]. Fall back to the single cfg.panel.
+    var panels = cfg.panels ||
+      [cfg.panel, cfg.panel, cfg.panel, cfg.panel, cfg.panel, cfg.panel];
     function mk(panel) {
       return { panel: panel, weekend: cfg.weekend, text: contrast(panel),
                showSeconds: cfg.showSeconds };
     }
+    var blocks = cfg.blocks.concat([cfg.band, cfg.sixth]);   // BlockPos order
     var html = '<div style="position:relative;width:' + px(W) + ';height:' +
       px(H) + ';margin:8px auto;background:' + cfg.face + ';border-radius:' +
-      px(6) + ';overflow:hidden;font-family:Arial,Helvetica,sans-serif;">';
+      (ROUND ? '50%' : px(6)) +
+      ';overflow:hidden;font-family:Arial,Helvetica,sans-serif;">';
 
-    html += bandBlock(cfg.band, MARGIN, bandY, innerW, yearH, mk(panels[0]));
-
-    for (var col = 0; col < 2; col++) {
-      var topBlk = cfg.blocks[col];        // tl / tr
-      var botBlk = cfg.blocks[col + 2];    // bl / br
-      var topH, botH;
-      if (isShort(topBlk) === isShort(botBlk)) {
-        topH = Math.floor((colH - GUTTER) / 2);
-        botH = colH - GUTTER - topH;
-      } else if (isShort(topBlk)) {
-        topH = shortH; botH = square;
-      } else {
-        topH = square; botH = shortH;
+    // The 2x2 grid: each column pairs a square block with a short one.
+    function grid(areaY) {
+      var out = '';
+      for (var col = 0; col < 2; col++) {
+        var topBlk = blocks[col];        // tl / tr
+        var botBlk = blocks[col + 2];    // bl / br
+        var topH, botH;
+        if (isShort(topBlk) === isShort(botBlk)) {
+          topH = Math.floor((colH - GUTTER) / 2);
+          botH = colH - GUTTER - topH;
+        } else if (isShort(topBlk)) {
+          topH = shortH; botH = square;
+        } else {
+          topH = square; botH = shortH;
+        }
+        var x = innerX + col * (colW + GUTTER);
+        out += block(topBlk, x, areaY, colW, topH, mk(panels[col]));
+        out += block(botBlk, x, areaY + topH + GUTTER, colW, botH, mk(panels[col + 2]));
       }
-      var x = MARGIN + col * (colW + GUTTER);
-      html += block(topBlk, x, areaY, colW, topH, mk(panels[1 + col]));       // TL / TR
-      html += block(botBlk, x, areaY + topH + GUTTER, colW, botH, mk(panels[3 + col]));  // BL / BR
+      return out;
+    }
+
+    // One six-block row: a square block on the big side, the other two stacked
+    // beside it (mirrors layout_row in the C source).
+    function row(y, rowH, left, right, extra) {
+      var bigLeft = !isShort(blocks[left]) || isShort(blocks[right]);
+      var big = bigLeft ? left : right, stack = bigLeft ? right : left;
+      var bigX = innerX + (bigLeft ? 0 : colW + GUTTER);
+      var stackX = innerX + (bigLeft ? colW + GUTTER : 0);
+      var half = Math.floor((rowH - GUTTER) / 2);
+      return block(blocks[big], bigX, y, colW, rowH, mk(panels[big])) +
+        block(blocks[stack], stackX, y, colW, half, mk(panels[stack])) +
+        block(blocks[extra], stackX, y + half + GUTTER, colW,
+              rowH - half - GUTTER, mk(panels[extra]));
+    }
+
+    if (cfg.layout && !ROUND) {
+      // Six blocks, two square-tall rows.
+      var rowH = square;
+      if (2 * rowH + GUTTER > innerH) { rowH = Math.floor((innerH - GUTTER) / 2); }
+      var rTop = MARGIN + Math.floor((innerH - (2 * rowH + GUTTER)) / 2);
+      html += row(rTop, rowH, 0, 1, 4);                     // TL, TR, banner
+      html += row(rTop + rowH + GUTTER, rowH, 2, 3, 5);     // BL, BR, sixth
+    } else {
+      // Classic (banner + grid), or the round six-block face, which puts a
+      // banner strip above the grid and the sixth block below it.
+      var strips = !!cfg.layout;   // implies ROUND here
+      var bands = strips ? 2 : 1;
+      var groupH = colH + bands * (yearH + GUTTER);
+      var topY = MARGIN + Math.floor((innerH - groupH) / 2);
+      // Round-bezel nudge, mirrors the same knob in the C layout().
+      if (ROUND && !strips) {
+        var nudge = W >= 200 ? [-10, 20] : [-5, 10];
+        topY += cfg.yearTop ? nudge[0] : nudge[1];
+      }
+      var y = topY;
+      if (strips || cfg.yearTop) {
+        html += bandBlock(cfg.band, innerX, y, innerW, yearH, mk(panels[4]));
+        y += yearH + GUTTER;
+      }
+      html += grid(y);
+      y += colH + GUTTER;
+      if (strips) {
+        html += bandBlock(cfg.sixth, innerX, y, innerW, yearH, mk(panels[5]));
+      } else if (!cfg.yearTop) {
+        html += bandBlock(cfg.band, innerX, y, innerW, yearH, mk(panels[4]));
+      }
     }
 
     html += '</div>';
@@ -522,23 +592,38 @@ function clayCustomFn() {
     return parseInt(clayConfig.getItemByMessageKey(key).get(), 10) || 0;
   }
 
+  // The watch this config page was opened from. Drives the preview's screen
+  // shape and which layout rules apply; falls back to basalt when Clay has no
+  // watch info (desktop / emulator).
+  var watchInfo = (clayConfig.meta && clayConfig.meta.activeWatchInfo) || {};
+  var platform = watchInfo.platform || 'basalt';
+  var isRound = platform === 'chalk' || platform === 'gabbro';
+
+  function isSixLayout() {
+    var it = clayConfig.getItemByMessageKey('LAYOUT');
+    return it ? parseInt(it.get(), 10) === 1 : false;
+  }
+
   function refreshPreview() {
     var item = clayConfig.getItemById('PREVIEW');
     if (!item) { return; }
     item.set(PREVIEW.build({
+      platform: platform,
+      layout: isSixLayout() ? 1 : 0,
       yearTop: clayConfig.getItemByMessageKey('YEAR_TOP').get(),
       lang: blockVal('LANG'),
       units: blockVal('UNITS'),
       band: blockVal('BLOCK_BAND'),
+      sixth: blockVal('BLOCK_SIXTH'),
       blocks: [
         blockVal('BLOCK_TOP_LEFT'), blockVal('BLOCK_TOP_RIGHT'),
         blockVal('BLOCK_BOTTOM_LEFT'), blockVal('BLOCK_BOTTOM_RIGHT')
       ],
       face: colorHex('FACE_COLOR'),
       panels: [
-        colorHex('PANEL_BAND_COLOR'), colorHex('PANEL_TL_COLOR'),
-        colorHex('PANEL_TR_COLOR'), colorHex('PANEL_BL_COLOR'),
-        colorHex('PANEL_BR_COLOR')
+        colorHex('PANEL_TL_COLOR'), colorHex('PANEL_TR_COLOR'),
+        colorHex('PANEL_BL_COLOR'), colorHex('PANEL_BR_COLOR'),
+        colorHex('PANEL_BAND_COLOR'), colorHex('PANEL_SIXTH_COLOR')
       ],
       weekend: colorHex('WEEKEND_COLOR'),
       showSeconds: clayConfig.getItemByMessageKey('SHOW_SECONDS').get(),
@@ -547,11 +632,16 @@ function clayCustomFn() {
   }
 
   // --- Presets ------------------------------------------------------------
-  // Each fills the four grid blocks (one big + one small per column), the
-  // banner, top/bottom banner position, and the three colors. Block ids match
-  // the QuadBlock enum. Colors are hex (no '#'). `panel` sets every block; add
-  // `panels` {band,tl,tr,bl,br} to override individual block colors. `drawSeam`
-  // toggles the seam line (omit = on, the default).
+  // Each fills the four grid blocks, the banner and sixth blocks, the
+  // top/bottom banner position, and the three colors. Block ids match the
+  // QuadBlock enum. Colors are hex (no '#'). `panel` sets every block; add
+  // `panels` {band,sixth,tl,tr,bl,br} to override individual block colors.
+  // `drawSeam` toggles the seam line (omit = on, the default). `layout` picks
+  // the face: 0 = classic 5 blocks (the default), 1 = 6 blocks.
+  //
+  // Classic presets pair one big + one small per column; the 6-block ones pair
+  // per row instead. Round screens keep the column pairing either way, so a
+  // 6-block preset's rows are reconciled by the live rule when it lands there.
   var PRESETS = [
     { name: 'Standard', tl: 0, bl: 2, tr: 1, br: 3, band: 7, yearTop: true,
       face: 'FF5500', panel: '000000', weekend: 'FF0000', drawSeam: true },
@@ -565,7 +655,14 @@ function clayCustomFn() {
       face: '004400', panel: '000000', weekend: '00FF00', drawSeam: false },
     { name: 'Colorful', tl: 2, bl: 0, tr: 1, br: 3, band: 7, yearTop: true,
       face: 'FFEEAB', panel: '6C5CE7', weekend: 'FF0000',
-      panels: { band: '6C5CE7', tl: 'E17055', tr: '0984E3', bl: '00B894', br: 'D63031' } }
+      panels: { band: '6C5CE7', sixth: '6C5CE7', tl: 'E17055', tr: '0984E3',
+                bl: '00B894', br: 'D63031' } },
+    { name: 'Six Up', layout: 1, tl: 2, tr: 0, band: 16, bl: 3, br: 1, sixth: 4,
+      yearTop: true, face: 'FF5500', panel: '000000', weekend: 'FF0000',
+      drawSeam: true },
+    { name: 'Six Weather', layout: 1, tl: 8, tr: 25, band: 13, bl: 33, br: 12,
+      sixth: 35, yearTop: true, face: '005588', panel: 'FFFFFF',
+      weekend: 'FFAA00', drawSeam: false }
   ];
 
   function contrastHex(hex) {   // white text on dark bg, black on light
@@ -579,11 +676,15 @@ function clayCustomFn() {
       var it = clayConfig.getItemByMessageKey(key);
       if (it) { it.set(val); }
     }
-    // Set top before bottom in each column so the link() reconcile (which only
-    // touches the sibling) settles on our valid pair rather than a fallback.
+    // Layout first: it decides whether the reconcile below pairs columns or
+    // rows. Then set each pair's first block before its partner, so the
+    // reconcile (which only touches the partner) settles on our valid pair
+    // rather than a fallback.
+    set('LAYOUT', p.layout || 0);
     set('BLOCK_TOP_LEFT', p.tl);     set('BLOCK_BOTTOM_LEFT', p.bl);
     set('BLOCK_TOP_RIGHT', p.tr);    set('BLOCK_BOTTOM_RIGHT', p.br);
     set('BLOCK_BAND', p.band);
+    set('BLOCK_SIXTH', p.sixth === undefined ? 4 : p.sixth);
     set('YEAR_TOP', p.yearTop);
     set('DRAW_SEAM', p.drawSeam !== false);   // omitted = seam on (the default)
     set('FACE_COLOR', parseInt(p.face, 16));
@@ -591,12 +692,14 @@ function clayCustomFn() {
     set('WEEKEND_COLOR', parseInt(p.weekend, 16));
     // Per-block overrides (run after the master broadcast above).
     if (p.panels) {
-      set('PANEL_BAND_COLOR', parseInt(p.panels.band, 16));
-      set('PANEL_TL_COLOR',   parseInt(p.panels.tl, 16));
-      set('PANEL_TR_COLOR',   parseInt(p.panels.tr, 16));
-      set('PANEL_BL_COLOR',   parseInt(p.panels.bl, 16));
-      set('PANEL_BR_COLOR',   parseInt(p.panels.br, 16));
+      set('PANEL_BAND_COLOR',  parseInt(p.panels.band, 16));
+      set('PANEL_SIXTH_COLOR', parseInt(p.panels.sixth || p.panels.band, 16));
+      set('PANEL_TL_COLOR',    parseInt(p.panels.tl, 16));
+      set('PANEL_TR_COLOR',    parseInt(p.panels.tr, 16));
+      set('PANEL_BL_COLOR',    parseInt(p.panels.bl, 16));
+      set('PANEL_BR_COLOR',    parseInt(p.panels.br, 16));
     }
+    applyLayoutVisibility();
     refreshPreview();
   }
 
@@ -619,29 +722,42 @@ function clayCustomFn() {
     });
   }
 
-  function link(aKey, bKey) {
-    var a = clayConfig.getItemByMessageKey(aKey);
-    var b = clayConfig.getItemByMessageKey(bKey);
-    if (!a || !b) { return; }
-    var guard = false;
-
-    // When `changed` moves, fix `other` if they now share a size category.
-    function reconcile(changed, other) {
-      if (guard) { return; }
-      if (isBig(changed.get()) === isBig(other.get())) {
-        guard = true;   // other.set() re-fires change; don't bounce back
-        other.set(isBig(changed.get()) ? FALLBACK_SMALL : FALLBACK_BIG);
-        guard = false;
-      }
+  // Which grid selector has to hold the other size. The classic face (and the
+  // round 6-block face, which keeps the same 2x2 grid) pairs the columns: one
+  // big + one short each, so both columns line up. The rectangular 6-block face
+  // pairs the rows instead: each row is one big block beside two short ones.
+  var PAIRS = {
+    col: {
+      BLOCK_TOP_LEFT: 'BLOCK_BOTTOM_LEFT', BLOCK_BOTTOM_LEFT: 'BLOCK_TOP_LEFT',
+      BLOCK_TOP_RIGHT: 'BLOCK_BOTTOM_RIGHT', BLOCK_BOTTOM_RIGHT: 'BLOCK_TOP_RIGHT'
+    },
+    row: {
+      BLOCK_TOP_LEFT: 'BLOCK_TOP_RIGHT', BLOCK_TOP_RIGHT: 'BLOCK_TOP_LEFT',
+      BLOCK_BOTTOM_LEFT: 'BLOCK_BOTTOM_RIGHT', BLOCK_BOTTOM_RIGHT: 'BLOCK_BOTTOM_LEFT'
     }
+  };
+  var GRID_KEYS = ['BLOCK_TOP_LEFT', 'BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_LEFT',
+    'BLOCK_BOTTOM_RIGHT'];
 
-    a.on('change', function() { reconcile(a, b); });
-    b.on('change', function() { reconcile(b, a); });
+  function partnerOf(key) {
+    return PAIRS[isSixLayout() && !isRound ? 'row' : 'col'][key];
+  }
+
+  var linkGuard = false;
+  // When `key` moves, fix its partner if the pair now shares a size category.
+  function reconcile(key) {
+    if (linkGuard) { return; }
+    var a = clayConfig.getItemByMessageKey(key);
+    var b = clayConfig.getItemByMessageKey(partnerOf(key));
+    if (!a || !b || isBig(a.get()) !== isBig(b.get())) { return; }
+    linkGuard = true;   // b.set() re-fires change; don't bounce back
+    b.set(isBig(a.get()) ? FALLBACK_SMALL : FALLBACK_BIG);
+    linkGuard = false;
   }
 
   // "All panels" master: broadcast its value to every per-block color picker.
-  var PANEL_KEYS = ['PANEL_BAND_COLOR', 'PANEL_TL_COLOR', 'PANEL_TR_COLOR',
-    'PANEL_BL_COLOR', 'PANEL_BR_COLOR'];
+  var PANEL_KEYS = ['PANEL_BAND_COLOR', 'PANEL_SIXTH_COLOR', 'PANEL_TL_COLOR',
+    'PANEL_TR_COLOR', 'PANEL_BL_COLOR', 'PANEL_BR_COLOR'];
   function syncPanels() {
     var master = clayConfig.getItemByMessageKey('PANEL_COLOR');
     if (!master) { return; }
@@ -652,9 +768,40 @@ function clayCustomFn() {
     });
   }
 
+  // Items whose meaning depends on the layout: the sixth block only exists in
+  // the 6-block face, and the banner's top/bottom switch only means anything
+  // in the classic one (the 6-block face pins both banner positions).
+  function applyLayoutVisibility() {
+    var six = isSixLayout();
+    [['BLOCK_SIXTH', six], ['PANEL_SIXTH_COLOR', six],
+     ['YEAR_TOP', !six]].forEach(function(pair) {
+      var it = clayConfig.getItemByMessageKey(pair[0]);
+      if (it) { pair[1] ? it.show() : it.hide(); }
+    });
+    var tip = clayConfig.getItemById('LAYOUT_TIP');
+    if (tip) {
+      tip.set('Tip: ' + (six && !isRound
+        ? 'Each row pairs one big block and one small block, with the banner ' +
+          'or sixth block stacked under the small one.'
+        : 'Each column pairs one big block and one small block.') +
+        ' Picking two of the same size auto-swaps the other.');
+    }
+  }
+
   clayConfig.on(clayConfig.EVENTS.AFTER_BUILD, function() {
-    link('BLOCK_TOP_LEFT', 'BLOCK_BOTTOM_LEFT');
-    link('BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_RIGHT');
+    GRID_KEYS.forEach(function(key) {
+      var it = clayConfig.getItemByMessageKey(key);
+      if (it) { it.on('change', function() { reconcile(key); }); }
+    });
+
+    // Switching layout changes which pair rule applies, so re-check the grid.
+    var layoutItem = clayConfig.getItemByMessageKey('LAYOUT');
+    if (layoutItem) {
+      layoutItem.on('change', function() {
+        applyLayoutVisibility();
+        GRID_KEYS.forEach(reconcile);
+      });
+    }
 
     // Changing the master color (or a preset) refills every per-block picker.
     var masterItem = clayConfig.getItemByMessageKey('PANEL_COLOR');
@@ -671,16 +818,17 @@ function clayCustomFn() {
     } catch (e) { /* no localStorage: skip the one-time seed */ }
 
     // Draw once, then redraw whenever any setting that affects the face changes.
-    var watched = ['YEAR_TOP', 'LANG', 'UNITS', 'BLOCK_BAND', 'BLOCK_TOP_LEFT',
-      'BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_LEFT', 'BLOCK_BOTTOM_RIGHT', 'FACE_COLOR',
-      'PANEL_COLOR', 'WEEKEND_COLOR', 'SHOW_SECONDS', 'DRAW_SEAM'].concat(PANEL_KEYS);
+    var watched = ['LAYOUT', 'YEAR_TOP', 'LANG', 'UNITS', 'BLOCK_BAND',
+      'BLOCK_SIXTH', 'FACE_COLOR', 'PANEL_COLOR', 'WEEKEND_COLOR',
+      'SHOW_SECONDS', 'DRAW_SEAM'].concat(GRID_KEYS).concat(PANEL_KEYS);
     watched.forEach(function(key) {
       var item = clayConfig.getItemByMessageKey(key);
       if (item) { item.on('change', refreshPreview); }
     });
+    applyLayoutVisibility();
     refreshPreview();
     buildPresetButtons();
   });
 }
 
-module.exports = {clayCustomFn, isBig, COLUMNS, FALLBACK_SMALL, FALLBACK_BIG};
+module.exports = {clayCustomFn, isBig, GRID_PAIRS, FALLBACK_SMALL, FALLBACK_BIG};

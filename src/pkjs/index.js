@@ -1,7 +1,7 @@
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
 var getWeather = require('./modules/weather');
-var { clayCustomFn, isBig, COLUMNS, FALLBACK_SMALL, FALLBACK_BIG } = require('./modules/preview');
+var { clayCustomFn, isBig, GRID_PAIRS, FALLBACK_SMALL, FALLBACK_BIG } = require('./modules/preview');
 
 var clay = new Clay(clayConfig, clayCustomFn, { autoHandleEvents: false });
 
@@ -25,41 +25,43 @@ function writeValue(settings, key, value) {
   }
 }
 
+// Coerce a select to an int, keeping `def` when it is absent or unparseable.
+function toInt(settings, key, def) {
+  if (readValue(settings, key) === undefined) { return; }
+  writeValue(settings, key, parseInt(readValue(settings, key), 10) || def);
+}
+
+function isRoundWatch() {
+  var info = Pebble.getActiveWatchInfo && Pebble.getActiveWatchInfo();
+  var platform = info && info.platform;
+  return platform === 'chalk' || platform === 'gabbro';
+}
+
 function sanitize(settings) {
-  // Banner select also serialises as a string; ship it as an int. Default 7 (Year).
-  if (readValue(settings, 'BLOCK_BAND') !== undefined) {
-    writeValue(settings, 'BLOCK_BAND',
-               parseInt(readValue(settings, 'BLOCK_BAND'), 10) || 7);
-  }
+  toInt(settings, 'BLOCK_BAND', 7);    // Year
+  toInt(settings, 'BLOCK_SIXTH', 4);   // Steps
+  toInt(settings, 'LANG', 0);          // English
+  toInt(settings, 'UNITS', 0);         // metric
+  toInt(settings, 'LAYOUT', 0);        // classic 5-block face
 
-  // Language select likewise ships as an int (0 = English).
-  if (readValue(settings, 'LANG') !== undefined) {
-    writeValue(settings, 'LANG', parseInt(readValue(settings, 'LANG'), 10) || 0);
-  }
-
-  // Units select ships as an int (0 = metric, 1 = imperial).
-  if (readValue(settings, 'UNITS') !== undefined) {
-    writeValue(settings, 'UNITS', parseInt(readValue(settings, 'UNITS'), 10) || 0);
-  }
-
-  COLUMNS.forEach(function(col) {
-    var topKey = col[0];
-    var botKey = col[1];
-    if (readValue(settings, topKey) === undefined ||
-        readValue(settings, botKey) === undefined) {
+  // Rectangular 6-block faces pair the grid by row; everything else by column.
+  var six = parseInt(readValue(settings, 'LAYOUT'), 10) === 1;
+  GRID_PAIRS[six && !isRoundWatch() ? 'row' : 'col'].forEach(function(pair) {
+    if (readValue(settings, pair[0]) === undefined ||
+        readValue(settings, pair[1]) === undefined) {
       return;
     }
 
-    var top = parseInt(readValue(settings, topKey), 10) || 0;
-    var bot = parseInt(readValue(settings, botKey), 10) || 0;
+    var a = parseInt(readValue(settings, pair[0]), 10) || 0;
+    var b = parseInt(readValue(settings, pair[1]), 10) || 0;
 
-    // If the column ended up with two of the same size, fix the bottom block.
-    if (isBig(top) === isBig(bot)) {
-      bot = isBig(top) ? FALLBACK_SMALL : FALLBACK_BIG;
+    // If the pair ended up with two of the same size, fix the second block.
+    if (isBig(a) === isBig(b)) {
+      b = isBig(a) ? FALLBACK_SMALL : FALLBACK_BIG;
     }
 
-    writeValue(settings, topKey, top);   // store as numbers so they ship as ints
-    writeValue(settings, botKey, bot);
+    writeValue(settings, pair[0], a);   // store as numbers so they ship as ints
+    writeValue(settings, pair[1], b);
   });
   return settings;
 }
