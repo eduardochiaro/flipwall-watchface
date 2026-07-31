@@ -11,25 +11,26 @@
 //     (s_year_top) plus a 2x2 grid. Each grid column pairs one big (square)
 //     block with one short (half-height) one, so both columns line up.
 //
-//   LAYOUT_SIX (6 blocks) - the banner becomes a real block and a sixth block
-//     joins it. On rectangular screens the face is two square-tall rows, each
-//     holding one big block beside two stacked short ones. Round screens can't
-//     take a full-width row, so there the extra row splits: one short block in a
-//     strip above the 2x2 grid and one below, which keeps the circular shape.
+//   LAYOUT_SIX (6 blocks) - the banner is dropped and each column grows a third
+//     block in its middle, so the face is two columns of three: one big block
+//     and two short ones, with the big one in any of the three slots. Round
+//     screens can't take a full-height column, so there the two middles lift
+//     out into strips above and below the 2x2 grid, which keeps the circular
+//     shape - and, being strips, they are always short.
 //
-// Both layouts address the same six positions (see BlockPos), so switching
-// keeps every block choice and colour.
+// Both layouts share the four grid positions (see BlockPos), so switching keeps
+// those block choices and colours.
 //
 // Drawing lives in blocks.c, colour helpers in colors.c, localisation in
 // lang.c and weather state in weather.c. This file owns the shared state, the
 // layout, the settings, and the app lifecycle.
 // ---------------------------------------------------------------------------
 
-// Where a block sits. The first four are the 2x2 grid; POS_BAND is the banner
-// (classic) / top strip (round six) / first row's extra short block (rect six),
-// POS_SIXTH the block that only the six-block layout shows.
+// Where a block sits. The first four are the 2x2 grid, which both layouts use;
+// POS_BAND is the classic layout's banner and POS_MID_L / POS_MID_R the
+// six-block layout's column middles (the top / bottom strips on round screens).
 typedef enum {
-  POS_TL, POS_TR, POS_BL, POS_BR, POS_BAND, POS_SIXTH, POS_COUNT
+  POS_TL, POS_TR, POS_BL, POS_BR, POS_BAND, POS_MID_L, POS_MID_R, POS_COUNT
 } BlockPos;
 
 #define LAYOUT_CLASSIC 0
@@ -41,9 +42,10 @@ typedef enum {
 static bool s_year_top = true;
 static int  s_layout = LAYOUT_CLASSIC;
 static QuadBlock s_blocks[POS_COUNT] = {
-  BLK_DOW, BLK_DAY,      // TL, TR
-  BLK_CLOCK, BLK_MONTH,  // BL, BR
-  BLK_YEAR, BLK_STEPS,   // banner, sixth
+  BLK_DOW, BLK_DAY,          // TL, TR
+  BLK_CLOCK, BLK_MONTH,      // BL, BR
+  BLK_YEAR,                  // banner
+  BLK_DIGITAL, BLK_STEPS,    // middle left, middle right
 };
 bool s_show_seconds = false;   // off by default (battery friendly)
 bool s_flip_enabled = true;    // flip animation on value change (on by default)
@@ -95,10 +97,12 @@ typedef enum {
   PK_PANEL_TR,
   PK_PANEL_BL,
   PK_PANEL_BR,
-  // Six-block layout (v3): the layout switch plus the sixth block and its color.
+  // Six-block layout (v3): the layout switch plus the two column middles.
   PK_LAYOUT,
-  PK_BLOCK_SIXTH,
-  PK_PANEL_SIXTH,
+  PK_BLOCK_MID_L,
+  PK_PANEL_MID_L,
+  PK_BLOCK_MID_R,
+  PK_PANEL_MID_R,
 } PersistKey;
 
 #if defined(PBL_PLATFORM_EMERY)
@@ -143,11 +147,12 @@ static BlockPos layer_pos(Layer *layer) {
   return POS_TL;
 }
 
-// True when the banner positions draw as a text-hugging pill rather than as a
-// full-width block: always in the classic layout, and on round screens, where
-// the six-block layout puts them in the top / bottom strips.
-static bool bands_are_pills(void) {
-  return PBL_IF_ROUND_ELSE(true, s_layout == LAYOUT_CLASSIC);
+// True when a position draws as a text-hugging pill rather than a full-width
+// block: the classic banner always, and the six-block middles on round screens,
+// where they sit in the top / bottom strips.
+static bool draws_as_pill(BlockPos pos) {
+  if (pos == POS_BAND) return true;
+  return PBL_IF_ROUND_ELSE(pos == POS_MID_L || pos == POS_MID_R, false);
 }
 
 static void block_layer_update(Layer *layer, GContext *ctx) {
@@ -157,7 +162,7 @@ static void block_layer_update(Layer *layer, GContext *ctx) {
   // the block draws (which read s_panel_bg / s_text_fg) pick up its override.
   s_panel_bg = s_panel_colors[pos];
   s_text_fg  = contrast_color(s_panel_bg);
-  if ((pos == POS_BAND || pos == POS_SIXTH) && bands_are_pills())
+  if (draws_as_pill(pos))
     draw_band(ctx, layer_get_bounds(layer), s_blocks[pos]);
   else
     draw_block_layer(ctx, layer);   // flip-aware (see blocks.c)
@@ -209,23 +214,27 @@ static void layout_grid(GRect area, int col_w, int square, int short_h) {
   }
 }
 
-// One row of the six-block layout: a square block on the side whose block is
-// big, and the other two blocks stacked as shorts beside it. Both blocks being
-// the same size can't be laid out as asked, so the left one takes the square.
-static void layout_row(GRect row, int col_w,
-                       BlockPos left, BlockPos right, BlockPos extra) {
-  bool big_left = !block_is_short(s_blocks[left]) || block_is_short(s_blocks[right]);
-  BlockPos big   = big_left ? left  : right;
-  BlockPos stack = big_left ? right : left;
-  int big_x   = row.origin.x + (big_left ? 0 : col_w + GUTTER);
-  int stack_x = row.origin.x + (big_left ? col_w + GUTTER : 0);
-  int half    = (row.size.h - GUTTER) / 2;
+// One column of the six-block layout: three stacked blocks, one big + two
+// short, with the square going to whichever slot holds the big block. A column
+// with no big block (or more than one) can't be laid out as asked, so the first
+// slot takes the square.
+static void layout_column(GRect col, int big_h,
+                          BlockPos top, BlockPos mid, BlockPos bot) {
+  BlockPos order[3] = { top, mid, bot };
+  int big_i = 0;
+  for (int i = 0; i < 3; i++)
+    if (!block_is_short(s_blocks[order[i]])) { big_i = i; break; }
+  int short_h = (col.size.h - big_h - 2 * GUTTER) / 2;
 
-  layer_set_frame(s_layer[big], GRect(big_x, row.origin.y, col_w, row.size.h));
-  layer_set_frame(s_layer[stack], GRect(stack_x, row.origin.y, col_w, half));
-  layer_set_frame(s_layer[extra],
-                  GRect(stack_x, row.origin.y + half + GUTTER, col_w,
-                        row.size.h - half - GUTTER));
+  int h[3];
+  for (int i = 0; i < 3; i++) h[i] = (i == big_i) ? big_h : short_h;
+  h[2] = col.size.h - h[0] - h[1] - 2 * GUTTER;   // absorbs the rounding
+
+  int y = col.origin.y;
+  for (int i = 0; i < 3; i++) {
+    layer_set_frame(s_layer[order[i]], GRect(col.origin.x, y, col.size.w, h[i]));
+    y += h[i] + GUTTER;
+  }
 }
 
 // Position every block layer and tag each layer with the block it shows.
@@ -248,23 +257,30 @@ static void layout(void) {
   int col_h   = square + GUTTER + short_h;
   int year_h  = square * 45 / 100;   // banner height
 
-  // Which positions this layout shows at all.
+  // Which positions this layout shows at all. The banner belongs to the classic
+  // layout, the two middles to the six-block one; on round screens the middles
+  // become strips above and below the grid, so they hide under an obstruction
+  // exactly like the banner does.
   bool six    = s_layout == LAYOUT_SIX;
-  bool strips = six && PBL_IF_ROUND_ELSE(true, false);   // round: top + bottom
-  bool rows   = six && !strips;                          // rect: two full rows
-  layer_set_hidden(s_layer[POS_BAND], obstructed && !rows);
-  layer_set_hidden(s_layer[POS_SIXTH], !six || (obstructed && !rows));
+  bool strips = six && PBL_IF_ROUND_ELSE(true, false);
+  bool cols   = six && !strips;   // rect: two full-height columns of three
+  layer_set_hidden(s_layer[POS_BAND], six || obstructed);
+  layer_set_hidden(s_layer[POS_MID_L], !six || (obstructed && !cols));
+  layer_set_hidden(s_layer[POS_MID_R], !six || (obstructed && !cols));
 
-  if (rows) {
-    // Two square-tall rows, each one big block beside two stacked shorts.
-    // Squeeze the rows if the (possibly obstructed) height can't take both.
-    int row_h = square;
-    if (2 * row_h + GUTTER > inner.size.h) row_h = (inner.size.h - GUTTER) / 2;
-    int top = inner.origin.y + (inner.size.h - (2 * row_h + GUTTER)) / 2;
-    layout_row(GRect(inner.origin.x, top, inner.size.w, row_h), col_w,
-               POS_TL, POS_TR, POS_BAND);
-    layout_row(GRect(inner.origin.x, top + row_h + GUTTER, inner.size.w, row_h),
-               col_w, POS_BL, POS_BR, POS_SIXTH);
+  if (cols) {
+    // Two columns of three: a square block plus two shorts, stacked. Squeeze
+    // the square if the (possibly obstructed) height can't take the full pair.
+    int big_h = square, col_full = 2 * square + GUTTER;
+    if (col_full > inner.size.h) {
+      col_full = inner.size.h;
+      big_h = (col_full - 2 * GUTTER) / 2;   // still half the column
+    }
+    int top = inner.origin.y + (inner.size.h - col_full) / 2;
+    layout_column(GRect(inner.origin.x, top, col_w, col_full), big_h,
+                  POS_TL, POS_MID_L, POS_BL);
+    layout_column(GRect(inner.origin.x + col_w + GUTTER, top, col_w, col_full),
+                  big_h, POS_TR, POS_MID_R, POS_BR);
   } else {
     // Centre the whole group (banner(s) + grid) vertically in the face. When
     // the banners are hidden the grid alone is centred.
@@ -282,24 +298,20 @@ static void layout(void) {
     if (!obstructed && !strips) top += s_year_top ? -5 : 10;
 #endif
 
-    // Stack: [band] grid [band]. Classic puts its single banner on whichever
-    // side s_year_top asks for; the round six-block layout uses both.
-    bool band_first = strips || s_year_top;
+    // Stack: [strip] grid [strip]. Classic puts its single banner on whichever
+    // side s_year_top asks for; the round six-block layout uses both middles.
     int y = top;
-    if (!obstructed && band_first) {
-      layer_set_frame(s_layer[POS_BAND],
+    if (!obstructed && (strips || s_year_top)) {
+      layer_set_frame(s_layer[strips ? POS_MID_L : POS_BAND],
                       GRect(inner.origin.x, y, inner.size.w, year_h));
       y += year_h + GUTTER;
     }
     layout_grid(GRect(inner.origin.x, y, inner.size.w, col_h), col_w, square,
                 short_h);
     y += col_h + GUTTER;
-    if (!obstructed) {
-      BlockPos last = strips ? POS_SIXTH : POS_BAND;
-      if (strips || !s_year_top)
-        layer_set_frame(s_layer[last],
-                        GRect(inner.origin.x, y, inner.size.w, year_h));
-    }
+    if (!obstructed && (strips || !s_year_top))
+      layer_set_frame(s_layer[strips ? POS_MID_R : POS_BAND],
+                      GRect(inner.origin.x, y, inner.size.w, year_h));
   }
 
   // Retag every layer with its block and clear the flip state, so re-layout
@@ -412,6 +424,13 @@ static void apply_tick_interval(void) {
   tick_timer_service_subscribe(secs ? SECOND_UNIT : MINUTE_UNIT, tick_handler);
 }
 
+// The six-block middles are full column blocks on rect screens, so they take
+// any grid block (big or short). On round they lift out into the top / bottom
+// strips, which only draw pills, so there they take the banner set instead.
+static bool block_valid_mid(int v) {
+  return PBL_IF_ROUND_ELSE(block_valid_band(v), block_valid_grid(v));
+}
+
 static QuadBlock read_block(PersistKey key, QuadBlock def, bool (*valid)(int)) {
   if (!persist_exists(key)) return def;
   int v = persist_read_int(key);
@@ -436,9 +455,9 @@ static void settings_load(void) {
   s_blocks[POS_TR]    = read_block(PK_BLOCK_TR, BLK_DAY,     block_valid_grid);
   s_blocks[POS_BL]    = read_block(PK_BLOCK_BL, BLK_CLOCK,   block_valid_grid);
   s_blocks[POS_BR]    = read_block(PK_BLOCK_BR, BLK_MONTH,   block_valid_grid);
-  // The banner positions are always short blocks, so both take the banner set.
-  s_blocks[POS_BAND]  = read_block(PK_BAND_BLOCK,   BLK_YEAR,  block_valid_band);
-  s_blocks[POS_SIXTH] = read_block(PK_BLOCK_SIXTH,  BLK_STEPS, block_valid_band);
+  s_blocks[POS_BAND]  = read_block(PK_BAND_BLOCK,  BLK_YEAR,    block_valid_band);
+  s_blocks[POS_MID_L] = read_block(PK_BLOCK_MID_L, BLK_DIGITAL, block_valid_mid);
+  s_blocks[POS_MID_R] = read_block(PK_BLOCK_MID_R, BLK_STEPS,   block_valid_mid);
 
   s_face_bg    = persist_exists(PK_FACE_COLOR)    ? GColorFromHEX(persist_read_int(PK_FACE_COLOR))    : (GColor)FACE_BG;
   s_panel_bg   = persist_exists(PK_PANEL_COLOR)   ? GColorFromHEX(persist_read_int(PK_PANEL_COLOR))   : (GColor)PANEL_BG;
@@ -450,7 +469,7 @@ static void settings_load(void) {
   // Per-block panel overrides fall back to the main panel color when unset.
   static const PersistKey panel_pk[POS_COUNT] =
       { PK_PANEL_TL, PK_PANEL_TR, PK_PANEL_BL, PK_PANEL_BR,
-        PK_PANEL_BAND, PK_PANEL_SIXTH };
+        PK_PANEL_BAND, PK_PANEL_MID_L, PK_PANEL_MID_R };
   for (int i = 0; i < POS_COUNT; i++)
     s_panel_colors[i] = persist_exists(panel_pk[i])
                             ? GColorFromHEX(persist_read_int(panel_pk[i]))
@@ -509,8 +528,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   apply_block(iter, MESSAGE_KEY_BLOCK_TOP_RIGHT,    PK_BLOCK_TR, &s_blocks[POS_TR], block_valid_grid);
   apply_block(iter, MESSAGE_KEY_BLOCK_BOTTOM_LEFT,  PK_BLOCK_BL, &s_blocks[POS_BL], block_valid_grid);
   apply_block(iter, MESSAGE_KEY_BLOCK_BOTTOM_RIGHT, PK_BLOCK_BR, &s_blocks[POS_BR], block_valid_grid);
-  apply_block(iter, MESSAGE_KEY_BLOCK_BAND,  PK_BAND_BLOCK,  &s_blocks[POS_BAND],  block_valid_band);
-  apply_block(iter, MESSAGE_KEY_BLOCK_SIXTH, PK_BLOCK_SIXTH, &s_blocks[POS_SIXTH], block_valid_band);
+  apply_block(iter, MESSAGE_KEY_BLOCK_BAND,      PK_BAND_BLOCK,  &s_blocks[POS_BAND],  block_valid_band);
+  apply_block(iter, MESSAGE_KEY_BLOCK_MID_LEFT,  PK_BLOCK_MID_L, &s_blocks[POS_MID_L], block_valid_mid);
+  apply_block(iter, MESSAGE_KEY_BLOCK_MID_RIGHT, PK_BLOCK_MID_R, &s_blocks[POS_MID_R], block_valid_mid);
 
   apply_color(iter, MESSAGE_KEY_FACE_COLOR,    PK_FACE_COLOR,    &s_face_bg);
   apply_color(iter, MESSAGE_KEY_PANEL_COLOR,   PK_PANEL_COLOR,   &s_panel_bg);
@@ -522,8 +542,9 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   apply_color(iter, MESSAGE_KEY_PANEL_TR_COLOR,    PK_PANEL_TR,    &s_panel_colors[POS_TR]);
   apply_color(iter, MESSAGE_KEY_PANEL_BL_COLOR,    PK_PANEL_BL,    &s_panel_colors[POS_BL]);
   apply_color(iter, MESSAGE_KEY_PANEL_BR_COLOR,    PK_PANEL_BR,    &s_panel_colors[POS_BR]);
-  apply_color(iter, MESSAGE_KEY_PANEL_BAND_COLOR,  PK_PANEL_BAND,  &s_panel_colors[POS_BAND]);
-  apply_color(iter, MESSAGE_KEY_PANEL_SIXTH_COLOR, PK_PANEL_SIXTH, &s_panel_colors[POS_SIXTH]);
+  apply_color(iter, MESSAGE_KEY_PANEL_BAND_COLOR, PK_PANEL_BAND,  &s_panel_colors[POS_BAND]);
+  apply_color(iter, MESSAGE_KEY_PANEL_ML_COLOR,   PK_PANEL_MID_L, &s_panel_colors[POS_MID_L]);
+  apply_color(iter, MESSAGE_KEY_PANEL_MR_COLOR,   PK_PANEL_MID_R, &s_panel_colors[POS_MID_R]);
 
   apply_bool(iter, MESSAGE_KEY_SHOW_SECONDS, PK_SHOW_SECONDS, &s_show_seconds);
   apply_bool(iter, MESSAGE_KEY_FLIP_ANIM, PK_FLIP_ANIM, &s_flip_enabled);

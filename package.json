@@ -70,8 +70,10 @@
       "PANEL_BL_COLOR",
       "PANEL_BR_COLOR",
       "LAYOUT",
-      "BLOCK_SIXTH",
-      "PANEL_SIXTH_COLOR"
+      "BLOCK_MID_LEFT",
+      "BLOCK_MID_RIGHT",
+      "PANEL_ML_COLOR",
+      "PANEL_MR_COLOR"
     ],
     "resources": {
       "media": [
