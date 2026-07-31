@@ -57,17 +57,15 @@ Configure via the Pebble app settings page.
 - **Seam line** — thin line across each block's middle for the flip-display look (on by default).
 
 ### Layout
-Blocks come in two sizes — **big** (fills a square quadrant) and **small** (half height). There are two faces to put them on, picked with the **Layout** setting:
+Both faces are two columns. Blocks come in two sizes — **big** (fills a square quadrant) and **small** (half height) — and every column holds exactly one big block, the rest small; picking a second big one auto-swaps the other. The **Layout** setting picks the face:
 
-- **Classic (5 blocks)** — a banner sized to its text, above or below a 2×2 grid. Each grid *column* pairs one big block with one small block.
-- **Rows (6 blocks)** — the banner becomes a full block and a sixth one joins it. On rectangular screens the face is two square-tall rows, each holding one big block beside two stacked small ones, so each *row* is the pair that needs one of each size. Round screens can't take a full-width row, so there the grid stays as it is and the two extra blocks become small strips above and below it — which keeps the circular shape.
+- **Classic (5 blocks)** — a banner sized to its text, above or below the two columns.
+- **Columns (6 blocks)** — no banner. Each column gets a third block in its middle, so it runs one big block plus two small ones, with the big one in any of the three slots. Round screens can't take a full-height column, so there the two middles lift out into small strips above and below the grid, which keeps the circular shape — and, being strips, those two are always small.
 
-Picking two blocks of the same size in a pair auto-swaps the other one.
-
-- **Banner block** — the banner (classic), row 1's stacked small block (6-block, rectangular) or the top strip (6-block, round): Year, Digital clock, .beat time, Month + Day, Weekday + Day, Steps, Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, or Wind direction.
-- **Banner at top** — banner above the grid (on) or below it (off). Classic layout only.
-- **Sixth block** — row 2's stacked small block, or the bottom strip on round screens. Same choices as the banner block. Used by the 6-block layout only.
-- **Top-left / Top-right / Bottom-left / Bottom-right block** — fill each quadrant with:
+- **Banner block** — banner content, classic layout only: Year, Digital clock, .beat time, Month + Day, Weekday + Day, Steps, Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, or Wind direction.
+- **Banner at top** — banner above the columns (on) or below them (off). Classic layout only.
+- **Left / Right column middle block** — 6-block layout only. Same choices as the top and bottom blocks below, big or small, plus Year — so a column can carry its big block in the middle. On round screens these two leave their columns and become the strips above and below the grid, so there they are limited to the banner block list, and every block in the column shifts: the left column is drawn strip / top / bottom and the right column top / bottom / strip. The settings page relabels and reorders both columns to match, so each one always reads in the order it is drawn.
+- **Top / Middle / Bottom block of each column** — fill each slot with:
   - **Date/time:** Day of week, Day of month, Calendar (weekday over day), Calendar + Month (month over day), Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Month, .beat time (big or small)
   - **Activity:** Steps, Distance (small or big), Battery (small or big), Heart rate (small or big)
   - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Max/Min temp (small or big), Humidity (small or big), Precipitation, UV index (small or big, plain or `- color`), Air quality (small or big, plain or `- color`), Wind speed (small or big), Wind direction (small or big)
@@ -91,10 +89,21 @@ The `- color` variants of UV index and Air quality draw exactly like their plain
 
 Only the fields the current layout actually needs are requested, and a layout with no weather block skips the fetch (and the GPS fix) entirely. The phone always sends metric; the watch converts to °F, inches and mph on screen, so switching **Units** repaints immediately from the cached reading instead of waiting for the next fetch.
 
+### Share settings
+The **Share Settings** section shows a code for the current face — every block, colour and toggle packed into one 66-character string:
+
+```
+0420P2134462T38A01ARHZZZZZZTM071E1AG000002W982C4WFB30CBCBKKJ48H2VM
+```
+
+Copy it to back a face up or pass it to someone else; paste one into the box and tap **Import** to load it, then **Save** to send it to the watch.
+
+The alphabet is [Crockford base32](https://www.crockford.com/base32.html) — digits and uppercase letters only, with `I`, `L`, `O` and `U` left out so nothing gets misread as a digit. Case doesn't matter on the way in, `I`/`L` are read as `1` and `O` as `0`, and any spaces or dashes added for readability are ignored, so a code survives being retyped or wrapped by a chat app. Codes carry a version marker and a checksum, so one from a different version, or one that lost characters on the way, is refused instead of half-applied.
+
 ### Colors
 - **Face background** — color behind the panels.
 - **All panels** — master panel color; sets every block and the banner at once. Override any individual one afterward.
-- **Per-block panel colors** — each quadrant (Top/Bottom × Left/Right), the banner and the sixth block have their own color picker, so blocks can differ. Changing **All panels** (or applying a preset) refills them.
+- **Per-block panel colors** — each quadrant (Top/Bottom × Left/Right), the banner and the two column middles have their own color picker, so blocks can differ. Changing **All panels** (or applying a preset) refills them.
 - **Weekend / accent** — day-of-week panel color on weekends, also used for the inactive AM/PM label.
 
 Text color is automatic: black on light backgrounds, white on dark ones. On the big digital clock (minutes) and the big Max/Min temp (min), the secondary value is drawn in an auto-derived accent shade of the text color (lighter on dark panels, darker on light ones).

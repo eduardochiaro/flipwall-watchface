@@ -13,9 +13,10 @@
 
 // Grid blocks span BLK_DOW..BLK_BATTERY plus the weather blocks. Day, Clock,
 // Weather and the big temperature are "big" (square); everything else is a
-// "short" half-height block.
+// "short" half-height block. BLK_YEAR draws as plain text, so a column block
+// takes it too (the six-block middles offer it, since on round they are strips).
 bool block_valid_grid(int v) {
-  return (v >= BLK_DOW && v <= BLK_BATTERY) || v == BLK_WEATHER ||
+  return (v >= BLK_DOW && v <= BLK_BATTERY) || v == BLK_YEAR || v == BLK_WEATHER ||
          v == BLK_TEMP || v == BLK_TEMP_BIG || v == BLK_HUMIDITY ||
          v == BLK_PRECIP || v == BLK_DIGITAL || v == BLK_DIGITAL_BIG ||
          v == BLK_HOURS || v == BLK_HOURS_BIG ||

@@ -109,6 +109,18 @@ var BLOCK_OPTIONS_GROUPS = [
   { label: "Small - Weather", value: SMALL_WEATHER }
 ];
 
+// The six-block column middles take the same blocks as the grid — each column
+// holds one big and two small blocks, in any order — plus Year, which is
+// otherwise banner-only but belongs here because the round layout draws these
+// two positions as strips. clayCustomFn trims the list back to the banner set
+// on round screens for that reason.
+var MID_OPTIONS_GROUPS = BLOCK_OPTIONS_GROUPS.map(function(group) {
+  return group.label === "Small - Date"
+    ? { label: group.label,
+        value: group.value.concat([{ label: "Year (small)", value: 7 }]) }
+    : group;
+});
+
 // The banner is a single short block, so it only needs the content grouping.
 // Year is banner-only; the rest mirror their small-block counterparts.
 var BAND_OPTIONS = [
@@ -150,11 +162,11 @@ var UNITS_OPTIONS = [
 ];
 
 // Face layout. Classic is the 5-block face (banner pill + 2x2 grid); the
-// 6-block layout turns the banner into a real block and adds a sixth one.
-// See the layout comment in flipwall-watchface.c for how each one is arranged.
+// 6-block layout drops the banner and gives each column a third block in its
+// middle. See the layout comment in flipwall-watchface.c for the arrangement.
 var LAYOUT_OPTIONS = [
   { label: "Classic (5 blocks)", value: 0 },
-  { label: "Rows (6 blocks)", value: 1 }
+  { label: "Columns (6 blocks)", value: 1 }
 ];
 
 var LANG_OPTIONS = [
@@ -185,10 +197,7 @@ module.exports = [
         messageKey: "LAYOUT",
         label: "Layout",
         defaultValue: 0,
-        options: LAYOUT_OPTIONS,
-        description: "Classic: banner + 2x2 grid. Rows: two rows of one big " +
-          "block beside two small ones (round screens keep the grid and put " +
-          "the two extra small blocks in a strip above and below it)."
+        options: LAYOUT_OPTIONS
       },
       {
         type: "select",
@@ -272,59 +281,28 @@ module.exports = [
   {
     type: "section",
     items: [
+      { type: "heading", defaultValue: "Share Settings" },
+      { type: "text", defaultValue: "The code below is this whole face — every block, color and toggle. Copy it to back the face up or share it. Paste a code in and tap Import to load it." },
+      // Code box, copy/import buttons and their handlers are injected by
+      // clayCustomFn (they need the webview DOM), same as the presets above.
+      { type: "text", id: "TRANSFER", label: "", defaultValue: "" },
+    ]
+  },
+
+  {
+    type: "section",
+    items: [
       { type: "heading", defaultValue: "Preview" },
       { type: "text", id: "PREVIEW", label: "", defaultValue: "" },
     ]
   },
 
-  // The four grid positions. They keep the same names in both layouts: the
-  // classic face pairs them into columns, the 6-block face into rows.
+  // The banner belongs to the classic layout only; clayCustomFn hides this
+  // whole section (heading included, hence the id) under the 6-block one.
   {
     type: "section",
     items: [
-      { type: "heading", defaultValue: "Grid Blocks" },
-      {
-        type: "select",
-        messageKey: "BLOCK_TOP_LEFT",
-        label: "Top left",
-        defaultValue: 0,
-        options: BLOCK_OPTIONS_GROUPS
-      },
-      { type: "color", messageKey: "PANEL_TL_COLOR", label: "Top left color", defaultValue: "000000", sunlight: false },
-      {
-        type: "select",
-        messageKey: "BLOCK_TOP_RIGHT",
-        label: "Top right",
-        defaultValue: 1,
-        options: BLOCK_OPTIONS_GROUPS
-      },
-      { type: "color", messageKey: "PANEL_TR_COLOR", label: "Top right color", defaultValue: "000000", sunlight: false },
-      {
-        type: "select",
-        messageKey: "BLOCK_BOTTOM_LEFT",
-        label: "Bottom left",
-        defaultValue: 2,
-        options: BLOCK_OPTIONS_GROUPS
-      },
-      { type: "color", messageKey: "PANEL_BL_COLOR", label: "Bottom left color", defaultValue: "000000", sunlight: false },
-      {
-        type: "select",
-        messageKey: "BLOCK_BOTTOM_RIGHT",
-        label: "Bottom right",
-        defaultValue: 3,
-        options: BLOCK_OPTIONS_GROUPS
-      },
-      { type: "color", messageKey: "PANEL_BR_COLOR", label: "Bottom right color", defaultValue: "000000", sunlight: false }
-    ]
-  },
-  { type: "text", id: "LAYOUT_TIP", defaultValue: "" },
-
-  // The two small blocks that live outside the grid. Both are always small, so
-  // they share the banner option list.
-  {
-    type: "section",
-    items: [
-      { type: "heading", defaultValue: "Banner Block" },
+      { type: "heading", id: "BANNER_HEADING", defaultValue: "Banner Block" },
       {
         type: "select",
         messageKey: "BLOCK_BAND",
@@ -341,20 +319,70 @@ module.exports = [
       },
     ]
   },
+
+  // Both layouts are two columns; the 6-block one just adds a middle block to
+  // each, which clayCustomFn hides under the classic layout.
   {
     type: "section",
     items: [
-      { type: "heading", defaultValue: "Sixth Block" },
+      { type: "heading", defaultValue: "Left Column" },
       {
         type: "select",
-        messageKey: "BLOCK_SIXTH",
-        label: "Type",
-        defaultValue: 4,
-        options: BAND_OPTIONS
+        messageKey: "BLOCK_TOP_LEFT",
+        label: "Top",
+        defaultValue: 0,
+        options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_SIXTH_COLOR", label: "Sixth", defaultValue: "000000", sunlight: false }
+      { type: "color", messageKey: "PANEL_TL_COLOR", label: "Top Color", defaultValue: "000000", sunlight: false },
+      {
+        type: "select",
+        messageKey: "BLOCK_MID_LEFT",
+        label: "Middle",
+        defaultValue: 16,
+        options: MID_OPTIONS_GROUPS
+      },
+      { type: "color", messageKey: "PANEL_ML_COLOR", label: "Middle Color", defaultValue: "000000", sunlight: false },
+      {
+        type: "select",
+        messageKey: "BLOCK_BOTTOM_LEFT",
+        label: "Bottom",
+        defaultValue: 2,
+        options: BLOCK_OPTIONS_GROUPS
+      },
+      { type: "color", messageKey: "PANEL_BL_COLOR", label: "Bottom Color", defaultValue: "000000", sunlight: false },
     ]
   },
+  {
+    type: "section",
+    items: [
+      { type: "heading", defaultValue: "Right Column" },
+      {
+        type: "select",
+        messageKey: "BLOCK_TOP_RIGHT",
+        label: "Top",
+        defaultValue: 1,
+        options: BLOCK_OPTIONS_GROUPS
+      },
+      { type: "color", messageKey: "PANEL_TR_COLOR", label: "Top Color", defaultValue: "000000", sunlight: false },
+      {
+        type: "select",
+        messageKey: "BLOCK_MID_RIGHT",
+        label: "Middle",
+        defaultValue: 4,
+        options: MID_OPTIONS_GROUPS
+      },
+      { type: "color", messageKey: "PANEL_MR_COLOR", label: "Middle Color", defaultValue: "000000", sunlight: false },
+      {
+        type: "select",
+        messageKey: "BLOCK_BOTTOM_RIGHT",
+        label: "Bottom",
+        defaultValue: 3,
+        options: BLOCK_OPTIONS_GROUPS
+      },
+      { type: "color", messageKey: "PANEL_BR_COLOR", label: "Bottom Color", defaultValue: "000000", sunlight: false }
+    ]
+  },
+  { type: "text", id: "LAYOUT_TIP", defaultValue: "" },
 
   {
     type: "submit",

@@ -1,7 +1,7 @@
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
 var getWeather = require('./modules/weather');
-var { clayCustomFn, isBig, GRID_PAIRS, FALLBACK_SMALL, FALLBACK_BIG } = require('./modules/preview');
+var { clayCustomFn, isBig, COLUMNS, FALLBACK_SMALL, FALLBACK_BIG } = require('./modules/preview');
 
 var clay = new Clay(clayConfig, clayCustomFn, { autoHandleEvents: false });
 
@@ -9,7 +9,7 @@ var clay = new Clay(clayConfig, clayCustomFn, { autoHandleEvents: false });
 // Submit-time sanitiser (runs on the phone). Two jobs:
 //   1. Coerce select values to integers — Clay serialises <select> values as
 //      strings, which the watch would otherwise read as garbage.
-//   2. Re-enforce the small+big-per-column rule as a safety net (the live rule
+//   2. Re-enforce the one-big-block-per-column rule as a safety net (the live rule
 //      above normally keeps it valid; this guards stale/odd responses).
 // ---------------------------------------------------------------------------
 function readValue(settings, key) {
@@ -31,37 +31,37 @@ function toInt(settings, key, def) {
   writeValue(settings, key, parseInt(readValue(settings, key), 10) || def);
 }
 
-function isRoundWatch() {
-  var info = Pebble.getActiveWatchInfo && Pebble.getActiveWatchInfo();
-  var platform = info && info.platform;
-  return platform === 'chalk' || platform === 'gabbro';
-}
-
 function sanitize(settings) {
-  toInt(settings, 'BLOCK_BAND', 7);    // Year
-  toInt(settings, 'BLOCK_SIXTH', 4);   // Steps
-  toInt(settings, 'LANG', 0);          // English
-  toInt(settings, 'UNITS', 0);         // metric
-  toInt(settings, 'LAYOUT', 0);        // classic 5-block face
+  toInt(settings, 'BLOCK_BAND', 7);        // Year
+  toInt(settings, 'BLOCK_MID_LEFT', 16);   // Digital clock
+  toInt(settings, 'BLOCK_MID_RIGHT', 4);   // Steps
+  toInt(settings, 'LANG', 0);              // English
+  toInt(settings, 'UNITS', 0);             // metric
+  toInt(settings, 'LAYOUT', 0);            // classic 5-block face
 
-  // Rectangular 6-block faces pair the grid by row; everything else by column.
+  // The middle is a column block only in the rect 6-block layout; the classic
+  // layout hides it and the round one draws it as a strip.
   var six = parseInt(readValue(settings, 'LAYOUT'), 10) === 1;
-  GRID_PAIRS[six && !isRoundWatch() ? 'row' : 'col'].forEach(function(pair) {
-    if (readValue(settings, pair[0]) === undefined ||
-        readValue(settings, pair[1]) === undefined) {
-      return;
-    }
+  var round = false;
+  try {
+    var info = Pebble.getActiveWatchInfo && Pebble.getActiveWatchInfo();
+    round = !!info && (info.platform === 'chalk' || info.platform === 'gabbro');
+  } catch (e) { /* older firmware: assume rectangular */ }
 
-    var a = parseInt(readValue(settings, pair[0]), 10) || 0;
-    var b = parseInt(readValue(settings, pair[1]), 10) || 0;
+  COLUMNS.forEach(function(col) {
+    var keys = (six && !round) ? col : [col[0], col[2]];
+    var vals = keys.map(function(k) { return readValue(settings, k); });
+    if (vals.indexOf(undefined) > -1) { return; }
+    vals = vals.map(function(v) { return parseInt(v, 10) || 0; });
 
-    // If the pair ended up with two of the same size, fix the second block.
-    if (isBig(a) === isBig(b)) {
-      b = isBig(a) ? FALLBACK_SMALL : FALLBACK_BIG;
-    }
-
-    writeValue(settings, pair[0], a);   // store as numbers so they ship as ints
-    writeValue(settings, pair[1], b);
+    // Keep one big block per column: the first one, or the last slot when the
+    // column has none.
+    var keep = vals.map(isBig).indexOf(true);
+    if (keep < 0) { vals[keep = vals.length - 1] = FALLBACK_BIG; }
+    keys.forEach(function(k, i) {
+      // store as numbers so they ship as ints
+      writeValue(settings, k, (i !== keep && isBig(vals[i])) ? FALLBACK_SMALL : vals[i]);
+    });
   });
   return settings;
 }
