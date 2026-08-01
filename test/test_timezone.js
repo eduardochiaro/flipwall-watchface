@@ -1,7 +1,14 @@
 // The second time zone, as the watch is told it: an offset in minutes and an
 // abbreviation. This is the one piece of tz knowledge in the project — the
-// watch has none — so it is checked at both ends of the year, on both sides of
-// the equator, and with the Intl fallback the older phone runtimes hit.
+// watch has none — so it is checked at both ends of the year and on both sides
+// of the equator.
+//
+// Intl is deleted for the whole file, and must stay deleted: this module runs
+// in PebbleKit JS, whose emulator (pypkjs / STPyV8) does not throw on
+// Intl.DateTimeFormat — it aborts the JS process outright, so the watchface's
+// JS never starts. Any Intl that creeps back in here fails this file instead.
+global.Intl = undefined;
+
 var tz = require('../src/pkjs/modules/timezone');
 var assert = require('assert');
 
@@ -23,31 +30,32 @@ check('Asia/Tokyo', JULY, 540, 'JST');
 check('Asia/Tokyo', JAN, 540, 'JST');
 check('Asia/Kolkata', JULY, 330, 'IST');          // half-hour offset
 
-// DST moves both the offset and the abbreviation. Intl spells the US ones out;
-// the rest come from the list's own standard / summer pair.
+// DST moves both the offset and the abbreviation.
 check('America/Los_Angeles', JULY, -420, 'PDT');
 check('America/Los_Angeles', JAN, -480, 'PST');
 check('Europe/Paris', JULY, 120, 'CEST');
 check('Europe/Paris', JAN, 60, 'CET');
-// Southern hemisphere: summer time is the January one.
+check('Africa/Cairo', JULY, 180, 'EEST');
+check('Africa/Cairo', JAN, 120, 'EET');
+// Southern hemisphere: summer time is the January one, so the window wraps.
 check('Australia/Sydney', JULY, 600, 'AEST');
 check('Australia/Sydney', JAN, 660, 'AEDT');
+check('Pacific/Auckland', JULY, 720, 'NZST');
+check('Pacific/Auckland', JAN, 780, 'NZDT');
+
+// The transitions themselves. 2026: EU turns over on 29 March / 25 October at
+// 01:00 UTC, the US on 8 March / 1 November at 02:00 local.
+check('Europe/Paris', new Date('2026-03-29T00:59:00Z'), 60, 'CET');
+check('Europe/Paris', new Date('2026-03-29T01:01:00Z'), 120, 'CEST');
+check('Europe/Paris', new Date('2026-10-25T00:59:00Z'), 120, 'CEST');
+check('Europe/Paris', new Date('2026-10-25T01:01:00Z'), 60, 'CET');
+check('America/New_York', new Date('2026-03-08T06:59:00Z'), -300, 'EST');
+check('America/New_York', new Date('2026-03-08T07:01:00Z'), -240, 'EDT');
+check('America/New_York', new Date('2026-11-01T05:59:00Z'), -240, 'EDT');
+check('America/New_York', new Date('2026-11-01T06:01:00Z'), -300, 'EST');
 
 // An unknown zone falls back to the default rather than sending nothing.
 check('Mars/Olympus_Mons', JULY, 0, 'UTC');
-
-// A runtime without a usable Intl (older PebbleKit JS) keeps working on the
-// list's standard offsets — an hour off in a zone's summer, never adrift.
-(function noIntl() {
-  var real = global.Intl;
-  global.Intl = undefined;
-  try {
-    check('Europe/Paris', JULY, 60, 'CET');
-    check('America/Los_Angeles', JULY, -480, 'PST');
-  } finally {
-    global.Intl = real;
-  }
-})();
 
 // Every zone the config page offers has to resolve, or its option is dead.
 tz.ZONES.forEach(function(z) {
