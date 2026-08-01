@@ -212,6 +212,23 @@ function clayCustomFn() {
       ';border-radius:' + px(4) + ';overflow:hidden;">' + inner + '</div>';
   }
 
+  // Every drawn block gets a transparent hit target on top of it, tagged with
+  // the message key it edits, so the preview doubles as the block picker. Set
+  // per render from cfg.sel; the ring is inset so a neighbouring panel drawn
+  // later can't paint over it.
+  var SLOT_KEYS = ['BLOCK_TOP_LEFT', 'BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_LEFT',
+    'BLOCK_BOTTOM_RIGHT', 'BLOCK_BAND', 'BLOCK_MID_LEFT', 'BLOCK_MID_RIGHT'];
+  var selIdx = -1;
+
+  function slotOverlay(i, x, y, w, h) {
+    return '<div data-slot="' + SLOT_KEYS[i] + '" style="position:absolute;left:' +
+      px(x) + ';top:' + px(y) + ';width:' + px(w) + ';height:' + px(h) +
+      ';border-radius:' + px(4) + ';cursor:pointer;' + (i === selIdx
+        ? 'box-shadow:inset 0 0 0 ' + px(2) + ' #FFFFFF, inset 0 0 0 ' +
+          px(4) + ' #0A84FF;'
+        : '') + '"></div>';
+  }
+
   function seam(w, h) {
     if (!drawSeam) { return ''; }
     return '<div style="position:absolute;left:' + px(2) + ';top:' +
@@ -437,7 +454,7 @@ function clayCustomFn() {
       textDiv(txt, c.text, font, 'center', 0) + seam(w, h));
   }
 
-  function bandBlock(v, x, y, w, h, c) {
+  function bandBlock(v, x, y, w, h, c, idx) {
     var band = indexColor(v);
     if (band) {
       c = { panel: band, text: contrast(band), weekend: c.weekend };
@@ -452,7 +469,8 @@ function clayCustomFn() {
     if (v === 47) { txt = nozeroMarkup(txt); }   // after the width, so the pill keeps it
     var px0 = x + Math.floor((w - pw) / 2);
     return panelDiv(px0, y, pw, h, c.panel,
-      textDiv(txt, c.text, font, 'center', 0) + seam(pw, h));
+      textDiv(txt, c.text, font, 'center', 0) + seam(pw, h)) +
+      slotOverlay(idx, px0, y, pw, h);
   }
 
   // Black on light backgrounds, white on dark ones (mirrors contrast_color in C).
@@ -477,6 +495,7 @@ function clayCustomFn() {
   // Mirrors layout() in the C source.
   function build(cfg) {
     var spec = SPECS[cfg.platform] || SPECS.basalt;
+    selIdx = SLOT_KEYS.indexOf(cfg.sel);   // -1 when nothing is selected
     W = spec.w; H = spec.h; SIDE = spec.side; ROUND = spec.round;
     GUTTER = spec.gutter;
     SCALE = 200 / W;                     // every face previews ~200px wide
@@ -544,7 +563,9 @@ function clayCustomFn() {
         }
         var x = innerX + col * (colW + GUTTER);
         out += block(topBlk, x, areaY, colW, topH, mk(panels[col]));
+        out += slotOverlay(col, x, areaY, colW, topH);
         out += block(botBlk, x, areaY + topH + GUTTER, colW, botH, mk(panels[col + 2]));
+        out += slotOverlay(col + 2, x, areaY + topH + GUTTER, colW, botH);
       }
       return out;
     }
@@ -564,6 +585,7 @@ function clayCustomFn() {
       var out = '';
       for (var i = 0; i < 3; i++) {
         out += block(blocks[order[i]], x, y, colW, h[i], mk(panels[order[i]]));
+        out += slotOverlay(order[i], x, y, colW, h[i]);
         y += h[i] + GUTTER;
       }
       return out;
@@ -594,14 +616,14 @@ function clayCustomFn() {
       var y = topY;
       if (strips || cfg.yearTop) {
         var first = strips ? 5 : 4;   // top strip = middle left / the banner
-        html += bandBlock(blocks[first], innerX, y, innerW, yearH, mk(panels[first]));
+        html += bandBlock(blocks[first], innerX, y, innerW, yearH, mk(panels[first]), first);
         y += yearH + GUTTER;
       }
       html += grid(y);
       y += colH + GUTTER;
       if (strips || !cfg.yearTop) {
         var last = strips ? 6 : 4;    // bottom strip = middle right / the banner
-        html += bandBlock(blocks[last], innerX, y, innerW, yearH, mk(panels[last]));
+        html += bandBlock(blocks[last], innerX, y, innerW, yearH, mk(panels[last]), last);
       }
     }
 
@@ -609,7 +631,22 @@ function clayCustomFn() {
     return html;
   }
 
-  return { build: build };
+  // One block on its own, for the palette chips: the same renderer the face
+  // uses, so a chip is exactly what the watch will draw. The box takes the
+  // block's own shape — square for a big one, half height for a small one — so
+  // a chip is never mostly empty.
+  // o: { panel, weekend, face, showSeconds, box, scale }.
+  function swatch(v, o) {
+    SCALE = o.scale;
+    var h = isShort(v) ? Math.round(o.box / 2) : o.box;
+    var c = { panel: o.panel, text: contrast(o.panel), weekend: o.weekend,
+              showSeconds: o.showSeconds };
+    return '<div style="position:relative;margin:0 auto;width:' + px(o.box) +
+      ';height:' + px(h) + ';background:' + o.face + ';border-radius:' + px(4) +
+      ';overflow:hidden;">' + block(v, 0, 0, o.box, h, c) + '</div>';
+  }
+
+  return { build: build, swatch: swatch };
   })();
 
   // Convert a Clay color value (decimal int) to a CSS #RRGGBB string.
@@ -637,11 +674,16 @@ function clayCustomFn() {
     return it ? parseInt(it.get(), 10) === 1 : false;
   }
 
+  // The block the wearer last tapped on the preview, or null. Drives the ring
+  // on the face, what the palette lists, and which color picker is on show.
+  var selected = null;
+
   function refreshPreview() {
     var item = clayConfig.getItemById('PREVIEW');
     if (!item) { return; }
     item.set(PREVIEW.build({
       platform: platform,
+      sel: selected,
       layout: isSixLayout() ? 1 : 0,
       yearTop: clayConfig.getItemByMessageKey('YEAR_TOP').get(),
       lang: blockVal('LANG'),
@@ -664,6 +706,244 @@ function clayCustomFn() {
       showSeconds: clayConfig.getItemByMessageKey('SHOW_SECONDS').get(),
       drawSeam: clayConfig.getItemByMessageKey('DRAW_SEAM').get()
     }));
+  }
+
+  // --- Face editor --------------------------------------------------------
+  // Blocks are placed on the face itself: tap a panel in the preview, then tap
+  // what it should show in the palette below. The seven block selects stay in
+  // the page but hidden — they carry the message keys Save sends to the watch,
+  // and every write still goes through setBlock(), so the column rule, the
+  // share code and the presets are untouched.
+  //
+  // The palette is read back out of the hidden select rather than listing the
+  // blocks again, so its options, labels and grouping can never drift from
+  // config.js — and the round-face trim in trimMidOptions() applies for free.
+  var SLOT_KEYS = ['BLOCK_TOP_LEFT', 'BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_LEFT',
+    'BLOCK_BOTTOM_RIGHT', 'BLOCK_BAND', 'BLOCK_MID_LEFT', 'BLOCK_MID_RIGHT'];
+  var SLOT_COLOR = {
+    BLOCK_TOP_LEFT: 'PANEL_TL_COLOR', BLOCK_TOP_RIGHT: 'PANEL_TR_COLOR',
+    BLOCK_BOTTOM_LEFT: 'PANEL_BL_COLOR', BLOCK_BOTTOM_RIGHT: 'PANEL_BR_COLOR',
+    BLOCK_BAND: 'PANEL_BAND_COLOR', BLOCK_MID_LEFT: 'PANEL_ML_COLOR',
+    BLOCK_MID_RIGHT: 'PANEL_MR_COLOR'
+  };
+
+  // What the palette calls the selected slot. The per-item label is the one
+  // applyColumnLabels() maintains, so it already says "Top strip" and friends on
+  // a round six-block face.
+  function slotName(key) {
+    if (key === 'BLOCK_BAND') { return 'Banner'; }
+    var el = itemElement(key);
+    var span = el && el.querySelector('.label');
+    var side = key.indexOf('LEFT') > -1 ? 'Left ' : 'Right ';
+    return side + ((span && span.textContent) || 'block');
+  }
+
+  // A handful of blocks differ only in one detail — a leading zero, an icon, a
+  // band color — and listing each one separately is what made the old flat
+  // list long. Those sit on a single palette chip (the first id in the group,
+  // which is what tapping the chip places) and the detail moves to a select in
+  // the Selected Block section. Everything else, big and small alike, gets its
+  // own chip.
+  //
+  // Adding a variation is one line here; the palette and the select both follow.
+  var VARIATIONS = [
+    { name: 'Leading zero', options: [[16, 'Shown'], [47, 'Hidden']] },
+    { name: 'Leading zero', options: [[17, 'Shown'], [48, 'Hidden']] },
+    { name: 'Weather icon', options: [[11, 'Hidden'], [25, 'Shown']] },
+    { name: 'Second line', options: [[26, 'Weekday'], [29, 'Month']] },
+    { name: 'AM/PM layout', options: [[22, 'Side by side'], [23, 'Stacked']] },
+    { name: 'Band color', options: [[33, 'Off'], [41, 'On']] },
+    { name: 'Band color', options: [[34, 'Off'], [42, 'On']] },
+    { name: 'Band color', options: [[39, 'Off'], [43, 'On']] },
+    { name: 'Band color', options: [[40, 'Off'], [44, 'On']] }
+  ];
+  var VARIATION_OF = {};
+  VARIATIONS.forEach(function(group) {
+    group.options.forEach(function(opt) { VARIATION_OF[opt[0]] = group; });
+  });
+
+  // True for the ids the palette folds away: everything but the one its chip
+  // stands for.
+  function isFolded(value) {
+    var group = VARIATION_OF[value];
+    return !!group && group.options[0][0] !== value;
+  }
+
+  // The block ids this slot accepts. Read off the select, so the round-face
+  // trim in trimMidOptions() keeps a variation out of a strip it can't take.
+  function slotAllows(key) {
+    var el = itemElement(key);
+    var sel = el && el.querySelector('select');
+    var ok = {};
+    if (sel) {
+      Array.prototype.slice.call(sel.querySelectorAll('option')).forEach(function(opt) {
+        ok[parseInt(opt.value, 10)] = true;
+      });
+    }
+    return ok;
+  }
+
+  var CHIP_BOX = 48;     // block preview, in watch pixels
+  var CHIP_SCALE = 1;
+
+  function chipColors() {
+    return {
+      panel: colorHex(SLOT_COLOR[selected]),
+      weekend: colorHex('WEEKEND_COLOR'),
+      face: colorHex('FACE_COLOR'),
+      showSeconds: clayConfig.getItemByMessageKey('SHOW_SECONDS').get(),
+      box: CHIP_BOX, scale: CHIP_SCALE
+    };
+  }
+
+  // `value` is what tapping the chip places; `draw` is what it shows, which is
+  // the same block unless the slot is already on another member of its
+  // variation group.
+  //
+  // A div, not a button: Clay styles its own buttons (uppercase, letter
+  // spacing, a flex row that puts the caption beside the preview instead of
+  // under it), and a div inherits none of it.
+  function chip(value, label, active, colors, draw) {
+    return '<div data-block="' + value + '" style="display:inline-block;' +
+      'vertical-align:top;width:' + (CHIP_BOX * CHIP_SCALE + 8) + 'px;' +
+      'margin:0 4px 6px 0;padding:3px 0;border-radius:6px;cursor:pointer;' +
+      'text-align:center;background:' + (active ? '#0A84FF' : 'transparent') +
+      ';color:' + (active ? '#FFF' : '#888') + ';">' +
+      PREVIEW.swatch(draw, colors) +
+      // Two lines, clipped: a long name can't make its chip taller than the
+      // rest of the row.
+      '<div style="font-size:12px;line-height:1.1;margin-top:3px;height:2.2em;' +
+      'overflow:hidden;text-transform:none;letter-spacing:normal;">' +
+      label + '</div></div>';
+  }
+
+  function buildPalette() {
+    var item = clayConfig.getItemById('PALETTE');
+    if (!item) { return; }
+    var hint = 'font-size:13px;color:#888;margin:4px 0;';
+    if (!selected) {
+      item.set('<div style="' + hint +
+        '">Tap a block on the face to change what it shows.</div>');
+      return;
+    }
+    var el = itemElement(selected);
+    var sel = el && el.querySelector('select');
+    if (!sel) { return; }
+    var cur = blockVal(selected);
+    var group = VARIATION_OF[cur];
+    var colors = chipColors();
+    var html = '<div style="' + hint + '"><b>' + slotName(selected) +
+      '</b> — tap the face again to close.</div>' +
+      '<div style="max-height:300px;overflow-y:auto;-webkit-overflow-scrolling:touch;">';
+    // Walk the select's own optgroups; a select without any is one flat group.
+    var groups = sel.querySelectorAll('optgroup');
+    var lists = groups.length ? groups : [sel];
+    Array.prototype.slice.call(lists).forEach(function(list) {
+      var opts = Array.prototype.slice.call(list.querySelectorAll('option'))
+        .filter(function(opt) { return !isFolded(parseInt(opt.value, 10)); });
+      if (!opts.length) { return; }
+      var name = list.getAttribute && list.getAttribute('label');
+      if (name) {
+        html += '<div style="font-size:11px;color:#888;text-transform:uppercase;' +
+          'letter-spacing:.05em;margin:8px 0 4px;">' + name + '</div>';
+      }
+      // line-height:0 so the rows of inline-block chips don't gain a leading.
+      html += '<div style="line-height:0;">';
+      opts.forEach(function(opt) {
+        var v = parseInt(opt.value, 10);
+        // The group heading already says big or small; drop the suffix.
+        var label = opt.textContent.replace(/\s*\((big|small)\)\s*$/i, '');
+        // A chip stands for its whole variation group, so it reads as chosen —
+        // and draws itself — as whichever member the slot is actually on.
+        var on = v === cur || (!!group && group === VARIATION_OF[v]);
+        html += chip(on ? cur : v, label, on, colors, on ? cur : v);
+      });
+      html += '</div>';
+    });
+    item.set(html + '</div>');
+  }
+
+  // The detail select for the block on the slot, or nothing when it has none.
+  function buildVariation() {
+    var item = clayConfig.getItemById('VARIATION');
+    if (!item) { return; }
+    var cur = selected ? blockVal(selected) : -1;
+    var group = VARIATION_OF[cur];
+    var ok = selected ? slotAllows(selected) : {};
+    var opts = group ? group.options.filter(function(o) { return ok[o[0]]; }) : [];
+    if (opts.length < 2) { item.set(''); return; }
+    item.set('<label class="tap-highlight" class="padding:0;"><span class="label">' +
+      group.name + '</span><select data-variation style="width:40%;' +
+      'box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid #999;' +
+      'font-size:14px;">' + opts.map(function(o) {
+        return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') +
+          '>' + o[1] + '</option>';
+      }).join('') + '</select></label>');
+  }
+
+  // Hide every block select (the palette replaces them) and show only the
+  // selected block's color picker. With nothing selected the whole Selected
+  // Block section is empty, so its heading goes too.
+  function applyEditorVisibility() {
+    SLOT_KEYS.forEach(function(key) {
+      var it = clayConfig.getItemByMessageKey(key);
+      if (it) { it.hide(); }
+      var color = clayConfig.getItemByMessageKey(SLOT_COLOR[key]);
+      if (color) { key === selected ? color.show() : color.hide(); }
+    });
+    var heading = clayConfig.getItemById('BLOCKS_HEADING');
+    if (heading) { selected ? heading.show() : heading.hide(); }
+  }
+
+  // Everything the editor injects is replaced wholesale on each change, so its
+  // events are caught by delegation rather than re-bound to the new nodes.
+  function nodeWith(el, name) {
+    while (el && el.getAttribute) {
+      if (el.getAttribute(name) !== null) { return el; }
+      el = el.parentNode;
+    }
+    return null;
+  }
+
+  // The chips are drawn with the slot's own panel color on the face color, so
+  // every setting that changes how the face looks changes them too. Face
+  // first: build() is what loads the sample data and the units / seam flags
+  // that the chips are then drawn with.
+  function redraw() {
+    refreshPreview();
+    buildPalette();
+  }
+
+  // Placing a block redraws the face, the chips and the share code through the
+  // item's own change event; only the variation select is left to catch up.
+  function place(value) {
+    setBlock(selected, value);
+    buildVariation();
+  }
+
+  function bindEditor() {
+    document.addEventListener('click', function(e) {
+      var node = nodeWith(e.target, 'data-slot');
+      if (node) {
+        e.preventDefault();
+        var slot = node.getAttribute('data-slot');
+        selected = selected === slot ? null : slot;
+        applyEditorVisibility();
+        redraw();
+        buildVariation();
+        return;
+      }
+      node = nodeWith(e.target, 'data-block');
+      if (node && selected) {
+        e.preventDefault();
+        place(parseInt(node.getAttribute('data-block'), 10));
+      }
+    });
+
+    document.addEventListener('change', function(e) {
+      var node = nodeWith(e.target, 'data-variation');
+      if (node && selected) { place(parseInt(node.value, 10)); }
+    });
   }
 
   // --- Presets ------------------------------------------------------------
@@ -1012,32 +1292,15 @@ function clayCustomFn() {
   // the two middles lift out into strips above and below the grid. That moves
   // every block in the column: reading down the face the left column runs
   // strip / top / bottom and the right column runs top / bottom / strip, so
-  // "Middle" and "Bottom" end up naming the wrong panels. Clay bakes labels and
-  // item order in at build time, so re-title and re-stack them in the DOM to
-  // match what the watch actually draws.
+  // "Middle" and "Bottom" end up naming the wrong panels. Clay bakes each
+  // label in at build time and the palette header reads it back, so re-title
+  // them in the DOM to match what the watch actually draws.
   //
-  // Each block's color picker follows it, so both move together.
-  var COLUMN_ITEMS = {
-    left: ['BLOCK_TOP_LEFT', 'PANEL_TL_COLOR', 'BLOCK_MID_LEFT', 'PANEL_ML_COLOR',
-           'BLOCK_BOTTOM_LEFT', 'PANEL_BL_COLOR'],
-    right: ['BLOCK_TOP_RIGHT', 'PANEL_TR_COLOR', 'BLOCK_MID_RIGHT', 'PANEL_MR_COLOR',
-            'BLOCK_BOTTOM_RIGHT', 'PANEL_BR_COLOR']
-  };
-  // Top-to-bottom order once the middles have become strips: the left column's
-  // middle rises above its top block, the right column's sinks below its bottom.
-  var ROUND_ITEMS = {
-    left: ['BLOCK_MID_LEFT', 'PANEL_ML_COLOR', 'BLOCK_TOP_LEFT', 'PANEL_TL_COLOR',
-           'BLOCK_BOTTOM_LEFT', 'PANEL_BL_COLOR'],
-    right: ['BLOCK_TOP_RIGHT', 'PANEL_TR_COLOR', 'BLOCK_BOTTOM_RIGHT', 'PANEL_BR_COLOR',
-            'BLOCK_MID_RIGHT', 'PANEL_MR_COLOR']
-  };
   // Only the positions that shift need a new name; the rest keep their declared
   // label (the left bottom block and the right top one don't move).
   var ROUND_LABELS = {
-    BLOCK_MID_LEFT: 'Top strip', PANEL_ML_COLOR: 'Top strip Color',
-    BLOCK_TOP_LEFT: 'Middle', PANEL_TL_COLOR: 'Middle Color',
-    BLOCK_BOTTOM_RIGHT: 'Middle', PANEL_BR_COLOR: 'Middle Color',
-    BLOCK_MID_RIGHT: 'Bottom strip', PANEL_MR_COLOR: 'Bottom strip Color'
+    BLOCK_MID_LEFT: 'Top strip', BLOCK_TOP_LEFT: 'Middle',
+    BLOCK_BOTTOM_RIGHT: 'Middle', BLOCK_MID_RIGHT: 'Bottom strip'
   };
 
   function itemElement(key) {
@@ -1071,47 +1334,38 @@ function clayCustomFn() {
     });
   }
 
-  function applyColumnOrder(six) {
+  function applyColumnLabels(six) {
     var strips = six && isRound;
-    ['left', 'right'].forEach(function(side) {
-      var keys = COLUMN_ITEMS[side];
-      var parent = itemElement(keys[0]) && itemElement(keys[0]).parentNode;
-      if (!parent) { return; }
-      // appendChild moves a node it already owns, so walking the wanted order
-      // re-stacks the whole column after its heading.
-      (strips ? ROUND_ITEMS : COLUMN_ITEMS)[side].forEach(function(key) {
-        var node = itemElement(key);
-        if (node) { parent.appendChild(node); }
-      });
-      keys.forEach(function(key) {
-        var span = itemElement(key) && itemElement(key).querySelector('.label');
+    COLUMN_SLOTS.forEach(function(col) {
+      col.forEach(function(key) {
+        var el = itemElement(key);
+        var span = el && el.querySelector('.label');
         var it = clayConfig.getItemByMessageKey(key);
-        if (span) {
+        if (span && it) {
           span.textContent = (strips && ROUND_LABELS[key]) || it.config.label;
         }
       });
     });
   }
 
-  // Show only the section that belongs to the active layout: the banner is
-  // classic-only, the two column middles are 6-block-only.
+  // Show only what belongs to the active layout: the banner is classic-only,
+  // the two column middles are 6-block-only.
   function applyLayoutVisibility() {
     var six = isSixLayout();
-    applyColumnOrder(six);
+    applyColumnLabels(six);
     // The middle joins / leaves the column with the layout, so a column that
     // was valid under the old one may now hold two bigs or none.
     COLUMN_SLOTS.forEach(function(col) { reconcile(col[0]); });
-    var shown = {
-      BLOCK_BAND: !six, PANEL_BAND_COLOR: !six, YEAR_TOP: !six,
-      BLOCK_MID_LEFT: six, PANEL_ML_COLOR: six,
-      BLOCK_MID_RIGHT: six, PANEL_MR_COLOR: six
-    };
-    Object.keys(shown).forEach(function(key) {
-      var it = clayConfig.getItemByMessageKey(key);
-      if (it) { shown[key] ? it.show() : it.hide(); }
-    });
-    var heading = clayConfig.getItemById('BANNER_HEADING');
-    if (heading) { six ? heading.hide() : heading.show(); }
+    // The layout decides which blocks the face draws: the banner is classic
+    // only, the two column middles six only. A selection on a block that just
+    // left the face has nothing to point at, so it is dropped.
+    var live = six ? MID_KEYS.concat(GRID_KEYS) : GRID_KEYS.concat(['BLOCK_BAND']);
+    if (selected && live.indexOf(selected) < 0) { selected = null; }
+    applyEditorVisibility();
+    buildPalette();
+    buildVariation();
+    var yearTop = clayConfig.getItemByMessageKey('YEAR_TOP');
+    if (yearTop) { six ? yearTop.hide() : yearTop.show(); }
 
     var tip = clayConfig.getItemById('LAYOUT_TIP');
     if (tip) {
@@ -1153,14 +1407,17 @@ function clayCustomFn() {
       }
     } catch (e) { /* no localStorage: skip the one-time seed */ }
 
-    // Draw once, then redraw whenever any setting that affects the face changes.
+    // Draw once, then redraw whenever any setting that affects the face
+    // changes. The palette chips are drawn by the same renderer off the same
+    // settings, so they go with it — a color picked here has to land on the
+    // chips while they are open, not the next time they are rebuilt.
     var watched = ['LAYOUT', 'YEAR_TOP', 'LANG', 'UNITS', 'BLOCK_BAND',
       'BLOCK_MID_LEFT', 'BLOCK_MID_RIGHT', 'FACE_COLOR', 'PANEL_COLOR',
       'WEEKEND_COLOR', 'SHOW_SECONDS',
       'DRAW_SEAM'].concat(GRID_KEYS).concat(PANEL_KEYS);
     watched.forEach(function(key) {
       var item = clayConfig.getItemByMessageKey(key);
-      if (item) { item.on('change', refreshPreview); }
+      if (item) { item.on('change', redraw); }
     });
     // The share code covers settings the preview doesn't draw (the flip
     // animation), so it tracks its own key list.
@@ -1168,6 +1425,7 @@ function clayCustomFn() {
       var item = clayConfig.getItemByMessageKey(key);
       if (item) { item.on('change', refreshCode); }
     });
+    bindEditor();
     applyLayoutVisibility();
     refreshPreview();
     buildPresetButtons();

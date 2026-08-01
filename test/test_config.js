@@ -28,53 +28,71 @@ function defaults() {
   return out;
 }
 
-// Every item with a message key, in page order, tagged with the section it
-// renders inside — Clay makes each section one <div> of sibling components, so
-// the config page's reordering needs both.
+// Every item with a message key, in page order.
 function declaredItems() {
   var out = [];
-  (function walk(items, section) {
+  (function walk(items) {
     items.forEach(function(it) {
-      if (it.items) { walk(it.items, it); return; }
+      if (it.items) { walk(it.items); return; }
       if (it.messageKey) {
-        out.push({ key: it.messageKey, label: it.label, section: section });
+        out.push({ key: it.messageKey, label: it.label, options: it.options });
       }
     });
-  })(configDef, null);
+  })(configDef);
   return out;
 }
 
-// The smallest DOM the config page needs: a section node whose appendChild
-// moves an already-owned child to the end, exactly like the real one.
-function makeSection() {
-  return {
-    children: [],
-    appendChild: function(node) {
-      var at = this.children.indexOf(node);
-      if (at > -1) { this.children.splice(at, 1); }
-      this.children.push(node);
-      node.parentNode = this;
-    }
+// The <select> behind a block picker. The config page never shows it, but it
+// reads the optgroups back to build the palette and trims them on round
+// screens, so the stub has to carry the grouping and support removal.
+function makeSelect(options) {
+  var select = { children: [] };
+  // A plain option list (the layout / language pickers) renders as one
+  // unnamed group; the block pickers declare their groups.
+  var groups = Array.isArray(options[0] && options[0].value)
+    ? options : [{ label: null, value: options }];
+  groups.forEach(function(g) {
+    var group = {
+      options: [],
+      parentNode: select,
+      getAttribute: function(name) { return name === 'label' ? g.label : null; },
+      removeChild: function(node) { this.options.splice(this.options.indexOf(node), 1); },
+      querySelector: function() { return this.options[0] || null; },
+      querySelectorAll: function() { return this.options.slice(); }
+    };
+    group.options = g.value.map(function(o) {
+      return { value: String(o.value), textContent: o.label, parentNode: group };
+    });
+    select.children.push(group);
+  });
+  select.removeChild = function(node) {
+    this.children.splice(this.children.indexOf(node), 1);
   };
+  select.querySelectorAll = function(sel) {
+    if (sel === 'optgroup') { return this.children.slice(); }
+    return this.children.reduce(function(all, g) {
+      return all.concat(g.options);
+    }, []);
+  };
+  return select;
 }
 
 function makeClay(platform) {
   var vals = defaults();
   var items = {};
   var afterBuild = [];
-  var sections = new Map();
 
-  // Build every item up front, in page order, so the section children start out
-  // in the order the config declares them.
   declaredItems().forEach(function(decl) {
     var key = decl.key;
     var handlers = {};
     var span = { textContent: decl.label };
+    var select = decl.options ? makeSelect(decl.options) : null;
     var node = {
-      querySelector: function(sel) { return sel === '.label' ? span : null; }
+      querySelector: function(sel) {
+        if (sel === '.label') { return span; }
+        return sel === 'select' ? select : null;
+      }
     };
-    if (!sections.has(decl.section)) { sections.set(decl.section, makeSection()); }
-    sections.get(decl.section).appendChild(node);
 
     items[key] = {
       hidden: false,
@@ -104,20 +122,9 @@ function makeClay(platform) {
     return items[key];
   }
 
-  // The keys rendered in one section, in their current on-page order.
-  function sectionOrder(key) {
-    var node = items[key].$element[0];
-    return node.parentNode.children.map(function(child) {
-      return Object.keys(items).filter(function(k) {
-        return items[k].$element && items[k].$element[0] === child;
-      })[0];
-    });
-  }
-
   return {
     vals: vals,
     items: items,
-    sectionOrder: sectionOrder,
     meta: { activeWatchInfo: { platform: platform } },
     EVENTS: { AFTER_BUILD: 'AFTER_BUILD' },
     getItemByMessageKey: item,
@@ -132,8 +139,30 @@ function makeClay(platform) {
 // can read a value back or fire a click the same way a user would.
 function makeDocument() {
   var nodes = {};
+  var handlers = {};
   return {
     nodes: nodes,
+    // The face editor delegates every tap here, since the preview is redrawn
+    // from scratch on each change.
+    addEventListener: function(ev, fn) {
+      (handlers[ev] = handlers[ev] || []).push(fn);
+    },
+    tap: function(attr, value) {
+      var target = {
+        getAttribute: function(name) { return name === attr ? value : null; }
+      };
+      (handlers.click || []).forEach(function(fn) {
+        fn({ target: target, preventDefault: function() {} });
+      });
+    },
+    // The injected variation <select>, picked by a wearer.
+    choose: function(value) {
+      var target = {
+        value: String(value),
+        getAttribute: function(name) { return name === 'data-variation' ? '' : null; }
+      };
+      (handlers.change || []).forEach(function(fn) { fn({ target: target }); });
+    },
     querySelector: function(sel) {
       if (!nodes[sel]) {
         nodes[sel] = {
@@ -188,53 +217,52 @@ PLATFORMS.forEach(function(platform) {
         bigs.length + ' big blocks');
     });
 
-    // Round faces preview as a circle. The banner section belongs to the
-    // classic layout, the column middles to the 6-block one.
+    // Round faces preview as a circle.
     assert.strictEqual(html.indexOf('border-radius:50%') > -1, round,
       platform + ': wrong face shape');
-    ['BLOCK_MID_LEFT', 'BLOCK_MID_RIGHT', 'PANEL_ML_COLOR', 'PANEL_MR_COLOR']
-      .forEach(function(key) {
-        assert.strictEqual(clay.items[key].hidden, layout === 0,
-          platform + '/' + layout + ': ' + key + ' visibility');
-      });
-    ['BLOCK_BAND', 'PANEL_BAND_COLOR', 'YEAR_TOP'].forEach(function(key) {
-      assert.strictEqual(clay.items[key].hidden, layout === 1,
-        platform + '/' + layout + ': ' + key + ' visibility');
-    });
 
-    // Each column's settings must be listed, and named, in the order the watch
-    // draws them. On a round 6-block face the middles become strips, so the
-    // left column starts with one and the right column ends with one.
-    var strip = layout === 1 && round;
-    var expect = strip
-      ? { left: [['BLOCK_MID_LEFT', 'Top strip'], ['BLOCK_TOP_LEFT', 'Middle'],
-                 ['BLOCK_BOTTOM_LEFT', 'Bottom']],
-          right: [['BLOCK_TOP_RIGHT', 'Top'], ['BLOCK_BOTTOM_RIGHT', 'Middle'],
-                  ['BLOCK_MID_RIGHT', 'Bottom strip']] }
-      : { left: [['BLOCK_TOP_LEFT', 'Top'], ['BLOCK_MID_LEFT', 'Middle'],
-                 ['BLOCK_BOTTOM_LEFT', 'Bottom']],
-          right: [['BLOCK_TOP_RIGHT', 'Top'], ['BLOCK_MID_RIGHT', 'Middle'],
-                  ['BLOCK_BOTTOM_RIGHT', 'Bottom']] };
-    ['left', 'right'].forEach(function(side) {
-      var want = expect[side];
-      var got = clay.sectionOrder(want[0][0]).filter(function(k) {
-        return k.indexOf('BLOCK_') === 0;
-      });
-      assert.deepStrictEqual(got, want.map(function(w) { return w[0]; }),
-        platform + '/' + layout + ': ' + side + ' column out of draw order');
-      want.forEach(function(w) {
-        assert.strictEqual(clay.items[w[0]].labelText(), w[1],
-          platform + '/' + layout + ': ' + w[0] + ' should read "' + w[1] + '"');
-      });
+    // Every block the layout draws is tappable, and only those: the banner
+    // belongs to the classic layout, the column middles to the 6-block one.
+    var slots = (html.match(/data-slot="(\w+)"/g) || []).map(function(m) {
+      return m.slice(11, -1);
+    }).sort();
+    assert.deepStrictEqual(slots, (layout
+      ? ['BLOCK_BOTTOM_LEFT', 'BLOCK_BOTTOM_RIGHT', 'BLOCK_MID_LEFT',
+         'BLOCK_MID_RIGHT', 'BLOCK_TOP_LEFT', 'BLOCK_TOP_RIGHT']
+      : ['BLOCK_BAND', 'BLOCK_BOTTOM_LEFT', 'BLOCK_BOTTOM_RIGHT',
+         'BLOCK_TOP_LEFT', 'BLOCK_TOP_RIGHT']).sort(),
+      platform + '/' + layout + ': wrong tap targets on the face');
+
+    // The palette replaces the block selects, so they stay hidden, and no
+    // color picker shows until a block is selected. "Banner at top" is the one
+    // block setting still on the page, and only under the classic layout.
+    Object.keys(clay.items).forEach(function(key) {
+      if (/^BLOCK_|^PANEL_[TBM]|^PANEL_BAND/.test(key)) {
+        assert.ok(clay.items[key].hidden, platform + '/' + layout + ': ' + key +
+          ' should be hidden until its block is tapped');
+      }
     });
-    if (strip) {   // going back to classic must undo the order and the labels
+    assert.strictEqual(clay.items.YEAR_TOP.hidden, layout === 1,
+      platform + '/' + layout + ': YEAR_TOP visibility');
+
+    // The palette names the block it is editing, so each column slot has to be
+    // titled the way the watch draws it. On a round 6-block face the middles
+    // become strips: the left one above the grid, the right one below.
+    var strip = layout === 1 && round;
+    var labels = strip
+      ? { BLOCK_MID_LEFT: 'Top strip', BLOCK_TOP_LEFT: 'Middle',
+          BLOCK_BOTTOM_LEFT: 'Bottom', BLOCK_TOP_RIGHT: 'Top',
+          BLOCK_BOTTOM_RIGHT: 'Middle', BLOCK_MID_RIGHT: 'Bottom strip' }
+      : { BLOCK_TOP_LEFT: 'Top', BLOCK_MID_LEFT: 'Middle',
+          BLOCK_BOTTOM_LEFT: 'Bottom', BLOCK_TOP_RIGHT: 'Top',
+          BLOCK_MID_RIGHT: 'Middle', BLOCK_BOTTOM_RIGHT: 'Bottom' };
+    Object.keys(labels).forEach(function(key) {
+      assert.strictEqual(clay.items[key].labelText(), labels[key],
+        platform + '/' + layout + ': ' + key + ' should read "' +
+        labels[key] + '"');
+    });
+    if (strip) {   // going back to classic must undo the labels
       clay.getItemByMessageKey('LAYOUT').set(0);
-      assert.deepStrictEqual(
-        clay.sectionOrder('BLOCK_TOP_LEFT').filter(function(k) {
-          return k.indexOf('BLOCK_') === 0;
-        }),
-        ['BLOCK_TOP_LEFT', 'BLOCK_MID_LEFT', 'BLOCK_BOTTOM_LEFT'],
-        platform + ': column stayed reordered after leaving the 6-block layout');
       assert.strictEqual(clay.items.BLOCK_MID_LEFT.labelText(), 'Middle',
         platform + ': strip label stuck after leaving the 6-block layout');
       clay.getItemByMessageKey('LAYOUT').set(1);
@@ -262,11 +290,16 @@ PLATFORMS.forEach(function(platform) {
   });
 
   // Panel rects out of the preview (a height floor drops the hairline seams,
-  // which are positioned the same way), left column only, top to bottom.
-  var rects = [], m;
+  // which are positioned the same way), left column only, top to bottom. Each
+  // block draws twice — once as the panel, once as the tap target on top of it
+  // — so identical rects collapse to one.
+  var rects = [], seen = {}, m;
   var re = /left:([\d.]+)px;top:([\d.]+)px;width:([\d.]+)px;height:([\d.]+)px/g;
   while ((m = re.exec(clay.vals['#PREVIEW']))) {
-    if (+m[4] >= 5) { rects.push({ x: +m[1], y: +m[2], h: +m[4] }); }
+    if (+m[4] >= 5 && !seen[m[0]]) {
+      seen[m[0]] = true;
+      rects.push({ x: +m[1], y: +m[2], h: +m[4] });
+    }
   }
   var left = Math.min.apply(null, rects.map(function(r) { return r.x; }));
   var col = rects.filter(function(r) { return r.x === left; })
@@ -304,6 +337,127 @@ PLATFORMS.forEach(function(platform) {
   var hidden = (html.match(/visibility:hidden">0<\/span>/g) || []).length;
   assert.strictEqual(hidden, 2, 'expected both clocks to hide a leading zero');
   assert.ok(html.indexOf('>9:09<') > -1, 'small clock kept its leading zero');
+  checks++;
+})();
+
+// --- Tap to place ---------------------------------------------------------
+// Blocks are placed on the face: tap a panel, then tap what it should show.
+// The palette is scraped out of the hidden select, so it has to offer exactly
+// what that slot accepts, and picking still has to go through the column rule.
+(function tapToPlace() {
+  global.document = makeDocument();
+  var clay = makeClay('basalt');
+  clayCustomFn.call(clay);
+  clay.build();
+
+  document.tap('data-slot', 'BLOCK_TOP_RIGHT');
+  var palette = clay.vals['#PALETTE'];
+  assert.ok(palette.indexOf('Right Top') > -1, 'palette does not name the block');
+  assert.ok(clay.vals['#PREVIEW'].indexOf('inset 0 0 0') > -1,
+    'the selected block is not ringed on the face');
+  assert.ok(!clay.items.PANEL_TR_COLOR.hidden,
+    'the selected block\'s color picker stayed hidden');
+  assert.ok(clay.items.PANEL_TL_COLOR.hidden,
+    'another block\'s color picker came out with it');
+
+  // Big and small are both listed, each chip drawn as the block itself.
+  assert.ok(palette.indexOf('Big - Weather') > -1 &&
+    palette.indexOf('Small - Weather') > -1, 'the palette lost a size group');
+  assert.ok(palette.indexOf('(big)') < 0 && palette.indexOf('(small)') < 0,
+    'a chip still spells out the size its group heading already gives');
+  var chips = (palette.match(/data-block="\d+"/g) || []).length;
+  var swatches = (palette.match(/position:relative;margin:0 auto;width:/g) || []).length;
+  assert.strictEqual(chips, swatches, 'every chip should carry a rendered block');
+  assert.ok(palette.indexOf('<svg') > -1, 'no block previews in the palette');
+
+  // Only the blocks that are a variation of another are folded away.
+  var offered = (palette.match(/data-block="(\d+)"/g) || []).map(function(m) {
+    return parseInt(m.slice(12), 10);
+  });
+  [16, 17, 11, 26, 22, 33, 34, 39, 40].forEach(function(v) {
+    assert.ok(offered.indexOf(v) > -1, 'block ' + v + ' left the palette');
+  });
+  [47, 48, 25, 29, 23, 41, 42, 43, 44].forEach(function(v) {
+    assert.ok(offered.indexOf(v) < 0, 'block ' + v + ' should be a variation');
+  });
+
+  // Placing a big block has to drop the other block in that column to small.
+  document.tap('data-block', '12');            // temperature (big)
+  assert.strictEqual(clay.vals.BLOCK_TOP_RIGHT, 12, 'the tap did not place');
+  assert.ok(!isBig(clay.vals.BLOCK_BOTTOM_RIGHT),
+    'the column kept two big blocks');
+  assert.ok(clay.vals['#PALETTE'].indexOf('#0A84FF') > -1,
+    'the placed block is not marked in the palette');
+  assert.strictEqual(clay.vals['#VARIATION'], '',
+    'a block with nothing to vary got a select anyway');
+
+  // A block that does have a variation gets one, and picking from it swaps to
+  // the other member of the group without leaving the chip.
+  document.tap('data-block', '17');            // digital clock (big)
+  assert.ok(clay.vals['#VARIATION'].indexOf('Leading zero') > -1,
+    'no variation select for the digital clock');
+  assert.ok(/<option value="17"[^>]*selected/.test(clay.vals['#VARIATION']),
+    'the variation select does not show the block that is placed');
+  document.choose(48);                         // hide the leading zero
+  assert.strictEqual(clay.vals.BLOCK_TOP_RIGHT, 48, 'the variation did not apply');
+  assert.ok(clay.vals['#PALETTE'].indexOf('data-block="48"') > -1,
+    'the chip should stand for whichever variation is placed');
+  assert.ok(clay.vals['#VARIATION'].indexOf('Leading zero') > -1,
+    'the variation select closed after being used');
+
+  // Tapping the same block again closes the editor.
+  document.tap('data-slot', 'BLOCK_TOP_RIGHT');
+  assert.ok(clay.items.PANEL_TR_COLOR.hidden, 'the color picker stayed open');
+  assert.strictEqual(clay.vals['#VARIATION'], '', 'the variation select stayed open');
+  assert.ok(clay.vals['#PALETTE'].indexOf('data-block') < 0,
+    'the palette stayed open');
+  checks++;
+})();
+
+// The chips are drawn with the slot's panel color on the face color, so a
+// color picked while the palette is open has to land on them straight away.
+(function liveColors() {
+  global.document = makeDocument();
+  var clay = makeClay('basalt');
+  clayCustomFn.call(clay);
+  clay.build();
+  document.tap('data-slot', 'BLOCK_TOP_LEFT');
+
+  clay.getItemByMessageKey('PANEL_TL_COLOR').set(0x00AAFF);
+  assert.ok(clay.vals['#PALETTE'].indexOf('#00AAFF') > -1,
+    'the panel color did not reach the open chips');
+
+  clay.getItemByMessageKey('FACE_COLOR').set(0x123456);
+  assert.ok(clay.vals['#PALETTE'].indexOf('#123456') > -1,
+    'the face color did not reach the open chips');
+  assert.ok(clay.vals['#PREVIEW'].indexOf('#123456') > -1,
+    'the face color did not reach the preview');
+
+  // The master color broadcasts to every block, so it has to land too.
+  clay.getItemByMessageKey('PANEL_COLOR').set(0x445566);
+  assert.ok(clay.vals['#PALETTE'].indexOf('#445566') > -1,
+    'the master panel color did not reach the open chips');
+  checks++;
+})();
+
+// A round 6-block face draws the two column middles as strips, which only take
+// the banner blocks — so their palettes must offer those and nothing else.
+(function stripPalette() {
+  global.document = makeDocument();
+  var clay = makeClay('chalk');
+  clayCustomFn.call(clay);
+  clay.build();
+  clay.getItemByMessageKey('LAYOUT').set(1);
+
+  document.tap('data-slot', 'BLOCK_MID_LEFT');
+  var offered = (clay.vals['#PALETTE'].match(/data-block="(\d+)"/g) || [])
+    .map(function(m) { return parseInt(m.slice(12), 10); });
+  assert.ok(offered.length, 'the strip palette is empty');
+  assert.ok(offered.indexOf(16) > -1, 'the strip cannot take a digital clock');
+  assert.ok(offered.every(function(v) { return !isBig(v); }),
+    'the strip palette offers a big block');
+  assert.ok(clay.vals['#PALETTE'].indexOf('Left Top strip') > -1,
+    'the strip is not named the way the watch draws it');
   checks++;
 })();
 
