@@ -1,37 +1,9 @@
-
-// QuadBlock enum (must match flipwall-watchface.c):
-//   0 = Day of week, 1 = Day of month, 2 = Clock, 3 = Month.
-// "Big" blocks fill a square; "small" blocks are half height. Each column must
-// pair exactly one of each, so the two columns line up.
-var BIG_BLOCKS = { 1: true, 2: true, 8: true, 12: true, 17: true, 19: true,
-  21: true, 26: true, 27: true, 28: true, 29: true, 30: true, 31: true, 32: true,
-  34: true, 36: true, 38: true, 40: true, 42: true, 44: true, 46: true,
-  48: true };
-// Day, Clock, Weather, Temp(big), Digital(big), Hours(big), Minutes(big),
-// Calendar, Humidity, Battery, Calendar+Month, HR, Distance, Max/Min, UV,
-// Wind speed, Wind direction, Air quality (big)
-var FALLBACK_SMALL = 0;                   // Day of week
-var FALLBACK_BIG = 2;                     // Clock
-
-function isBig(v) {
-  return !!BIG_BLOCKS[parseInt(v, 10)];
-}
-
-// The block selectors that make up one column, top to bottom. A column holds
-// exactly one big block; the rest are short. The middle only takes part in the
-// rect 6-block layout — the classic layout hides it, and the round 6-block one
-// lifts it out into a strip — so elsewhere the rule is on the top/bottom pair.
-var COLUMNS = [
-  ['BLOCK_TOP_LEFT', 'BLOCK_MID_LEFT', 'BLOCK_BOTTOM_LEFT'],
-  ['BLOCK_TOP_RIGHT', 'BLOCK_MID_RIGHT', 'BLOCK_BOTTOM_RIGHT']
-];
-
 // ---------------------------------------------------------------------------
 // Config-page logic. Clay serialises this function with .toString() and runs
 // ONLY its own source inside the config webview, so everything it needs (the
 // column-linking rule and the live preview) must be defined in here — it cannot
-// reach module-scope variables. The phone-side sanitize() below keeps its own
-// copies of the block-size helpers.
+// reach module-scope variables. What it needs to know about the blocks
+// themselves it reads back off the page's own selects (see readBlockSets).
 //
 // It does two things:
 //   - Live UI rule: when one block in a column changes and leaves the column
@@ -44,15 +16,13 @@ var COLUMNS = [
 function clayCustomFn() {
   var clayConfig = this;
 
-  // Block-size helpers (duplicated from module scope for the reasons above):
-  // big = Day of month / Clock; small = Day of week / Month.
-  function isBig(v) {
-    var n = parseInt(v, 10);
-    return n === 1 || n === 2 || n === 8 || n === 12 || n === 17 ||
-           n === 19 || n === 21 || n === 26 || (n >= 27 && n <= 32) ||
-           n === 34 || n === 36 || n === 38 || n === 40 ||
-           n === 42 || n === 44 || n === 46 || n === 48;
-  }
+  // Which ids are big (square), and which the banner can hold. Both are read
+  // off the page's own selects by readBlockSets() at AFTER_BUILD — the block
+  // pickers already group their options as "Big - …" / "Small - …" and the
+  // banner picker already lists exactly what a pill can draw — so config.js
+  // stays the only place either fact is written down.
+  var BIG = {}, BAND = {};
+  function isBig(v) { return !!BIG[parseInt(v, 10)]; }
   var FALLBACK_SMALL = 0;   // Day of week
   var FALLBACK_BIG = 2;     // Clock
 
@@ -60,12 +30,10 @@ function clayCustomFn() {
   var PREVIEW = (function() {
   // Screen geometry per platform. `side` mirrors SIDE_MARGIN in the C source
   // (round faces pull in so the panels clear the circle); `gutter` mirrors
-  // GUTTER. Set per render from cfg.platform in build().
+  // GUTTER. Set per render from cfg.platform in build(); aplite, basalt,
+  // diorite and flint all share the plain 144x168 rectangle.
+  var RECT = { w: 144, h: 168, round: false, side: 0, gutter: 3 };
   var SPECS = {
-    aplite:  { w: 144, h: 168, round: false, side: 0,  gutter: 3 },
-    basalt:  { w: 144, h: 168, round: false, side: 0,  gutter: 3 },
-    diorite: { w: 144, h: 168, round: false, side: 0,  gutter: 3 },
-    flint:   { w: 144, h: 168, round: false, side: 0,  gutter: 3 },
     emery:   { w: 200, h: 228, round: false, side: 4,  gutter: 6 },
     chalk:   { w: 180, h: 180, round: true,  side: 22, gutter: 3 },
     gabbro:  { w: 260, h: 260, round: true,  side: 30, gutter: 3 }
@@ -83,7 +51,7 @@ function clayCustomFn() {
   // Sample data shown in the mock-up. Sunday so the weekend/accent color is
   // visible; 10:09 -> AM active.
   var SAMPLE = { dow: 'Sun', day: '26', month: 'Jun', year: '2020',
-                 steps: '8.2K', dist: '3.2km', batt: '82%',
+                 steps: '8.2K', stepsFull: '8234', dist: '3.2km', batt: '82%',
                  temp: '22°', humid: '45%', humLabel: 'Hu', humLabel3: 'Hum',
                  battLabel: 'Batt', minmax: '24/12°', tmax: '24°', tmin: '12°',
                  distNum: '3.2', distUnit: 'KM',
@@ -114,16 +82,9 @@ function clayCustomFn() {
     'Batt','Bat','Bat','Batt','Batt','Batt','Batt','Bat','Pil','Bat'  // index = lang
   ];
 
-  // Block ids match the QuadBlock enum: 0 DoW, 1 Day, 2 Clock, 3 Month,
-  // 4 Steps, 5 Distance, 6 Battery, 7 Year, 8 Weather, 9 Month+Day,
-  // 10 Weekday+Day, 11 Temp, 12 Temp(big), 13 Humidity, 14 Max/Min,
-  // 15 Precipitation. Day/Clock/Weather/Temp(big) big.
-  function isShort(v) {
-    return v !== 1 && v !== 2 && v !== 8 && v !== 12 && v !== 17 &&
-           v !== 19 && v !== 21 && v !== 26 && !(v >= 27 && v <= 32) &&
-           v !== 34 && v !== 36 && v !== 38 && v !== 40 &&
-           v !== 42 && v !== 44 && v !== 46 && v !== 48;
-  }
+  // Block ids match the QuadBlock enum; a short block is any that isn't big
+  // (the sizes come from the config page's own option groups, see BIG above).
+  function isShort(v) { return !isBig(v); }
 
   // The wind arrow, approximated to the nearest of 8 glyphs (the watch rotates
   // the real pdc to the exact bearing). 0 deg = north = up. The bearing is where
@@ -136,6 +97,7 @@ function clayCustomFn() {
   // Display text for the data blocks (steps / distance / battery / year).
   function valueText(v) {
     if (v === 4) { return SAMPLE.steps; }
+    if (v === 49) { return SAMPLE.stepsFull; }
     if (v === 5) { return SAMPLE.dist; }
     if (v === 6) { return SAMPLE.batt; }
     if (v === 9) { return SAMPLE.month + ' ' + SAMPLE.day; }
@@ -244,6 +206,30 @@ function clayCustomFn() {
       px(fontPx) + ';line-height:1;">' + txt + '</div>';
   }
 
+  // One half of a block (top or bottom) holding a single line — the shape the
+  // big digital clock, the max/min block and the stacked AM/PM all draw.
+  function halfDiv(t, bottom, color, fpx, justify, pad) {
+    return '<div style="position:absolute;left:0;right:0;' +
+      (bottom ? 'bottom:0;' : 'top:0;') + 'height:50%;display:flex;' +
+      'align-items:center;justify-content:' + (justify || 'center') +
+      ';padding:0 ' + px(pad || 0) + ';white-space:nowrap;color:' + color +
+      ';font-weight:bold;font-size:' + px(fpx) + ';line-height:1;">' + t + '</div>';
+  }
+
+  // A caption or value band inside a big two-line block, padded off the side
+  // borders. Mirrors draw_centered's one-pass shrink so a wide caption
+  // ("UV Index") stays on one line inside the padding instead of wrapping.
+  function cvBand(t, top, bandH, color, fpx, w) {
+    var mx = Math.round(w * 0.10);
+    var tw = t.length * fpx * 0.62, avail = w - 2 * mx;
+    if (tw > avail) { fpx = Math.round(fpx * avail / tw); }
+    return '<div style="position:absolute;left:' + px(mx) + ';right:' +
+      px(mx) + ';top:' + px(top) +
+      ';height:' + px(bandH) + ';display:flex;align-items:center;' +
+      'justify-content:center;white-space:nowrap;color:' + color +
+      ';font-weight:bold;font-size:' + px(fpx) + ';line-height:1;">' + t + '</div>';
+  }
+
   function ampm(txt, top, color) {
     return '<div style="position:absolute;right:' + px(3) + ';' +
       (top ? 'top:' + px(2) : 'bottom:' + px(2)) + ';color:' + color +
@@ -336,16 +322,10 @@ function clayCustomFn() {
     }
     if (v === 23) {  // AM (top-left) / PM (bottom-right), active bright, other dim
       var fpx2 = Math.round(h * 0.29), pad2 = Math.round(w * 0.08);
-      function half(txt, bottom, color) {
-        return '<div style="position:absolute;left:0;right:0;' +
-          (bottom ? 'bottom:0;justify-content:flex-end;padding-right:'
-                  : 'top:0;justify-content:flex-start;padding-left:') + px(pad2) +
-          ';height:50%;display:flex;align-items:center;color:' +
-          color + ';font-weight:bold;font-size:' + px(fpx2) + ';line-height:1;">' +
-          txt + '</div>';
-      }
-      var inner2 = half('AM', false, SAMPLE.isPM ? DIM : c.text) +
-        half('PM', true, SAMPLE.isPM ? c.text : DIM) + seam(w, h);
+      var inner2 =
+        halfDiv('AM', false, SAMPLE.isPM ? DIM : c.text, fpx2, 'flex-start', pad2) +
+        halfDiv('PM', true, SAMPLE.isPM ? c.text : DIM, fpx2, 'flex-end', pad2) +
+        seam(w, h);
       return panelDiv(x, y, w, h, c.panel, inner2);
     }
     if (v === 0) {  // day of week
@@ -364,43 +344,22 @@ function clayCustomFn() {
                         : (SAMPLE.hour < 10 ? '0' : '') + SAMPLE.hour;
       var mm = (SAMPLE.min < 10 ? '0' : '') + SAMPLE.min;
       var fontD = Math.round(h * 0.34);
-      function halfText(t, topHalf, color) {
-        return '<div style="position:absolute;left:0;right:0;' +
-          (topHalf ? 'top:0' : 'bottom:0') +
-          ';height:50%;display:flex;align-items:center;justify-content:center;' +
-          'color:' + color + ';font-weight:bold;font-size:' + px(fontD) +
-          ';line-height:1;">' + t + '</div>';
-      }
       return panelDiv(x, y, w, h, c.panel,
-        halfText(hh, true, c.text) +
-        halfText(mm, false, accent(c.text)) + seam(w, h));
-    }
-    if (v === 26) {  // calendar: weekday (small) over day-of-month (big)
-      var dowFg = SAMPLE.weekend ? c.weekend : c.text;
-      // Caption in a slim band over the big value (mirrors draw_caption_value).
-      var calM = Math.round(h * 0.12), calInH = h - 2 * calM;
-      var calTop = calM + Math.round(calInH * 0.38);
-      var calMX = Math.round(w * 0.10);
-      function calBand(t, top, bandH, color, fpx) {
-        return '<div style="position:absolute;left:' + px(calMX) + ';right:' +
-          px(calMX) + ';top:' + px(top) +
-          ';height:' + px(bandH) + ';display:flex;align-items:center;' +
-          'justify-content:center;white-space:nowrap;color:' + color +
-          ';font-weight:bold;font-size:' + px(fpx) + ';line-height:1;">' + t + '</div>';
-      }
-      return panelDiv(x, y, w, h, c.panel,
-        calBand(SAMPLE.dow, calM, calTop - calM, dowFg, Math.round(h * 0.19)) +
-        calBand(SAMPLE.day, calTop, h - calM - calTop, c.text, Math.round(h * 0.46)) +
-        seam(w, h));
+        halfDiv(hh, false, c.text, fontD) +
+        halfDiv(mm, true, accent(c.text), fontD) + seam(w, h));
     }
     // Big two-line blocks (caption + big value). label_top = caption on top.
     // Mirrors draw_caption_value in the C source (same 12%/38% proportions).
-    if (v === 27 || v === 28 || v === 29 || v === 30 || v === 31 || v === 34 ||
-        v === 36 || v === 38 || v === 40 || v === 46) {
+    if (v === 26 || v === 27 || v === 28 || v === 29 || v === 30 || v === 31 ||
+        v === 34 || v === 36 || v === 38 || v === 40 || v === 46) {
       var cvM = Math.round(h * 0.12), cvInH = h - 2 * cvM;
       var cvSmallH = Math.round(cvInH * 0.38);
       var caption, value, capColor = c.text, labelTop;
-      if (v === 27) { caption = SAMPLE.humLabel3; value = SAMPLE.humid; labelTop = true; }
+      // Calendar: the weekday captions the day, in the weekend colour on a
+      // weekend (the one caption that isn't drawn in the text colour).
+      if (v === 26) { caption = SAMPLE.dow; value = SAMPLE.day; labelTop = true;
+                      if (SAMPLE.weekend) { capColor = c.weekend; } }
+      else if (v === 27) { caption = SAMPLE.humLabel3; value = SAMPLE.humid; labelTop = true; }
       else if (v === 28) { caption = SAMPLE.battLabel; value = SAMPLE.batt; labelTop = true; }
       else if (v === 29) { caption = SAMPLE.month; value = SAMPLE.day; labelTop = true; }
       else if (v === 30) { caption = 'BPM'; value = SAMPLE.hr; labelTop = false; }
@@ -416,34 +375,15 @@ function clayCustomFn() {
       var smallY, smallH = cvSmallH, bigY, bigH;
       if (labelTop) { smallY = cvM; bigY = cvM + cvSmallH; bigH = cvInH - cvSmallH; }
       else { bigY = cvM; bigH = cvInH - cvSmallH; smallY = cvM + bigH; }
-      var cvMX = Math.round(w * 0.10);   // side padding, keeps text off the border
-      function cvBand(t, top, bandH, color, fpx) {
-        // Mirror draw_centered's one-pass shrink so a wide caption ("UV Index")
-        // stays on one line inside the padding instead of wrapping or clipping.
-        var tw = t.length * fpx * 0.62, avail = w - 2 * cvMX;
-        if (tw > avail) { fpx = Math.round(fpx * avail / tw); }
-        return '<div style="position:absolute;left:' + px(cvMX) + ';right:' +
-          px(cvMX) + ';top:' + px(top) +
-          ';height:' + px(bandH) + ';display:flex;align-items:center;' +
-          'justify-content:center;white-space:nowrap;color:' + color +
-          ';font-weight:bold;font-size:' + px(fpx) + ';line-height:1;">' + t + '</div>';
-      }
       return panelDiv(x, y, w, h, c.panel,
-        cvBand(caption, smallY, smallH, capColor, Math.round(h * 0.19)) +
-        cvBand(value, bigY, bigH, c.text, Math.round(h * 0.46)) + seam(w, h));
+        cvBand(caption, smallY, smallH, capColor, Math.round(h * 0.19), w) +
+        cvBand(value, bigY, bigH, c.text, Math.round(h * 0.46), w) + seam(w, h));
     }
     if (v === 32) {  // max/min temp (big): max over min, min in accent
       var fontMM = Math.round(h * 0.34);
-      function mmHalf(t, topHalf, color) {
-        return '<div style="position:absolute;left:0;right:0;' +
-          (topHalf ? 'top:0' : 'bottom:0') +
-          ';height:50%;display:flex;align-items:center;justify-content:center;' +
-          'color:' + color + ';font-weight:bold;font-size:' + px(fontMM) +
-          ';line-height:1;">' + t + '</div>';
-      }
       return panelDiv(x, y, w, h, c.panel,
-        mmHalf(SAMPLE.tmax, true, c.text) +
-        mmHalf(SAMPLE.tmin, false, accent(c.text)) + seam(w, h));
+        halfDiv(SAMPLE.tmax, false, c.text, fontMM) +
+        halfDiv(SAMPLE.tmin, true, accent(c.text), fontMM) + seam(w, h));
     }
     // day number (big), temp (big), month name, or a data readout.
     var txt = v === 1 ? SAMPLE.day : (v === 3 ? SAMPLE.month : valueText(v));
@@ -494,7 +434,7 @@ function clayCustomFn() {
   //        blocks:[tl,tr,bl,br], face, panels, weekend, showSeconds }.
   // Mirrors layout() in the C source.
   function build(cfg) {
-    var spec = SPECS[cfg.platform] || SPECS.basalt;
+    var spec = SPECS[cfg.platform] || RECT;
     selIdx = SLOT_KEYS.indexOf(cfg.sel);   // -1 when nothing is selected
     W = spec.w; H = spec.h; SIDE = spec.side; ROUND = spec.round;
     GUTTER = spec.gutter;
@@ -646,7 +586,7 @@ function clayCustomFn() {
       ';overflow:hidden;">' + block(v, 0, 0, o.box, h, c) + '</div>';
   }
 
-  return { build: build, swatch: swatch };
+  return { build: build, swatch: swatch, contrast: contrast };
   })();
 
   // Convert a Clay color value (decimal int) to a CSS #RRGGBB string.
@@ -747,6 +687,7 @@ function clayCustomFn() {
   //
   // Adding a variation is one line here; the palette and the select both follow.
   var VARIATIONS = [
+    { name: 'Step count', options: [[4, 'Short'], [49, 'Every digit']] },
     { name: 'Leading zero', options: [[16, 'Shown'], [47, 'Hidden']] },
     { name: 'Leading zero', options: [[17, 'Shown'], [48, 'Hidden']] },
     { name: 'Weather icon', options: [[11, 'Hidden'], [25, 'Shown']] },
@@ -772,14 +713,10 @@ function clayCustomFn() {
   // The block ids this slot accepts. Read off the select, so the round-face
   // trim in trimMidOptions() keeps a variation out of a strip it can't take.
   function slotAllows(key) {
-    var el = itemElement(key);
-    var sel = el && el.querySelector('select');
-    var ok = {};
-    if (sel) {
-      Array.prototype.slice.call(sel.querySelectorAll('option')).forEach(function(opt) {
-        ok[parseInt(opt.value, 10)] = true;
-      });
-    }
+    var ok = {}, sel = selectFor(key);
+    eachNode(sel && sel.querySelectorAll('option'), function(opt) {
+      ok[parseInt(opt.value, 10)] = true;
+    });
     return ok;
   }
 
@@ -826,8 +763,7 @@ function clayCustomFn() {
         '">Tap a block on the face to change what it shows.</div>');
       return;
     }
-    var el = itemElement(selected);
-    var sel = el && el.querySelector('select');
+    var sel = selectFor(selected);
     if (!sel) { return; }
     var cur = blockVal(selected);
     var group = VARIATION_OF[cur];
@@ -974,12 +910,6 @@ function clayCustomFn() {
   // one must not reset the wearer's own settings. These four are theirs.
   var PRESET_SKIP = ['LANG', 'UNITS', 'SHOW_SECONDS', 'FLIP_ANIM'];
 
-  function contrastHex(hex) {   // white text on dark bg, black on light
-    var n = parseInt(hex, 16);
-    var r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
-    return (r * 30 + g * 59 + b * 11) / 100 < 128 ? '#FFFFFF' : '#000000';
-  }
-
   function applyPreset(p) {
     var values = decodeCode(p.code);
     if (typeof values === 'string') { return; }   // a broken preset code
@@ -1020,7 +950,10 @@ function clayCustomFn() {
   // Of the flag bits, these four are toggles and want a boolean back; LAYOUT
   // and UNITS are selects, whose options are the numbers 0 and 1.
   var CODE_BOOLS = ['YEAR_TOP', 'SHOW_SECONDS', 'FLIP_ANIM', 'DRAW_SEAM'];
-  var MAX_BLOCK = 46;   // highest QuadBlock id (see config.js)
+  // Highest block id the page offers, filled by readBlockSets. It was a hand-
+  // kept number and had already drifted (it said 46 while 47/48 existed), which
+  // silently clamped those blocks out of an imported code.
+  var MAX_BLOCK = 0;
   var MAX_LANG = 9;     // LANG_OPTIONS is 10 languages, 0 = English
   var CODE_BYTES = 3 + CODE_BLOCKS.length + 3 * CODE_COLORS.length + 1;
   var CODE_CHARS = Math.ceil(CODE_BYTES * 8 / 5);
@@ -1219,7 +1152,7 @@ function clayCustomFn() {
       html += '<button type="button" data-preset="' + i + '" style="flex:0 0 auto;' +
         'padding:10px 14px;border:none;border-radius:6px;cursor:pointer;' +
         'white-space:nowrap;font-weight:bold;font-size:14px;background:#' + panel +
-        ';color:' + contrastHex(panel) + ';">' + p.name + '</button>';
+        ';color:' + PREVIEW.contrast('#' + panel) + ';">' + p.name + '</button>';
     });
     item.set(html + '</div>');
     PRESETS.forEach(function(p, i) {
@@ -1308,29 +1241,55 @@ function clayCustomFn() {
     return it && it.$element && it.$element[0];
   }
 
-  // On round screens the two middles never sit inside their column — they are
-  // the top / bottom strips, which draw as pills — so they only take the banner
-  // block set. The select is built with the full column list, so trim it here
-  // (the ids mirror block_valid_band in the C source).
-  var BAND_OK = [4, 5, 6, 7, 9, 10, 11, 13, 14, 15, 16, 24, 25, 33, 35, 37, 39,
-    41, 43, 45];
   var FALLBACK_BAND = 16;   // Digital clock
 
+  function eachNode(list, fn) {
+    Array.prototype.slice.call(list || []).forEach(fn);
+  }
+
+  function selectFor(key) {
+    var el = itemElement(key);
+    return (el && el.querySelector && el.querySelector('select')) || null;
+  }
+
+  // Fill BIG / BAND from the selects the page was built with: the block picker
+  // groups its options by size, and the banner picker lists exactly the blocks
+  // a pill can draw (block_valid_band in the C source). Runs before anything
+  // that asks about a block's size.
+  function readBlockSets() {
+    var grid = selectFor('BLOCK_TOP_LEFT');
+    if (grid) {
+      eachNode(grid.querySelectorAll('optgroup'), function(group) {
+        var big = (group.getAttribute('label') || '').indexOf('Big') === 0;
+        eachNode(group.querySelectorAll('option'), function(opt) {
+          var id = parseInt(opt.value, 10);
+          if (big) { BIG[id] = true; }
+          if (id > MAX_BLOCK) { MAX_BLOCK = id; }
+        });
+      });
+    }
+    var band = selectFor('BLOCK_BAND');
+    eachNode(band && band.querySelectorAll('option'), function(opt) {
+      var id = parseInt(opt.value, 10);
+      BAND[id] = true;
+      if (id > MAX_BLOCK) { MAX_BLOCK = id; }
+    });
+  }
+
+  // On round screens the two middles never sit inside their column — they are
+  // the top / bottom strips, which draw as pills — so they only take the banner
+  // block set. The select is built with the full column list, so trim it here.
   function trimMidOptions() {
     MID_KEYS.forEach(function(key) {
-      var el = itemElement(key);
-      var sel = el && el.querySelector && el.querySelector('select');
+      var sel = selectFor(key);
       if (!sel) { return; }
-      var each = function(list, fn) { Array.prototype.slice.call(list).forEach(fn); };
-      each(sel.querySelectorAll('option'), function(opt) {
-        if (BAND_OK.indexOf(parseInt(opt.value, 10)) < 0) {
-          opt.parentNode.removeChild(opt);
-        }
+      eachNode(sel.querySelectorAll('option'), function(opt) {
+        if (!BAND[parseInt(opt.value, 10)]) { opt.parentNode.removeChild(opt); }
       });
-      each(sel.querySelectorAll('optgroup'), function(group) {
+      eachNode(sel.querySelectorAll('optgroup'), function(group) {
         if (!group.querySelector('option')) { group.parentNode.removeChild(group); }
       });
-      if (BAND_OK.indexOf(blockVal(key)) < 0) { setBlock(key, FALLBACK_BAND); }
+      if (!BAND[blockVal(key)]) { setBlock(key, FALLBACK_BAND); }
     });
   }
 
@@ -1384,6 +1343,7 @@ function clayCustomFn() {
   }
 
   clayConfig.on(clayConfig.EVENTS.AFTER_BUILD, function() {
+    readBlockSets();   // block sizes / banner set, off the page's own selects
     if (isRound) { trimMidOptions(); }
     GRID_KEYS.concat(MID_KEYS).forEach(function(key) {
       var it = clayConfig.getItemByMessageKey(key);
@@ -1433,4 +1393,4 @@ function clayCustomFn() {
   });
 }
 
-module.exports = {clayCustomFn, isBig, COLUMNS, FALLBACK_SMALL, FALLBACK_BIG};
+module.exports = {clayCustomFn};
