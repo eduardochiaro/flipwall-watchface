@@ -1,7 +1,7 @@
 {
   "name": "wall-flip",
   "author": "Eduardo Chiaro",
-  "version": "3.1.0",
+  "version": "3.2.0",
   "keywords": [
     "pebble-watchface",
     "flip",
@@ -13,8 +13,11 @@
     "build": "pebble clean && pebble build && zip -qd build/*.pbw pebble-js-app.js.map",
     "test": "./test/run.sh",
     "emulator": "npm run build && pebble install --emulator ",
+    "e": "npm run build && pebble install --emulator",
     "phone": "npm run build && pebble install --phone",
+    "p": "npm run build && pebble install --phone",
     "config": "pebble emu-app-config --emulator",
+    "c": "pebble emu-app-config --emulator",
     "logs": "pebble logs",
     "font": "node scripts/gen-svg-font.js resources/fonts/Lekton-Bold.ttf resources/fonts/mono.svg mono \" %-./0123456789:@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°\" && fctx-compiler resources/fonts/mono.svg && mv resources/mono.ffont resources/fonts/mono.ffont"
   },

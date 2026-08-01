@@ -807,14 +807,19 @@ function clayCustomFn() {
     var group = VARIATION_OF[cur];
     var ok = selected ? slotAllows(selected) : {};
     var opts = group ? group.options.filter(function(o) { return ok[o[0]]; }) : [];
-    if (opts.length < 2) { item.set(''); return; }
-    item.set('<label class="tap-highlight" style="padding:0;"><span class="label">' +
-      group.name + '</span><select data-variation style="width:40%;' +
-      'box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid #999;' +
-      'font-size:14px;">' + opts.map(function(o) {
-        return '<option value="' + o[0] + '"' + (o[0] === cur ? ' selected' : '') +
-          '>' + o[1] + '</option>';
-      }).join('') + '</select></label>');
+    if (opts.length < 2) { item.hide(); return; }
+    var label = '';
+    item.$manipulatorTarget.set('innerHTML', opts.map(function(o) {
+      if (o[0] === cur) { label = o[1]; }
+      return '<option value="' + o[0] + '" class="item-select-option">' +
+        o[1] + '</option>';
+    }).join(''));
+    // Straight onto the element, not item.set(): that fires `change`, the same
+    // event a tap fires, and the handler would call back in here.
+    item.$manipulatorTarget.set('value', String(cur));
+    item.$element.select('.label').set('innerHTML', group.name);
+    item.$element.select('.value').set('innerHTML', label);
+    item.show();
   }
 
   // Hide every block select (the palette replaces them) and show only the
@@ -876,10 +881,12 @@ function clayCustomFn() {
       }
     });
 
-    document.addEventListener('change', function(e) {
-      var node = nodeWith(e.target, 'data-variation');
-      if (node && selected) { place(parseInt(node.value, 10)); }
-    });
+    var variation = clayConfig.getItemById('VARIATION');
+    if (variation) {
+      variation.on('change', function() {
+        if (selected) { place(parseInt(variation.get(), 10)); }
+      });
+    }
   }
 
   // --- Presets ------------------------------------------------------------
@@ -1066,78 +1073,44 @@ function clayCustomFn() {
     return null;
   }
 
-  function transferEl(name) {
-    return document.querySelector('[data-transfer="' + name + '"]');
-  }
-
   function refreshCode() {
-    var box = transferEl('code');
-    if (box) { box.value = exportCode(); }
+    var out = clayConfig.getItemById('CODE_OUT');
+    if (out) { out.set(exportCode()); }
   }
 
   function buildTransferUI() {
-    var item = clayConfig.getItemById('TRANSFER');
-    if (!item) { return; }
-    var btn = 'padding:10px 6px;border:none;border-radius:6px;cursor:pointer;' +
-      'font-weight:bold;font-size:14px;background:#444;color:#FFF;';
-    var field = 'display: block;' +
-      'width: 100%;' +
-      'background: #333333;' +
-      'border-radius: 0.25rem;' +
-      'padding: 0.35rem 0.375rem;' +
-      'border: none;' +
-      'vertical-align: baseline;' +
-      'color: #ffffff;' +
-      'font-size: inherit;' +
-      '-webkit-appearance: none;' +
-      'appearance: none;' +
-      'min-height: 2.1rem;';
-    item.set(
-      '<textarea data-transfer="code" readonly rows="3" style="' + field +
-        'resize:none;"></textarea>' +
-      '<div style="display:flex;gap:6px;margin:6px 0 12px;">' +
-        '<button type="button" data-transfer="copy" style="' + btn +
-          'flex:1;background:#444;color:#FFF;">Copy</button></div>' +
-      '<input data-transfer="in" placeholder="Paste a code here" style="' +
-        field + '">' +
-      '<div style="display:flex;gap:6px;margin-top:6px;">' +
-        '<button type="button" data-transfer="import" style="' + btn +
-          'flex:1;background:#444;color:#FFF;">Import</button></div>' +
-      '<div data-transfer="msg" style="margin-top:6px;font-size:13px;"></div>');
+    var out = clayConfig.getItemById('CODE_OUT');
+    var copy = clayConfig.getItemById('CODE_COPY');
+    var input = clayConfig.getItemById('CODE_IN');
+    var run = clayConfig.getItemById('CODE_IMPORT');
+    var msg = clayConfig.getItemById('TRANSFER_MSG');
+    if (!out) { return; }
 
-    var msg = transferEl('msg');
     function say(text, ok) {
       if (msg) {
-        msg.textContent = text;
-        msg.style.color = ok ? '#2E7D32' : '#C62828';
+        msg.set('<span style="color:' + (ok ? '#2E7D32' : '#C62828') + ';">' +
+          text + '</span>');
       }
     }
 
-    var copy = transferEl('copy');
     if (copy) {
-      copy.addEventListener('click', function(e) {
-        e.preventDefault();
-        var box = transferEl('code');
-        if (!box) { return; }
-        box.select();
+      copy.on('click', function() {
+        out.$manipulatorTarget[0].select();
         // execCommand is deprecated but is what the older config webviews have;
         // the clipboard API is tried first where it exists.
         try {
-          if (navigator.clipboard) { navigator.clipboard.writeText(box.value); }
+          if (navigator.clipboard) { navigator.clipboard.writeText(out.get()); }
           else { document.execCommand('copy'); }
           say('Copied.', true);
         } catch (err) { say('Copy it by hand — this browser blocked it.', false); }
       });
     }
 
-    var run = transferEl('import');
-    if (run) {
-      run.addEventListener('click', function(e) {
-        e.preventDefault();
-        var input = transferEl('in');
-        var error = importCode(input && input.value);
+    if (run && input) {
+      run.on('click', function() {
+        var error = importCode(input.get());
         if (error) { say(error, false); return; }
-        if (input) { input.value = ''; }
+        input.set('');
         applyLayoutVisibility();
         refreshPreview();
         refreshCode();

@@ -287,9 +287,17 @@ module.exports = [
     items: [
       { type: "heading", defaultValue: "Share Settings" },
       { type: "text", defaultValue: "The code below is this whole face — every block, color and toggle. Copy it to back the face up or share it. Paste a code in and tap Import to load it." },
-      // Code box, copy/import buttons and their handlers are injected by
-      // clayCustomFn (they need the webview DOM), same as the presets above.
-      { type: "text", id: "TRANSFER", label: "", defaultValue: "" },
+      // No messageKeys: nothing here is sent to the watch. clayCustomFn fills
+      // CODE_OUT and wires the two buttons; the code is one line, so a plain
+      // input carries it (Clay has no textarea).
+      { type: "input", id: "CODE_OUT", label: "This face",
+        attributes: { readonly: "readonly", spellcheck: "false" } },
+      { type: "button", id: "CODE_COPY", defaultValue: "Copy" },
+      { type: "input", id: "CODE_IN", label: "Paste a code",
+        attributes: { placeholder: "Paste a code here", spellcheck: "false",
+          autocapitalize: "off", autocorrect: "off" } },
+      { type: "button", id: "CODE_IMPORT", primary: true, defaultValue: "Import" },
+      { type: "text", id: "TRANSFER_MSG", defaultValue: "" },
     ]
   },
 
@@ -306,15 +314,18 @@ module.exports = [
   },
 
   // What the block on the tapped slot can be tuned to: its panel color, and a
-  // select for whichever detail it has a choice about (VARIATION, injected by
-  // clayCustomFn). The seven block selects live here too but stay hidden —
+  // select for whichever detail it has a choice about (VARIATION — a real Clay
+  // select, whose label and options clayCustomFn refills for the tapped block,
+  // so it looks like every other input). The seven block selects live here too but stay hidden —
   // they carry the message keys Save sends to the watch, and their labels are
   // what the palette header reads, via applyColumnLabels().
   {
     type: "section",
     items: [
       { type: "heading", id: "BLOCKS_HEADING", defaultValue: "Selected Block" },
-      { type: "text", id: "VARIATION", label: "", defaultValue: "" },
+      // No messageKey: it only steers the hidden block select for the slot.
+      // One blank option so it renders before clayCustomFn fills it.
+      { type: "select", id: "VARIATION", label: "", options: [{ label: "", value: 0 }] },
       {
         type: "select",
         messageKey: "BLOCK_TOP_LEFT",
