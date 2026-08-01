@@ -1,40 +1,40 @@
 // Second time zone: the list the config page offers, and the resolution of a
 // zone to what the watch actually needs (its current UTC offset in minutes and
-// its abbreviation).
+// its abbreviation), re-resolved on every send so a DST change lands on the
+// next update.
 //
-// Zones are IANA names, so the offset comes from the platform's own tz data
-// (Intl) rather than a table of DST rules kept here — the offset is resolved
-// fresh on every send (config save, and the weather refresh), so the watch
-// follows a DST change on the next update.
+// This runs in PebbleKit JS, which rules out Intl: the emulator's runtime
+// (pypkjs / STPyV8) hard-aborts the whole JS process on the first
+// Intl.DateTimeFormat — "Fatal process out of memory:
+// DateTimePatternGeneratorCache::CreateGenerator" — and it is a fatal abort, so
+// a try/catch around it buys nothing. Hence the small table below: standard
+// offset, the two abbreviations, and which DST rule the zone follows.
 //
-// `abbr` / `dst` are the zone's standard and summer abbreviations, and `off`
-// its standard offset. Intl only spells out letter abbreviations for the US
-// zones ("PDT"); everywhere else it formats as "GMT+9", so the abbreviation
-// comes from here, picked by whether the zone is currently on DST. `off` is
-// also the offset fallback for a JS runtime with no usable Intl (older
-// PebbleKit JS) — standard time, so such a phone reads an hour off in summer
-// until the config page, always Intl-capable, saves again.
+// ponytail: the rules are the current ones, applied to every year. They shift
+// the clock a few hours early or late in the days around a transition on a zone
+// whose government has since moved its dates. The config page's preview does
+// use Intl — it runs in a real browser — so that is where an exact answer is.
 var ZONES = [
   { zone: 'Pacific/Honolulu', city: 'Honolulu', abbr: 'HST', off: -600 },
-  { zone: 'America/Anchorage', city: 'Anchorage', abbr: 'AKST', dst: 'AKDT', off: -540 },
-  { zone: 'America/Los_Angeles', city: 'Los Angeles', abbr: 'PST', dst: 'PDT', off: -480 },
-  { zone: 'America/Denver', city: 'Denver', abbr: 'MST', dst: 'MDT', off: -420 },
-  { zone: 'America/Chicago', city: 'Chicago', abbr: 'CST', dst: 'CDT', off: -360 },
+  { zone: 'America/Anchorage', city: 'Anchorage', abbr: 'AKST', dst: 'AKDT', rule: 'US', off: -540 },
+  { zone: 'America/Los_Angeles', city: 'Los Angeles', abbr: 'PST', dst: 'PDT', rule: 'US', off: -480 },
+  { zone: 'America/Denver', city: 'Denver', abbr: 'MST', dst: 'MDT', rule: 'US', off: -420 },
+  { zone: 'America/Chicago', city: 'Chicago', abbr: 'CST', dst: 'CDT', rule: 'US', off: -360 },
   { zone: 'America/Mexico_City', city: 'Mexico City', abbr: 'CST', off: -360 },
-  { zone: 'America/New_York', city: 'New York', abbr: 'EST', dst: 'EDT', off: -300 },
-  { zone: 'America/Halifax', city: 'Halifax', abbr: 'AST', dst: 'ADT', off: -240 },
+  { zone: 'America/New_York', city: 'New York', abbr: 'EST', dst: 'EDT', rule: 'US', off: -300 },
+  { zone: 'America/Halifax', city: 'Halifax', abbr: 'AST', dst: 'ADT', rule: 'US', off: -240 },
   { zone: 'America/Sao_Paulo', city: 'Sao Paulo', abbr: 'BRT', off: -180 },
   { zone: 'America/Argentina/Buenos_Aires', city: 'Buenos Aires', abbr: 'ART', off: -180 },
   { zone: 'UTC', city: 'UTC', abbr: 'UTC', off: 0 },
-  { zone: 'Europe/London', city: 'London', abbr: 'GMT', dst: 'BST', off: 0 },
-  { zone: 'Europe/Lisbon', city: 'Lisbon', abbr: 'WET', dst: 'WEST', off: 0 },
-  { zone: 'Europe/Madrid', city: 'Madrid', abbr: 'CET', dst: 'CEST', off: 60 },
-  { zone: 'Europe/Paris', city: 'Paris', abbr: 'CET', dst: 'CEST', off: 60 },
-  { zone: 'Europe/Berlin', city: 'Berlin', abbr: 'CET', dst: 'CEST', off: 60 },
-  { zone: 'Europe/Rome', city: 'Rome', abbr: 'CET', dst: 'CEST', off: 60 },
-  { zone: 'Europe/Warsaw', city: 'Warsaw', abbr: 'CET', dst: 'CEST', off: 60 },
-  { zone: 'Europe/Athens', city: 'Athens', abbr: 'EET', dst: 'EEST', off: 120 },
-  { zone: 'Africa/Cairo', city: 'Cairo', abbr: 'EET', dst: 'EEST', off: 120 },
+  { zone: 'Europe/London', city: 'London', abbr: 'GMT', dst: 'BST', rule: 'EU', off: 0 },
+  { zone: 'Europe/Lisbon', city: 'Lisbon', abbr: 'WET', dst: 'WEST', rule: 'EU', off: 0 },
+  { zone: 'Europe/Madrid', city: 'Madrid', abbr: 'CET', dst: 'CEST', rule: 'EU', off: 60 },
+  { zone: 'Europe/Paris', city: 'Paris', abbr: 'CET', dst: 'CEST', rule: 'EU', off: 60 },
+  { zone: 'Europe/Berlin', city: 'Berlin', abbr: 'CET', dst: 'CEST', rule: 'EU', off: 60 },
+  { zone: 'Europe/Rome', city: 'Rome', abbr: 'CET', dst: 'CEST', rule: 'EU', off: 60 },
+  { zone: 'Europe/Warsaw', city: 'Warsaw', abbr: 'CET', dst: 'CEST', rule: 'EU', off: 60 },
+  { zone: 'Europe/Athens', city: 'Athens', abbr: 'EET', dst: 'EEST', rule: 'EU', off: 120 },
+  { zone: 'Africa/Cairo', city: 'Cairo', abbr: 'EET', dst: 'EEST', rule: 'EG', off: 120 },
   { zone: 'Africa/Johannesburg', city: 'Johannesburg', abbr: 'SAST', off: 120 },
   { zone: 'Europe/Istanbul', city: 'Istanbul', abbr: 'TRT', off: 180 },
   { zone: 'Europe/Moscow', city: 'Moscow', abbr: 'MSK', off: 180 },
@@ -49,8 +49,8 @@ var ZONES = [
   { zone: 'Australia/Perth', city: 'Perth', abbr: 'AWST', off: 480 },
   { zone: 'Asia/Tokyo', city: 'Tokyo', abbr: 'JST', off: 540 },
   { zone: 'Asia/Seoul', city: 'Seoul', abbr: 'KST', off: 540 },
-  { zone: 'Australia/Sydney', city: 'Sydney', abbr: 'AEST', dst: 'AEDT', off: 600 },
-  { zone: 'Pacific/Auckland', city: 'Auckland', abbr: 'NZST', dst: 'NZDT', off: 720 }
+  { zone: 'Australia/Sydney', city: 'Sydney', abbr: 'AEST', dst: 'AEDT', rule: 'AU', off: 600 },
+  { zone: 'Pacific/Auckland', city: 'Auckland', abbr: 'NZST', dst: 'NZDT', rule: 'NZ', off: 720 }
 ];
 
 var DEFAULT_ZONE = 'UTC';
@@ -62,66 +62,71 @@ function entry(zone) {
   return null;
 }
 
-// True when this runtime can actually format for another zone. A runtime that
-// ignores the timeZone option would silently hand back local time, so check a
-// zone it can be held to rather than trusting `typeof Intl`.
-function hasIntl() {
-  try {
-    return new Intl.DateTimeFormat('en-US', { timeZone: 'UTC' })
-      .resolvedOptions().timeZone === 'UTC';
-  } catch (e) {
-    return false;
+// The instant of the `nth` `wday` (0 = Sunday) of a month, at `hour` UTC. nth
+// counts from 1, or -1 for the last one in the month. `hour` may fall outside
+// 0..23 — Date.UTC rolls it into the neighbouring day, which is how a local
+// transition time is expressed in UTC.
+function nthWeekday(year, month, wday, nth, hour) {
+  var day;
+  if (nth > 0) {
+    var first = new Date(Date.UTC(year, month, 1)).getUTCDay();
+    day = 1 + ((wday - first + 7) % 7) + (nth - 1) * 7;
+  } else {
+    var lastDate = new Date(Date.UTC(year, month + 1, 0));
+    day = lastDate.getUTCDate() - ((lastDate.getUTCDay() - wday + 7) % 7);
+  }
+  return Date.UTC(year, month, day, hour);
+}
+
+// When each rule's summer time starts and ends, as UTC instants in `year`.
+// Hours are given in the zone's *standard* local time and converted with its
+// standard offset `std` — so an end time quoted in daylight time (as they all
+// are: "02:00, clocks go back") is written here as the hour before.
+function dstWindow(rule, std, year) {
+  var h = std / 60;
+  switch (rule) {
+    // EU: last Sunday of March to last Sunday of October, 01:00 UTC — the one
+    // rule written in UTC rather than local time, so `h` doesn't come into it.
+    case 'EU': return [nthWeekday(year, 2, 0, -1, 1),
+                       nthWeekday(year, 9, 0, -1, 1)];
+    // US / Canada: 2nd Sunday of March, 02:00 -> 1st Sunday of November, 02:00
+    // daylight (01:00 standard).
+    case 'US': return [nthWeekday(year, 2, 0, 2, 2 - h),
+                       nthWeekday(year, 10, 0, 1, 1 - h)];
+    // Egypt: last Friday of April, midnight -> last Thursday of October,
+    // midnight daylight (23:00 standard).
+    case 'EG': return [nthWeekday(year, 3, 5, -1, -h),
+                       nthWeekday(year, 9, 4, -1, 23 - h)];
+    // Southern hemisphere, so the window wraps the new year.
+    // Australia: 1st Sunday of October, 02:00 -> 1st Sunday of April, 03:00
+    // daylight (02:00 standard).
+    case 'AU': return [nthWeekday(year, 9, 0, 1, 2 - h),
+                       nthWeekday(year, 3, 0, 1, 2 - h)];
+    // New Zealand: last Sunday of September, 02:00 -> 1st Sunday of April,
+    // 03:00 daylight (02:00 standard).
+    case 'NZ': return [nthWeekday(year, 8, 0, -1, 2 - h),
+                       nthWeekday(year, 3, 0, 1, 2 - h)];
+    default:   return null;
   }
 }
 
-// Minutes east of UTC for `zone` at `d`: format the instant as wall time there,
-// read it back as if it were UTC, and diff. Covers DST and half-hour zones.
-function offsetOf(zone, d) {
-  var f = new Intl.DateTimeFormat('en-US', {
-    timeZone: zone, hour12: false, year: 'numeric', month: '2-digit',
-    day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'
-  });
-  var p = {};
-  f.formatToParts(d).forEach(function(part) { p[part.type] = part.value; });
-  // Some engines render midnight as hour 24.
-  var wall = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute,
-                      +p.second);
-  return Math.round((wall - d.getTime()) / 60000);
+function onDst(rule, std, d) {
+  var w = dstWindow(rule, std, d.getUTCFullYear());
+  if (!w) { return false; }
+  var t = d.getTime();
+  // A southern-hemisphere window starts after it ends: summer spans January.
+  return w[0] < w[1] ? (t >= w[0] && t < w[1]) : (t >= w[0] || t < w[1]);
 }
 
-// "PST" / "AEDT", for the zones Intl spells out (the US ones). Everywhere else
-// it formats as "GMT+9" and this returns nothing, so the list's own pair is used.
-function abbrOf(zone, d) {
-  var s = new Intl.DateTimeFormat('en-US', {
-    timeZone: zone, timeZoneName: 'short'
-  }).format(d);
-  var m = /[A-Z]{2,5}$/.exec(s.replace(/\s+$/, ''));
-  return m ? m[0] : null;
-}
-
-// DST only ever adds to a zone's standard offset, so the smaller of its January
-// and July offsets is the standard one — north or south of the equator.
-function onDst(zone, d, off) {
-  var y = d.getUTCFullYear();
-  var jan = offsetOf(zone, new Date(Date.UTC(y, 0, 15)));
-  var jul = offsetOf(zone, new Date(Date.UTC(y, 6, 15)));
-  return off > (jan < jul ? jan : jul);
-}
-
-// What the watch is told: { offset: minutes east of UTC, abbr: "PST" }.
+// What the watch is told: { offset: minutes east of UTC, abbr: "PST" }. Every
+// zone in the list that observes DST shifts by exactly an hour.
 function tzInfo(zone, now) {
   var e = entry(zone) || entry(DEFAULT_ZONE);
-  var info = { offset: e.off, abbr: e.abbr };
-  if (!hasIntl()) { return info; }
-  var d = now || new Date();
-  try {
-    info.offset = offsetOf(e.zone, d);
-    info.abbr = abbrOf(e.zone, d) ||
-      (e.dst && onDst(e.zone, d, info.offset) ? e.dst : e.abbr);
-  } catch (err) {
-    console.log('Timezone lookup failed for ' + e.zone + ': ' + err.message);
-  }
-  return info;
+  var summer = !!e.dst && onDst(e.rule, e.off, now || new Date());
+  return {
+    offset: e.off + (summer ? 60 : 0),
+    abbr: summer ? e.dst : e.abbr
+  };
 }
 
 module.exports = { ZONES: ZONES, DEFAULT_ZONE: DEFAULT_ZONE, tzInfo: tzInfo };
