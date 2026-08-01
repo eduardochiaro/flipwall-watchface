@@ -872,7 +872,7 @@ function clayCustomFn() {
     var ok = selected ? slotAllows(selected) : {};
     var opts = group ? group.options.filter(function(o) { return ok[o[0]]; }) : [];
     if (opts.length < 2) { item.set(''); return; }
-    item.set('<label class="tap-highlight" class="padding:0;"><span class="label">' +
+    item.set('<label class="tap-highlight" style="padding:0;"><span class="label">' +
       group.name + '</span><select data-variation style="width:40%;' +
       'box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid #999;' +
       'font-size:14px;">' + opts.map(function(o) {
