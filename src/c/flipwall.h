@@ -74,6 +74,13 @@ typedef enum {
   BLK_DIGITAL_NOZERO, // digital clock, no leading zero but its width kept (small)
   BLK_DIGITAL_BIG_NOZERO, // hours over minutes, hour's leading zero dropped (big)
   BLK_STEPS_FULL, // step count, every digit ("8234") (small / banner)
+  // Second time zone: the clock in this block's own zone, labelled with its UTC
+  // offset ("+1") or its abbreviation ("PST"). Each slot carries its own zone
+  // (see TZ_ZONE[n] in the config page), so a face can show several at once.
+  BLK_TZ,           // "10:09 +1" (small / banner)
+  BLK_TZ_ABBR,      // "10:09 PST" (small / banner)
+  BLK_TZ_BIG,       // the time over a "+1" caption (big)
+  BLK_TZ_BIG_ABBR,  // the time over a "PST" caption (big)
   BLK_COUNT,      // sentinel: how many block kinds there are
 } QuadBlock;
 
@@ -102,9 +109,11 @@ bool block_valid_band(int v);         // may sit in the banner
 // value) only when its drawn text actually changes. Each grid layer carries a
 // BlockState; blocks.c renders it flip-aware, watchface.c drives the countdown.
 #define FLIP_STEPS 8           // frames per flip (~FLIP_STEPS * 40ms total)
+#define TZ_ABBR_LEN 8          // "AEDT" and friends, with room to spare
 typedef struct {
   QuadBlock blk;               // which block this layer shows (was the layer data)
   GColor    panel;             // this position's resolved panel colour
+  uint8_t   pos;               // which BlockPos this layer is, for the zone tables
   bool      pill;              // draws as a text-hugging banner pill, not a block
   uint8_t   anim;              // 0 = idle, else countdown FLIP_STEPS..1
   char      shown[16];         // text currently on screen (empty = first paint)
@@ -125,4 +134,10 @@ extern bool   s_show_seconds;
 extern bool   s_flip_enabled;   // config: animate blocks on value change
 extern bool   s_seam_enabled;   // config: draw the seam line across blocks
 extern int    s_lang;
+// The second time zone of the block being drawn, pointed at that block's entry
+// before its update_proc runs (like s_panel_bg). Minutes east of UTC with DST
+// already applied, and the abbreviation, both resolved by the phone.
+#define TZ_MAX_OFFSET (14 * 60)   // the furthest any real zone is from UTC
+extern int         s_tz_offset;
+extern const char *s_tz_abbr;
 extern struct tm s_now;

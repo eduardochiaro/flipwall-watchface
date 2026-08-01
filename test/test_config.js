@@ -105,44 +105,79 @@ function makeClay(platform) {
   var vals = defaults();
   var items = {};
   var afterBuild = [];
+  var declared = {};
+  declaredItems().forEach(function(decl) { declared[decl.key] = decl; });
 
-  declaredItems().forEach(function(decl) {
-    var key = decl.key;
+  // A stand-in for one ClayItem. The page reaches past get/set for the items it
+  // rewrites in place (the variation select's options and label), so the stub
+  // carries the same handles the real item does: $manipulatorTarget for the
+  // form element, $element.select() for the label / value spans.
+  function makeItem(key, decl) {
     var handlers = {};
-    var span = { textContent: decl.label };
-    var select = decl.options ? makeSelect(decl.options) : null;
+    var props = {};
+    var span = { textContent: decl ? decl.label : '' };
+    var select = decl && decl.options ? makeSelect(decl.options) : null;
     var node = {
+      select: function() {},        // the copy button focuses the code box
       querySelector: function(sel) {
         if (sel === '.label') { return span; }
         return sel === 'select' ? select : null;
       }
     };
+    // .label is the same span the page's own querySelector('.label') finds, so
+    // a label written through either handle reads back through both.
+    var spans = {
+      '.label': {
+        set: function(name, v) { span.textContent = v; return this; },
+        get: function() { return span.textContent; }
+      },
+      '.value': {
+        set: function(name, v) { props.value_text = v; return this; },
+        get: function() { return props.value_text; }
+      }
+    };
+    var $element = [node];
+    $element.select = function(sel) { return spans[sel]; };
 
-    items[key] = {
+    var target = {
+      0: node,
+      // The DOM doesn't fire change when a value is assigned, so nor does this.
+      set: function(name, v) {
+        if (name === 'value') { vals[key] = v; } else { props[name] = v; }
+        return this;
+      },
+      get: function(name) { return name === 'value' ? vals[key] : props[name]; }
+    };
+
+    return {
       hidden: false,
-      config: { label: decl.label },
-      $element: [node],
+      config: { label: decl ? decl.label : '' },
+      $element: $element,
+      $manipulatorTarget: target,
       labelText: function() { return span.textContent; },
       get: function() { return vals[key]; },
       set: function(v) {
         vals[key] = v;
-        (handlers.change || []).forEach(function(f) { f(); });
-        return this;
+        return this.trigger('change');
       },
       on: function(ev, fn) { (handlers[ev] = handlers[ev] || []).push(fn); return this; },
+      trigger: function(ev) {
+        (handlers[ev] || []).forEach(function(f) { f(); });
+        return this;
+      },
       hide: function() { this.hidden = true; return this; },
       show: function() { this.hidden = false; return this; }
     };
+  }
+
+  Object.keys(declared).forEach(function(key) {
+    items[key] = makeItem(key, declared[key]);
   });
 
   function item(key) {
     if (items[key]) { return items[key]; }
     if (!(key in vals)) { return null; }
-    items[key] = { get: function() { return vals[key]; },
-                   set: function(v) { vals[key] = v; return this; },
-                   on: function() { return this; },
-                   hide: function() { this.hidden = true; return this; },
-                   show: function() { this.hidden = false; return this; } };
+    items[key] = makeItem(key, null);
     return items[key];
   }
 
@@ -179,14 +214,6 @@ function makeDocument() {
         fn({ target: target, preventDefault: function() {} });
       });
     },
-    // The injected variation <select>, picked by a wearer.
-    choose: function(value) {
-      var target = {
-        value: String(value),
-        getAttribute: function(name) { return name === 'data-variation' ? '' : null; }
-      };
-      (handlers.change || []).forEach(function(fn) { fn({ target: target }); });
-    },
     querySelector: function(sel) {
       if (!nodes[sel]) {
         nodes[sel] = {
@@ -209,6 +236,36 @@ function makeDocument() {
 
 global.document = makeDocument();
 global.localStorage = { getItem: function() { return null; }, setItem: function() {} };
+
+// The variation picker is a Clay select the page refills, so read it the way
+// the page writes it: the group name in the label, the placed id as its value.
+function variation(clay) {
+  var it = clay.getItemById('VARIATION');
+  return {
+    hidden: !!it.hidden,
+    label: it.$element.select('.label').get() || '',
+    value: it.get(),
+    options: it.$manipulatorTarget.get('innerHTML') || ''
+  };
+}
+
+// A wearer picking from it: the browser writes the value, then fires change.
+function chooseVariation(clay, value) {
+  var it = clay.getItemById('VARIATION');
+  it.$manipulatorTarget.set('value', String(value));
+  it.trigger('change');
+}
+
+// The share box, likewise: plain Clay inputs and buttons.
+function shareBox(clay) {
+  return {
+    code: function() { return clay.getItemById('CODE_OUT').get(); },
+    paste: function(v) { clay.getItemById('CODE_IN').set(v); },
+    pasted: function() { return clay.getItemById('CODE_IN').get(); },
+    run: function() { clay.getItemById('CODE_IMPORT').trigger('click'); },
+    message: function() { return clay.getItemById('TRANSFER_MSG').get() || ''; }
+  };
+}
 
 var PLATFORMS = ['basalt', 'emery', 'chalk', 'gabbro'];
 var page = '<body style="background:#222;color:#eee;font-family:sans-serif;display:flex;flex-wrap:wrap;gap:20px">';
@@ -261,7 +318,7 @@ PLATFORMS.forEach(function(platform) {
     // color picker shows until a block is selected. "Banner at top" is the one
     // block setting still on the page, and only under the classic layout.
     Object.keys(clay.items).forEach(function(key) {
-      if (/^BLOCK_|^PANEL_[TBM]|^PANEL_BAND/.test(key)) {
+      if (/^BLOCK_|^PANEL_[TBM]|^PANEL_BAND|^TZ_ZONE/.test(key)) {
         assert.ok(clay.items[key].hidden, platform + '/' + layout + ': ' + key +
           ' should be hidden until its block is tapped');
       }
@@ -379,11 +436,88 @@ PLATFORMS.forEach(function(platform) {
   assert.ok(!isBig(49), 'the full step count should be a small block');
 
   document.tap('data-slot', 'BLOCK_TOP_LEFT');
-  assert.ok(clay.vals['#VARIATION'].indexOf('Step count') > -1,
+  assert.strictEqual(variation(clay).label, 'Step count',
     'no step-count variation select');
-  document.choose(4);
+  chooseVariation(clay, 4);
   assert.strictEqual(clay.vals.BLOCK_TOP_LEFT, 4,
     'switching back to the compact step count did not apply');
+  checks++;
+})();
+
+// --- Second time zone -------------------------------------------------------
+// 50/51 draw the clock in that block's own zone plus its label (offset or
+// abbreviation) in the accent colour; 52/53 are the same pair as a big block,
+// with the label as the caption. Each slot picks its own zone, so a face can
+// carry several at once.
+(function secondTimeZone() {
+  global.document = makeDocument();
+  var clay = makeClay('basalt');
+  clayCustomFn.call(clay);
+  clay.build();
+  clay.getItemByMessageKey('LAYOUT').set(1);
+  clay.getItemByMessageKey('BLOCK_MID_LEFT').set(51);   // small, abbreviation
+  var MID_LEFT_ZONE = 'TZ_ZONE[5]';                     // BlockPos order
+
+  // The clock, read back out of the face. The label is drawn in its own span,
+  // which is what makes it the accent colour on the watch.
+  function tzClock(zone, label) {
+    clay.getItemByMessageKey(MID_LEFT_ZONE).set(zone);
+    var m = new RegExp('(\\d\\d:\\d\\d) <span style="color:[^"]+;">' +
+      label + '<').exec(clay.vals['#PREVIEW']);
+    assert.ok(m, 'no second-time-zone clock labelled ' + label +
+      ' for ' + zone);
+    return m[1];
+  }
+
+  // Machine independent: whatever this box's own zone is, Tokyo is nine hours
+  // ahead of UTC, and both are drawn from the same sample moment.
+  function minutes(hhmm) {
+    var p = hhmm.split(':');
+    return +p[0] * 60 + +p[1];
+  }
+  var utc = tzClock('UTC', 'UTC');
+  var tokyo = tzClock('Asia/Tokyo', 'JST');
+  assert.strictEqual(((minutes(tokyo) - minutes(utc)) % 1440 + 1440) % 1440,
+    9 * 60, 'Tokyo did not preview nine hours ahead of UTC (' + utc + ' / ' +
+    tokyo + ')');
+
+  // The other half of the variation labels the same clock with its offset.
+  clay.getItemByMessageKey('BLOCK_MID_LEFT').set(50);
+  assert.strictEqual(tzClock('Asia/Tokyo', '\\+9'), tokyo,
+    'the offset variant moved the clock');
+  assert.strictEqual(tzClock('Asia/Kolkata', '\\+5:30').slice(-2), '39',
+    'a half-hour zone did not land on the half hour');
+
+  // Big: the clock over its label, captioned like the other two-line blocks.
+  // On its own slot, with its own zone — two zones on one face.
+  clay.getItemByMessageKey(MID_LEFT_ZONE).set('Asia/Tokyo');
+  clay.getItemByMessageKey('BLOCK_MID_LEFT').set(51);
+  clay.getItemByMessageKey('BLOCK_TOP_LEFT').set(53);
+  clay.getItemByMessageKey('TZ_ZONE[0]').set('America/New_York');
+  var html = clay.vals['#PREVIEW'];
+  assert.ok(html.indexOf('>JST<') > -1, 'the small block lost its own zone');
+  assert.ok(/>E[SD]T</.test(html), 'the big block lost its zone caption');
+  assert.ok(isBig(53) && isBig(52), 'the big time-zone blocks read as small');
+  assert.ok(!isBig(50) && !isBig(51), 'the small time-zone blocks read as big');
+
+  // The zone picker belongs to the block: it comes out with a time-zone block
+  // and stays away for anything else.
+  document.tap('data-slot', 'BLOCK_TOP_LEFT');
+  assert.ok(!clay.items['TZ_ZONE[0]'].hidden,
+    'the zone picker stayed hidden for a time-zone block');
+  assert.ok(clay.items[MID_LEFT_ZONE].hidden,
+    'another block\'s zone picker came out with it');
+
+  // One chip per pair, the label picked from the variation select.
+  assert.strictEqual(variation(clay).label, 'Zone label',
+    'no zone-label variation for the big block');
+  chooseVariation(clay, 52);
+  assert.strictEqual(clay.vals.BLOCK_TOP_LEFT, 52,
+    'switching the big block to the offset label did not apply');
+
+  document.tap('data-block', '2');   // analog clock: no zone to pick
+  assert.ok(clay.items['TZ_ZONE[0]'].hidden,
+    'the zone picker stayed out after the block stopped being a clock');
   checks++;
 })();
 
@@ -421,10 +555,10 @@ PLATFORMS.forEach(function(platform) {
   var offered = (palette.match(/data-block="(\d+)"/g) || []).map(function(m) {
     return parseInt(m.slice(12), 10);
   });
-  [16, 17, 11, 26, 22, 33, 34, 39, 40].forEach(function(v) {
+  [16, 17, 11, 26, 22, 33, 34, 39, 40, 50, 52].forEach(function(v) {
     assert.ok(offered.indexOf(v) > -1, 'block ' + v + ' left the palette');
   });
-  [47, 48, 49, 25, 29, 23, 41, 42, 43, 44].forEach(function(v) {
+  [47, 48, 49, 25, 29, 23, 41, 42, 43, 44, 51, 53].forEach(function(v) {
     assert.ok(offered.indexOf(v) < 0, 'block ' + v + ' should be a variation');
   });
 
@@ -435,27 +569,28 @@ PLATFORMS.forEach(function(platform) {
     'the column kept two big blocks');
   assert.ok(clay.vals['#PALETTE'].indexOf('#0A84FF') > -1,
     'the placed block is not marked in the palette');
-  assert.strictEqual(clay.vals['#VARIATION'], '',
+  assert.ok(variation(clay).hidden,
     'a block with nothing to vary got a select anyway');
 
   // A block that does have a variation gets one, and picking from it swaps to
   // the other member of the group without leaving the chip.
   document.tap('data-block', '17');            // digital clock (big)
-  assert.ok(clay.vals['#VARIATION'].indexOf('Leading zero') > -1,
+  assert.strictEqual(variation(clay).label, 'Leading zero',
     'no variation select for the digital clock');
-  assert.ok(/<option value="17"[^>]*selected/.test(clay.vals['#VARIATION']),
+  assert.ok(!variation(clay).hidden, 'the variation select stayed hidden');
+  assert.strictEqual(String(variation(clay).value), '17',
     'the variation select does not show the block that is placed');
-  document.choose(48);                         // hide the leading zero
+  chooseVariation(clay, 48);                   // hide the leading zero
   assert.strictEqual(clay.vals.BLOCK_TOP_RIGHT, 48, 'the variation did not apply');
   assert.ok(clay.vals['#PALETTE'].indexOf('data-block="48"') > -1,
     'the chip should stand for whichever variation is placed');
-  assert.ok(clay.vals['#VARIATION'].indexOf('Leading zero') > -1,
+  assert.strictEqual(variation(clay).label, 'Leading zero',
     'the variation select closed after being used');
 
   // Tapping the same block again closes the editor.
   document.tap('data-slot', 'BLOCK_TOP_RIGHT');
   assert.ok(clay.items.PANEL_TR_COLOR.hidden, 'the color picker stayed open');
-  assert.strictEqual(clay.vals['#VARIATION'], '', 'the variation select stayed open');
+  assert.ok(variation(clay).hidden, 'the variation select stayed open');
   assert.ok(clay.vals['#PALETTE'].indexOf('data-block') < 0,
     'the palette stayed open');
   checks++;
@@ -535,15 +670,15 @@ PLATFORMS.forEach(function(platform) {
     clay.getItemByMessageKey(k).set(face[k]);
   });
 
-  var code = document.querySelector('[data-transfer="code"]').value;
+  var share = shareBox(clay);
+  var code = share.code();
   // One unbroken token: base32 digits only, no punctuation, no separators, and
   // none of the letters that get misread (I, L, O, U).
   assert.ok(/^[0-9A-HJKMNP-TV-Z]+$/.test(code),
     'share code has odd characters: ' + code);
   checks++;
-  page += '<div style="width:320px"><h4>share code</h4>' +
-    clay.vals['#TRANSFER'].replace('></textarea>', '>' + code + '</textarea>') +
-    '</div>';
+  page += '<div style="width:320px"><h4>share code</h4><code>' + code +
+    '</code></div>';
 
   // Wipe the page, so a rejected import can't pass by leaving the values a
   // previous one already put there. Every field moves off its face value.
@@ -556,13 +691,13 @@ PLATFORMS.forEach(function(platform) {
     });
   }
   wipe();
-  document.querySelector('[data-transfer="in"]').value = code;
-  document.querySelector('[data-transfer="import"]').click();
+  share.paste(code);
+  share.run();
 
   Object.keys(face).forEach(function(k) {
     assert.strictEqual(clay.vals[k], face[k], 'share code lost ' + k);
   });
-  assert.strictEqual(document.querySelector('[data-transfer="in"]').value, '',
+  assert.strictEqual(share.pasted(), '',
     'import left the pasted code in the box');
   checks++;
 
@@ -573,26 +708,34 @@ PLATFORMS.forEach(function(platform) {
   var pretty = code.replace(/(.{8})/g, '$1 ').trim().toLowerCase()
     .replace(/0/g, 'O').replace(/1/g, 'l');
   wipe();
-  document.querySelector('[data-transfer="in"]').value = pretty;
-  document.querySelector('[data-transfer="import"]').click();
+  share.paste(pretty);
+  share.run();
   Object.keys(face).forEach(function(k) {
     assert.strictEqual(clay.vals[k], face[k],
       'a spaced/retyped code lost ' + k);
   });
   checks++;
 
-  var before = JSON.stringify(clay.vals);
+  // Everything but the share box's own two fields: the pasted code and the
+  // message are meant to change on a bad import, the face is not.
+  function faceState() {
+    var out = {};
+    Object.keys(clay.vals).forEach(function(k) {
+      if (k !== '#CODE_IN' && k !== '#TRANSFER_MSG') { out[k] = clay.vals[k]; }
+    });
+    return JSON.stringify(out);
+  }
+  var before = faceState();
   // One digit nudged: right length, right charset, checksum now off.
   var at = 10, next = code.charAt(at) === '0' ? '1' : '0';
   var tampered = code.slice(0, at) + next + code.slice(at + 1);
   ['', 'hello there', code + '0', code.slice(0, -1), tampered
   ].forEach(function(bad) {
-    document.querySelector('[data-transfer="in"]').value = bad;
-    document.querySelector('[data-transfer="import"]').click();
-    var msg = document.querySelector('[data-transfer="msg"]');
-    assert.ok(msg.textContent && msg.style.color === '#C62828',
+    share.paste(bad);
+    share.run();
+    assert.ok(share.message().indexOf('#C62828') > -1,
       'bad code "' + bad + '" was not reported as an error');
-    assert.strictEqual(JSON.stringify(clay.vals), before,
+    assert.strictEqual(faceState(), before,
       'bad code "' + bad + '" changed the face');
     checks++;
   });
@@ -614,8 +757,8 @@ P.forEach(function(p, i) {
 
   // The page exports what it just took in: a preset code that survives its own
   // round trip is a code the share box could have produced.
-  assert.strictEqual(document.querySelector('[data-transfer="code"]').value,
-    p.code, 'preset "' + p.name + '": the face it applied is not its code');
+  assert.strictEqual(shareBox(clay).code(), p.code,
+    'preset "' + p.name + '": the face it applied is not its code');
 
   COLUMNS.forEach(function(col) {
     // A 6-block preset has to be valid as a column of three (that is what rect
