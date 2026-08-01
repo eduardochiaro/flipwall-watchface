@@ -12,11 +12,13 @@ function readValue(s, key) {
   return v && typeof v === 'object' ? v.value : v;
 }
 
-// The five block slots (banner + 2x2 grid), matching the QuadBlock enum on the C
-// side. Anything not listed in BLOCK_FIELDS doesn't use weather at all, so a
-// layout without a single weather block skips the whole request (and the GPS fix).
+// Every block slot: the banner, the 2x2 grid, and the two column middles of the
+// 6-block layout (the top / bottom strips on round screens). Anything not listed
+// in BLOCK_FIELDS doesn't use weather at all, so a layout without a single
+// weather block skips the whole request (and the GPS fix).
 var BLOCK_KEYS = ['BLOCK_BAND', 'BLOCK_TOP_LEFT', 'BLOCK_BOTTOM_LEFT',
-                  'BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_RIGHT'];
+                  'BLOCK_TOP_RIGHT', 'BLOCK_BOTTOM_RIGHT',
+                  'BLOCK_MID_LEFT', 'BLOCK_MID_RIGHT'];
 
 // Which Open-Meteo fields each weather block needs on top of current
 // temperature_2m, which is always requested: weather.c uses
@@ -33,12 +35,16 @@ var BLOCK_FIELDS = {
   32: ['temperature_2m_min', 'temperature_2m_max'],  // Max/Min temp (big)
   33: ['uv_index'],                                  // UV index (small)
   34: ['uv_index'],                                  // UV index (big)
+  41: ['uv_index'],                                  // UV index - color (small)
+  42: ['uv_index'],                                  // UV index - color (big)
   35: ['wind_speed_10m'],                            // Wind speed (small)
   36: ['wind_speed_10m'],                            // Wind speed (big)
   37: ['wind_direction_10m'],                        // Wind direction (small)
   38: ['wind_direction_10m'],                        // Wind direction (big)
   39: ['aqi'],                                       // Air quality (small)
-  40: ['aqi']                                        // Air quality (big)
+  40: ['aqi'],                                       // Air quality (big)
+  43: ['aqi'],                                       // Air quality - color (small)
+  44: ['aqi']                                        // Air quality - color (big)
 };
 
 // The daily=... fields of the forecast API; AIR fields come from the separate
@@ -46,21 +52,8 @@ var BLOCK_FIELDS = {
 var DAILY = { temperature_2m_min: 1, temperature_2m_max: 1 };
 var AIR = { uv_index: 1, aqi: 1 };
 
-// Union of the fields needed by the blocks currently on screen.
-// Returns null when no block uses weather.
-function requestedFields(s) {
-  var used = false;
-  var want = {};
-
-  BLOCK_KEYS.forEach(function(key) {
-    var fields = BLOCK_FIELDS[parseInt(readValue(s, key), 10)];
-    if (!fields) { return; }
-    used = true;
-    fields.forEach(function(f) { want[f] = true; });
-  });
-
-  if (!used) { return null; }
-
+// Sort a set of field names into the two endpoints and their sections.
+function splitFields(want) {
   var current = ['temperature_2m'];
   var daily = [];
   var air = [];
@@ -68,6 +61,37 @@ function requestedFields(s) {
     (AIR[f] ? air : DAILY[f] ? daily : current).push(f);
   });
   return { current: current, daily: daily, air: air };
+}
+
+// Union of the fields needed by the blocks currently on screen.
+// Returns null when no block uses weather.
+function requestedFields(s) {
+  var used = false;
+  var known = false;
+  var want = {};
+
+  BLOCK_KEYS.forEach(function(key) {
+    var raw = readValue(s, key);
+    if (raw !== undefined) { known = true; }
+    var fields = BLOCK_FIELDS[parseInt(raw, 10)];
+    if (!fields) { return; }
+    used = true;
+    fields.forEach(function(f) { want[f] = true; });
+  });
+
+  // No block setting saved on this phone at all — a fresh install, or storage
+  // cleared. The watch keeps its own blocks, so it may well be showing weather
+  // that we'd otherwise never fetch. Ask for everything until the config page
+  // is saved once and tells us what is actually on the face.
+  if (!known) {
+    var all = {};
+    Object.keys(BLOCK_FIELDS).forEach(function(id) {
+      BLOCK_FIELDS[id].forEach(function(f) { all[f] = true; });
+    });
+    return splitFields(all);
+  }
+
+  return used ? splitFields(want) : null;
 }
 
 // Always metric (Open-Meteo's default): the watch converts to °F / inches at
