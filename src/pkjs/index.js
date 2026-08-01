@@ -1,16 +1,18 @@
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
 var getWeather = require('./modules/weather');
-var { clayCustomFn, isBig, COLUMNS, FALLBACK_SMALL, FALLBACK_BIG } = require('./modules/preview');
+var { clayCustomFn } = require('./modules/preview');
 
 var clay = new Clay(clayConfig, clayCustomFn, { autoHandleEvents: false });
 
 // ---------------------------------------------------------------------------
-// Submit-time sanitiser (runs on the phone). Two jobs:
-//   1. Coerce select values to integers — Clay serialises <select> values as
-//      strings, which the watch would otherwise read as garbage.
-//   2. Re-enforce the one-big-block-per-column rule as a safety net (the live rule
-//      above normally keeps it valid; this guards stale/odd responses).
+// Submit-time sanitiser (runs on the phone). One job: coerce every select value
+// to an integer — Clay serialises <select> values as strings, which the watch
+// would otherwise read as garbage.
+//
+// The one-big-block-per-column rule is not re-checked here: the config page
+// keeps it live (reconcile() in preview.js), and a column that did arrive with
+// two big blocks just draws as an equal split on the watch (layout_grid).
 // ---------------------------------------------------------------------------
 function readValue(settings, key) {
   var s = settings[key];
@@ -26,42 +28,29 @@ function writeValue(settings, key, value) {
 }
 
 // Coerce a select to an int, keeping `def` when it is absent or unparseable.
+// (0 is a real block id — "Day of week" — so it must not fall back to `def`.)
 function toInt(settings, key, def) {
-  if (readValue(settings, key) === undefined) { return; }
-  writeValue(settings, key, parseInt(readValue(settings, key), 10) || def);
+  var raw = readValue(settings, key);
+  if (raw === undefined) { return; }
+  var n = parseInt(raw, 10);
+  writeValue(settings, key, isNaN(n) ? def : n);
 }
 
+// Every select the page sends, with the value to fall back on. Toggles and
+// colors already arrive as booleans / ints.
+var INT_KEYS = {
+  BLOCK_TOP_LEFT: 0, BLOCK_TOP_RIGHT: 1,     // Day of week, Day of month
+  BLOCK_BOTTOM_LEFT: 2, BLOCK_BOTTOM_RIGHT: 3,  // Clock, Month
+  BLOCK_BAND: 7,                             // Year
+  BLOCK_MID_LEFT: 16, BLOCK_MID_RIGHT: 4,    // Digital clock, Steps
+  LANG: 0,                                   // English
+  UNITS: 0,                                  // metric
+  LAYOUT: 0                                  // classic 5-block face
+};
+
 function sanitize(settings) {
-  toInt(settings, 'BLOCK_BAND', 7);        // Year
-  toInt(settings, 'BLOCK_MID_LEFT', 16);   // Digital clock
-  toInt(settings, 'BLOCK_MID_RIGHT', 4);   // Steps
-  toInt(settings, 'LANG', 0);              // English
-  toInt(settings, 'UNITS', 0);             // metric
-  toInt(settings, 'LAYOUT', 0);            // classic 5-block face
-
-  // The middle is a column block only in the rect 6-block layout; the classic
-  // layout hides it and the round one draws it as a strip.
-  var six = parseInt(readValue(settings, 'LAYOUT'), 10) === 1;
-  var round = false;
-  try {
-    var info = Pebble.getActiveWatchInfo && Pebble.getActiveWatchInfo();
-    round = !!info && (info.platform === 'chalk' || info.platform === 'gabbro');
-  } catch (e) { /* older firmware: assume rectangular */ }
-
-  COLUMNS.forEach(function(col) {
-    var keys = (six && !round) ? col : [col[0], col[2]];
-    var vals = keys.map(function(k) { return readValue(settings, k); });
-    if (vals.indexOf(undefined) > -1) { return; }
-    vals = vals.map(function(v) { return parseInt(v, 10) || 0; });
-
-    // Keep one big block per column: the first one, or the last slot when the
-    // column has none.
-    var keep = vals.map(isBig).indexOf(true);
-    if (keep < 0) { vals[keep = vals.length - 1] = FALLBACK_BIG; }
-    keys.forEach(function(k, i) {
-      // store as numbers so they ship as ints
-      writeValue(settings, k, (i !== keep && isBig(vals[i])) ? FALLBACK_SMALL : vals[i]);
-    });
+  Object.keys(INT_KEYS).forEach(function(key) {
+    toInt(settings, key, INT_KEYS[key]);
   });
   return settings;
 }

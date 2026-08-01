@@ -140,13 +140,6 @@ GPoint s_draw_origin;                 // abs origin of the block being drawn (fo
 // rounded corners, and never repainted.
 // ---------------------------------------------------------------------------
 
-// Which position a layer holds.
-static BlockPos layer_pos(Layer *layer) {
-  for (int i = 0; i < POS_COUNT; i++)
-    if (s_layer[i] == layer) return (BlockPos)i;
-  return POS_TL;
-}
-
 // True when a position draws as a text-hugging pill rather than a full-width
 // block: the classic banner always, and the six-block middles on round screens,
 // where they sit in the top / bottom strips.
@@ -155,15 +148,16 @@ static bool draws_as_pill(BlockPos pos) {
   return PBL_IF_ROUND_ELSE(pos == POS_MID_L || pos == POS_MID_R, false);
 }
 
+// Everything the layer needs is in its own BlockState, tagged by layout().
 static void block_layer_update(Layer *layer, GContext *ctx) {
-  BlockPos pos = layer_pos(layer);
+  BlockState *st = layer_get_data(layer);
   s_draw_origin = layer_get_frame(layer).origin;
   // Point the shared panel/text globals at this position's resolved color, so
   // the block draws (which read s_panel_bg / s_text_fg) pick up its override.
-  s_panel_bg = s_panel_colors[pos];
+  s_panel_bg = st->panel;
   s_text_fg  = contrast_color(s_panel_bg);
-  if (draws_as_pill(pos))
-    draw_band(ctx, layer_get_bounds(layer), s_blocks[pos]);
+  if (st->pill)
+    draw_band(ctx, layer_get_bounds(layer), st->blk);
   else
     draw_block_layer(ctx, layer);   // flip-aware (see blocks.c)
 }
@@ -314,12 +308,15 @@ static void layout(void) {
                       GRect(inner.origin.x, y, inner.size.w, year_h));
   }
 
-  // Retag every layer with its block and clear the flip state, so re-layout
-  // (load or a settings change) adopts the new value silently, not as a flip.
-  // Reframing marks frames dirty; this forces the kinds/colours to repaint too.
+  // Retag every layer with its block, colour and shape, and clear the flip
+  // state, so re-layout (load or a settings change) adopts the new value
+  // silently, not as a flip. Reframing marks frames dirty; this forces the
+  // kinds/colours to repaint too.
   for (int i = 0; i < POS_COUNT; i++) {
     BlockState *st = layer_get_data(s_layer[i]);
     st->blk = s_blocks[i];
+    st->panel = s_panel_colors[i];
+    st->pill = draws_as_pill((BlockPos)i);
     st->anim = 0;
     st->shown[0] = '\0';
     layer_mark_dirty(s_layer[i]);
@@ -345,6 +342,7 @@ static Trigger block_trigger(QuadBlock b) {
     case BLK_BEAT:
     case BLK_BEAT_BIG:    return TRG_CLOCK;
     case BLK_STEPS:
+    case BLK_STEPS_FULL:
     case BLK_KM:
     case BLK_KM_BIG:
     case BLK_HR:
@@ -433,6 +431,25 @@ static bool block_valid_mid(int v) {
   return PBL_IF_ROUND_ELSE(block_valid_band(v), block_valid_grid(v));
 }
 
+// Everything that differs per position: the persist keys its block and panel
+// color are cached under, the block shown on first run, and which block set the
+// slot accepts. Indexed by BlockPos. (The AppMessage keys can't join it — the
+// SDK's MESSAGE_KEY_* are runtime symbols, not compile-time constants — so
+// inbox_received_handler carries them in its own arrays.)
+static const struct {
+  PersistKey block_pk, panel_pk;
+  QuadBlock  def;
+  bool     (*valid)(int);
+} POS_CFG[POS_COUNT] = {
+  { PK_BLOCK_TL,    PK_PANEL_TL,    BLK_DOW,     block_valid_grid },
+  { PK_BLOCK_TR,    PK_PANEL_TR,    BLK_DAY,     block_valid_grid },
+  { PK_BLOCK_BL,    PK_PANEL_BL,    BLK_CLOCK,   block_valid_grid },
+  { PK_BLOCK_BR,    PK_PANEL_BR,    BLK_MONTH,   block_valid_grid },
+  { PK_BAND_BLOCK,  PK_PANEL_BAND,  BLK_YEAR,    block_valid_band },
+  { PK_BLOCK_MID_L, PK_PANEL_MID_L, BLK_DIGITAL, block_valid_mid },
+  { PK_BLOCK_MID_R, PK_PANEL_MID_R, BLK_STEPS,   block_valid_mid },
+};
+
 static QuadBlock read_block(PersistKey key, QuadBlock def, bool (*valid)(int)) {
   if (!persist_exists(key)) return def;
   int v = persist_read_int(key);
@@ -453,14 +470,6 @@ static void settings_load(void) {
   s_layout = persist_exists(PK_LAYOUT) ? persist_read_int(PK_LAYOUT) : LAYOUT_CLASSIC;
   if (s_layout != LAYOUT_SIX) s_layout = LAYOUT_CLASSIC;
 
-  s_blocks[POS_TL]    = read_block(PK_BLOCK_TL, BLK_DOW,     block_valid_grid);
-  s_blocks[POS_TR]    = read_block(PK_BLOCK_TR, BLK_DAY,     block_valid_grid);
-  s_blocks[POS_BL]    = read_block(PK_BLOCK_BL, BLK_CLOCK,   block_valid_grid);
-  s_blocks[POS_BR]    = read_block(PK_BLOCK_BR, BLK_MONTH,   block_valid_grid);
-  s_blocks[POS_BAND]  = read_block(PK_BAND_BLOCK,  BLK_YEAR,    block_valid_band);
-  s_blocks[POS_MID_L] = read_block(PK_BLOCK_MID_L, BLK_DIGITAL, block_valid_mid);
-  s_blocks[POS_MID_R] = read_block(PK_BLOCK_MID_R, BLK_STEPS,   block_valid_mid);
-
   s_face_bg    = persist_exists(PK_FACE_COLOR)    ? GColorFromHEX(persist_read_int(PK_FACE_COLOR))    : (GColor)FACE_BG;
   s_panel_bg   = persist_exists(PK_PANEL_COLOR)   ? GColorFromHEX(persist_read_int(PK_PANEL_COLOR))   : (GColor)PANEL_BG;
   s_weekend_bg = persist_exists(PK_WEEKEND_COLOR) ? GColorFromHEX(persist_read_int(PK_WEEKEND_COLOR)) : (GColor)WEEKEND_BG;
@@ -469,13 +478,12 @@ static void settings_load(void) {
   s_text_fg    = contrast_color(s_panel_bg);
 
   // Per-block panel overrides fall back to the main panel color when unset.
-  static const PersistKey panel_pk[POS_COUNT] =
-      { PK_PANEL_TL, PK_PANEL_TR, PK_PANEL_BL, PK_PANEL_BR,
-        PK_PANEL_BAND, PK_PANEL_MID_L, PK_PANEL_MID_R };
-  for (int i = 0; i < POS_COUNT; i++)
-    s_panel_colors[i] = persist_exists(panel_pk[i])
-                            ? GColorFromHEX(persist_read_int(panel_pk[i]))
+  for (int i = 0; i < POS_COUNT; i++) {
+    s_blocks[i] = read_block(POS_CFG[i].block_pk, POS_CFG[i].def, POS_CFG[i].valid);
+    s_panel_colors[i] = persist_exists(POS_CFG[i].panel_pk)
+                            ? GColorFromHEX(persist_read_int(POS_CFG[i].panel_pk))
                             : s_panel_bg;
+  }
 }
 
 static void apply_bool(DictionaryIterator *iter, uint32_t msg_key,
@@ -526,27 +534,26 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     persist_write_int(PK_LAYOUT, s_layout);
   }
 
-  apply_block(iter, MESSAGE_KEY_BLOCK_TOP_LEFT,     PK_BLOCK_TL, &s_blocks[POS_TL], block_valid_grid);
-  apply_block(iter, MESSAGE_KEY_BLOCK_TOP_RIGHT,    PK_BLOCK_TR, &s_blocks[POS_TR], block_valid_grid);
-  apply_block(iter, MESSAGE_KEY_BLOCK_BOTTOM_LEFT,  PK_BLOCK_BL, &s_blocks[POS_BL], block_valid_grid);
-  apply_block(iter, MESSAGE_KEY_BLOCK_BOTTOM_RIGHT, PK_BLOCK_BR, &s_blocks[POS_BR], block_valid_grid);
-  apply_block(iter, MESSAGE_KEY_BLOCK_BAND,      PK_BAND_BLOCK,  &s_blocks[POS_BAND],  block_valid_band);
-  apply_block(iter, MESSAGE_KEY_BLOCK_MID_LEFT,  PK_BLOCK_MID_L, &s_blocks[POS_MID_L], block_valid_mid);
-  apply_block(iter, MESSAGE_KEY_BLOCK_MID_RIGHT, PK_BLOCK_MID_R, &s_blocks[POS_MID_R], block_valid_mid);
-
   apply_color(iter, MESSAGE_KEY_FACE_COLOR,    PK_FACE_COLOR,    &s_face_bg);
   apply_color(iter, MESSAGE_KEY_PANEL_COLOR,   PK_PANEL_COLOR,   &s_panel_bg);
   apply_color(iter, MESSAGE_KEY_WEEKEND_COLOR, PK_WEEKEND_COLOR, &s_weekend_bg);
   s_text_fg = contrast_color(s_panel_bg);
 
-  // Per-block panel overrides (the config page seeds these from PANEL_COLOR).
-  apply_color(iter, MESSAGE_KEY_PANEL_TL_COLOR,    PK_PANEL_TL,    &s_panel_colors[POS_TL]);
-  apply_color(iter, MESSAGE_KEY_PANEL_TR_COLOR,    PK_PANEL_TR,    &s_panel_colors[POS_TR]);
-  apply_color(iter, MESSAGE_KEY_PANEL_BL_COLOR,    PK_PANEL_BL,    &s_panel_colors[POS_BL]);
-  apply_color(iter, MESSAGE_KEY_PANEL_BR_COLOR,    PK_PANEL_BR,    &s_panel_colors[POS_BR]);
-  apply_color(iter, MESSAGE_KEY_PANEL_BAND_COLOR, PK_PANEL_BAND,  &s_panel_colors[POS_BAND]);
-  apply_color(iter, MESSAGE_KEY_PANEL_ML_COLOR,   PK_PANEL_MID_L, &s_panel_colors[POS_MID_L]);
-  apply_color(iter, MESSAGE_KEY_PANEL_MR_COLOR,   PK_PANEL_MID_R, &s_panel_colors[POS_MID_R]);
+  // Each position's block and its panel color override, in BlockPos order (the
+  // config page seeds the overrides from PANEL_COLOR, so they come after it).
+  const uint32_t block_msg[POS_COUNT] = {
+    MESSAGE_KEY_BLOCK_TOP_LEFT, MESSAGE_KEY_BLOCK_TOP_RIGHT,
+    MESSAGE_KEY_BLOCK_BOTTOM_LEFT, MESSAGE_KEY_BLOCK_BOTTOM_RIGHT,
+    MESSAGE_KEY_BLOCK_BAND, MESSAGE_KEY_BLOCK_MID_LEFT, MESSAGE_KEY_BLOCK_MID_RIGHT };
+  const uint32_t panel_msg[POS_COUNT] = {
+    MESSAGE_KEY_PANEL_TL_COLOR, MESSAGE_KEY_PANEL_TR_COLOR,
+    MESSAGE_KEY_PANEL_BL_COLOR, MESSAGE_KEY_PANEL_BR_COLOR,
+    MESSAGE_KEY_PANEL_BAND_COLOR, MESSAGE_KEY_PANEL_ML_COLOR,
+    MESSAGE_KEY_PANEL_MR_COLOR };
+  for (int i = 0; i < POS_COUNT; i++) {
+    apply_block(iter, block_msg[i], POS_CFG[i].block_pk, &s_blocks[i], POS_CFG[i].valid);
+    apply_color(iter, panel_msg[i], POS_CFG[i].panel_pk, &s_panel_colors[i]);
+  }
 
   apply_bool(iter, MESSAGE_KEY_SHOW_SECONDS, PK_SHOW_SECONDS, &s_show_seconds);
   apply_bool(iter, MESSAGE_KEY_FLIP_ANIM, PK_FLIP_ANIM, &s_flip_enabled);

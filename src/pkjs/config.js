@@ -20,7 +20,8 @@
 //   41/42 = UV index - color (small / big), 43/44 = Air quality - color,
 //   45 = .beat time (small / banner), 46 = .beat time (big),
 //   47 = Digital clock, no leading zero (small / banner),
-//   48 = Digital clock, no leading zero (big).
+//   48 = Digital clock, no leading zero (big),
+//   49 = Steps, full count (small / banner).
 // The "- color" variants draw like their plain counterpart but paint the panel
 // with the index's own band color (see block_panel_color in blocks.c).
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
@@ -84,6 +85,7 @@ var SMALL_DATE = [
 
 var SMALL_ACTIVITY = [
   { label: "Steps (small)", value: 4 },
+  { label: "Steps, full count (small)", value: 49 },
   { label: "Distance (small)", value: 5 },
   { label: "Battery (small)", value: 6 },
   { label: "Heart rate (small)", value: 24 }
@@ -127,6 +129,7 @@ var BAND_OPTIONS = [
   ] },
   { label: "Activity", value: [
     { label: "Steps", value: 4 },
+    { label: "Steps, full count", value: 49 },
     { label: "Distance", value: 5 },
     { label: "Battery", value: 6 },
     { label: "Heart rate", value: 24 }

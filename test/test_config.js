@@ -5,10 +5,34 @@
 //
 // Set DUMP=<file> to also write the rendered previews out as an HTML page.
 var src = require('path').join(__dirname, '..', 'src', 'pkjs');
-var { clayCustomFn, isBig, COLUMNS } = require(src + '/modules/preview');
+var { clayCustomFn } = require(src + '/modules/preview');
 var configDef = require(src + '/config');
 var assert = require('assert');
 var fs = require('fs');
+
+// Block sizes, read out of the config page's own option groups ("Big - …") —
+// the same place the page itself gets them from, so this checks the page
+// against config.js rather than against a second copy of the same list.
+function isBig(v) {
+  if (!isBig.set) {
+    isBig.set = {};
+    declaredItems().forEach(function(it) {
+      if (it.key !== 'BLOCK_TOP_LEFT') { return; }
+      it.options.forEach(function(group) {
+        if (group.label.indexOf('Big') !== 0) { return; }
+        group.value.forEach(function(o) { isBig.set[o.value] = true; });
+      });
+    });
+  }
+  return !!isBig.set[parseInt(v, 10)];
+}
+
+// The three slots of each column, top to bottom. The middle only joins the
+// column in the rect 6-block layout.
+var COLUMNS = [
+  ['BLOCK_TOP_LEFT', 'BLOCK_MID_LEFT', 'BLOCK_BOTTOM_LEFT'],
+  ['BLOCK_TOP_RIGHT', 'BLOCK_MID_RIGHT', 'BLOCK_BOTTOM_RIGHT']
+];
 
 // Defaults straight out of the Clay config definition.
 function defaults() {
@@ -340,6 +364,29 @@ PLATFORMS.forEach(function(platform) {
   checks++;
 })();
 
+// --- Steps, full count ------------------------------------------------------
+// 49 is the same reading as 4 with no K shorthand, so it draws every digit and
+// rides along as a variation of the compact block rather than its own chip.
+(function fullSteps() {
+  global.document = makeDocument();
+  var clay = makeClay('basalt');
+  clayCustomFn.call(clay);
+  clay.build();
+  clay.getItemByMessageKey('BLOCK_TOP_LEFT').set(49);
+
+  assert.ok(clay.vals['#PREVIEW'].indexOf('>8234<') > -1,
+    'the full step count is not drawn on the face');
+  assert.ok(!isBig(49), 'the full step count should be a small block');
+
+  document.tap('data-slot', 'BLOCK_TOP_LEFT');
+  assert.ok(clay.vals['#VARIATION'].indexOf('Step count') > -1,
+    'no step-count variation select');
+  document.choose(4);
+  assert.strictEqual(clay.vals.BLOCK_TOP_LEFT, 4,
+    'switching back to the compact step count did not apply');
+  checks++;
+})();
+
 // --- Tap to place ---------------------------------------------------------
 // Blocks are placed on the face: tap a panel, then tap what it should show.
 // The palette is scraped out of the hidden select, so it has to offer exactly
@@ -377,7 +424,7 @@ PLATFORMS.forEach(function(platform) {
   [16, 17, 11, 26, 22, 33, 34, 39, 40].forEach(function(v) {
     assert.ok(offered.indexOf(v) > -1, 'block ' + v + ' left the palette');
   });
-  [47, 48, 25, 29, 23, 41, 42, 43, 44].forEach(function(v) {
+  [47, 48, 49, 25, 29, 23, 41, 42, 43, 44].forEach(function(v) {
     assert.ok(offered.indexOf(v) < 0, 'block ' + v + ' should be a variation');
   });
 

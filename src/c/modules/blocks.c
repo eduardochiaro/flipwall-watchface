@@ -11,52 +11,36 @@
 // Block-kind metadata
 // ---------------------------------------------------------------------------
 
-// Grid blocks span BLK_DOW..BLK_BATTERY plus the weather blocks. Day, Clock,
-// Weather and the big temperature are "big" (square); everything else is a
-// "short" half-height block. BLK_YEAR draws as plain text, so it sits in a
-// column slot as happily as in the banner.
-bool block_valid_grid(int v) {
-  return (v >= BLK_DOW && v <= BLK_BATTERY) || v == BLK_YEAR || v == BLK_WEATHER ||
-         v == BLK_TEMP || v == BLK_TEMP_BIG || v == BLK_HUMIDITY ||
-         v == BLK_PRECIP || v == BLK_DIGITAL || v == BLK_DIGITAL_BIG ||
-         v == BLK_HOURS || v == BLK_HOURS_BIG ||
-         v == BLK_MINUTES || v == BLK_MINUTES_BIG ||
-         v == BLK_AMPM || v == BLK_AMPM_STACK || v == BLK_MINMAX ||
-         v == BLK_HR || v == BLK_TEMP_ICON || v == BLK_CALENDAR ||
-         v == BLK_MONTH_DAY || v == BLK_DOW_DAY ||
-         v == BLK_HUMIDITY_BIG || v == BLK_BATTERY_BIG ||
-         v == BLK_MONTH_CAL || v == BLK_HR_BIG ||
-         v == BLK_KM_BIG || v == BLK_MINMAX_BIG ||
-         v == BLK_UV || v == BLK_UV_BIG ||
-         v == BLK_WIND || v == BLK_WIND_BIG ||
-         v == BLK_WIND_DIR || v == BLK_WIND_DIR_BIG ||
-         v == BLK_AQI || v == BLK_AQI_BIG ||
-         (v >= BLK_UV_COLOR && v <= BLK_AQI_BIG_COLOR) ||
-         v == BLK_BEAT || v == BLK_BEAT_BIG || v == BLK_DIGITAL_NOZERO ||
-         v == BLK_DIGITAL_BIG_NOZERO;
-}
-bool block_valid_band(int v) {
-  return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY) ||
-         v == BLK_MONTH_DAY || v == BLK_DOW_DAY ||
-         v == BLK_TEMP || v == BLK_HUMIDITY || v == BLK_MINMAX ||
-         v == BLK_PRECIP || v == BLK_DIGITAL || v == BLK_HR ||
-         v == BLK_TEMP_ICON || v == BLK_UV ||
-         v == BLK_WIND || v == BLK_WIND_DIR || v == BLK_AQI ||
-         v == BLK_UV_COLOR || v == BLK_AQI_COLOR || v == BLK_BEAT ||
-         v == BLK_DIGITAL_NOZERO;
-}
-bool block_is_short(QuadBlock b) {
-  return !(b == BLK_DAY || b == BLK_CLOCK || b == BLK_WEATHER ||
-           b == BLK_TEMP_BIG || b == BLK_DIGITAL_BIG ||
-           b == BLK_HOURS_BIG || b == BLK_MINUTES_BIG ||
-           b == BLK_CALENDAR || b == BLK_HUMIDITY_BIG ||
-           b == BLK_BATTERY_BIG || b == BLK_MONTH_CAL ||
-           b == BLK_HR_BIG || b == BLK_KM_BIG || b == BLK_MINMAX_BIG ||
-           b == BLK_UV_BIG || b == BLK_WIND_BIG || b == BLK_WIND_DIR_BIG ||
-           b == BLK_AQI_BIG || b == BLK_UV_BIG_COLOR ||
-           b == BLK_AQI_BIG_COLOR || b == BLK_BEAT_BIG ||
-           b == BLK_DIGITAL_BIG_NOZERO);
-}
+// Block-kind sets. Every id is under 64, so each set is one bit mask: shorter
+// than an or-chain per member, and a mistyped name is a compile error.
+#define BLKBIT(b) (1ULL << (b))
+
+// "Big" (square) blocks; everything else is a short half-height one.
+static const uint64_t BIG_SET =
+    BLKBIT(BLK_DAY) | BLKBIT(BLK_CLOCK) | BLKBIT(BLK_WEATHER) |
+    BLKBIT(BLK_TEMP_BIG) | BLKBIT(BLK_DIGITAL_BIG) |
+    BLKBIT(BLK_DIGITAL_BIG_NOZERO) | BLKBIT(BLK_HOURS_BIG) |
+    BLKBIT(BLK_MINUTES_BIG) | BLKBIT(BLK_CALENDAR) | BLKBIT(BLK_MONTH_CAL) |
+    BLKBIT(BLK_HUMIDITY_BIG) | BLKBIT(BLK_BATTERY_BIG) | BLKBIT(BLK_HR_BIG) |
+    BLKBIT(BLK_KM_BIG) | BLKBIT(BLK_MINMAX_BIG) | BLKBIT(BLK_UV_BIG) |
+    BLKBIT(BLK_UV_BIG_COLOR) | BLKBIT(BLK_WIND_BIG) | BLKBIT(BLK_WIND_DIR_BIG) |
+    BLKBIT(BLK_AQI_BIG) | BLKBIT(BLK_AQI_BIG_COLOR) | BLKBIT(BLK_BEAT_BIG);
+
+// What the banner can hold: the short blocks that draw as one centred string
+// (or an icon + value), so the panel can hug their text.
+static const uint64_t BAND_SET =
+    BLKBIT(BLK_YEAR) | BLKBIT(BLK_STEPS) | BLKBIT(BLK_STEPS_FULL) | BLKBIT(BLK_KM) |
+    BLKBIT(BLK_BATTERY) | BLKBIT(BLK_MONTH_DAY) | BLKBIT(BLK_DOW_DAY) |
+    BLKBIT(BLK_TEMP) | BLKBIT(BLK_TEMP_ICON) | BLKBIT(BLK_HUMIDITY) |
+    BLKBIT(BLK_MINMAX) | BLKBIT(BLK_PRECIP) | BLKBIT(BLK_DIGITAL) |
+    BLKBIT(BLK_DIGITAL_NOZERO) | BLKBIT(BLK_HR) | BLKBIT(BLK_UV) |
+    BLKBIT(BLK_UV_COLOR) | BLKBIT(BLK_WIND) | BLKBIT(BLK_WIND_DIR) |
+    BLKBIT(BLK_AQI) | BLKBIT(BLK_AQI_COLOR) | BLKBIT(BLK_BEAT);
+
+// Every block kind is legal in the 2x2 grid; the banner takes a subset.
+bool block_valid_grid(int v) { return v >= BLK_DOW && v < BLK_COUNT; }
+bool block_valid_band(int v) { return block_valid_grid(v) && (BAND_SET >> v & 1); }
+bool block_is_short(QuadBlock b) { return !(BIG_SET >> b & 1); }
 
 // A "- colour" variant draws exactly like the block it mirrors; only the panel
 // colour differs (see block_panel_color).
@@ -259,13 +243,12 @@ static void draw_panel(GContext *ctx, GRect r, GColor bg) {
 // Individual blocks
 // ---------------------------------------------------------------------------
 
-// Hours and minutes as separate strings, respecting the watch's 12/24h setting.
-// 12h drops the leading zero on the hour ("9" not "09"); minutes always 2 digits.
-static void digital_parts(char *hh, size_t hn, char *mm, size_t mn) {
+// "HH:MM", respecting the watch's 12/24h setting. 12h always drops the hour's
+// leading zero ("9:05"); `nozero` drops a 24h one too.
+static void digital_str(char *buf, size_t n, bool nozero) {
   bool h24 = clock_is_24h_style();
-  strftime(hh, hn, h24 ? "%H" : "%I", &s_now);
-  if (!h24 && hh[0] == '0') memmove(hh, hh + 1, strlen(hh));
-  strftime(mm, mn, "%M", &s_now);
+  strftime(buf, n, h24 ? "%H:%M" : "%I:%M", &s_now);
+  if ((nozero || !h24) && buf[0] == '0') memmove(buf, buf + 1, strlen(buf));
 }
 
 // Hours / minutes as standalone 2-digit strings (leading zero kept). Hours honour
@@ -286,15 +269,18 @@ static int beat_time(void) {
 // Compact value text for the data blocks (year / steps / km / battery / weather).
 // Health metrics fall back to "--" on platforms without Health (e.g. aplite).
 static void block_text(QuadBlock blk, char *buf, size_t n) {
-  switch (base_block(blk)) {
+  QuadBlock b = base_block(blk);
+  switch (b) {
     case BLK_YEAR:
       strftime(buf, n, "%Y", &s_now);
       break;
-    case BLK_STEPS: {
+    case BLK_STEPS:
+    case BLK_STEPS_FULL: {
 #if defined(PBL_HEALTH)
       int s = (int)health_service_sum_today(HealthMetricStepCount);
-      // 2 digits then K past 1000 so the short block never overflows.
-      if (s < 1000)       snprintf(buf, n, "%d", s);
+      // The full variant spells out every digit (draw_centered shrinks it to
+      // fit); the compact one caps at 2 digits then K, so it never overflows.
+      if (b == BLK_STEPS_FULL || s < 1000) snprintf(buf, n, "%d", s);
       else if (s < 10000) snprintf(buf, n, "%d.%dK", s / 1000, (s % 1000) / 100);
       else                snprintf(buf, n, "%dK", s / 1000);
 #else
@@ -364,19 +350,12 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
     case BLK_BEAT:
       snprintf(buf, n, "@%03d", beat_time());
       break;
-    case BLK_DIGITAL: {
-      char hh[4], mm[4];
-      digital_parts(hh, sizeof(hh), mm, sizeof(mm));
-      snprintf(buf, n, "%s:%s", hh, mm);
+    case BLK_DIGITAL:
+      digital_str(buf, n, false);
       break;
-    }
-    case BLK_DIGITAL_NOZERO: {
-      char hh[4], mm[4];
-      digital_parts(hh, sizeof(hh), mm, sizeof(mm));   // 12h drops the zero already
-      const char *h = (hh[0] == '0' && hh[1]) ? hh + 1 : hh;   // 24h: drop it too
-      snprintf(buf, n, "%s:%s", h, mm);
+    case BLK_DIGITAL_NOZERO:
+      digital_str(buf, n, true);
       break;
-    }
     case BLK_HOURS:
     case BLK_HOURS_BIG:
       hours_str(buf, n);
@@ -401,16 +380,21 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
   }
 }
 
+// Panel + one centred string + seam: the shape most blocks are. `pct` is the
+// cap height as a percentage of the block height; draw_centered shrinks it
+// further if the string (a wide "°"/prefix value) would overflow the width.
+static void draw_simple(GContext *ctx, GRect r, const char *txt, int pct) {
+  draw_panel(ctx, r, s_panel_bg);
+  draw_centered(ctx, r, txt, r.size.h * pct / 100, s_text_fg);
+  draw_seam(ctx, r);
+}
+
 // A plain centred short block (steps / km / battery / temp / humidity), same
 // look as the month.
 static void draw_value_block(GContext *ctx, GRect r, QuadBlock blk) {
   char buf[16];
   block_text(blk, buf, sizeof(buf));
-  draw_panel(ctx, r, s_panel_bg);
-  // Big cap (matches the month block); draw_centered shrinks it to fit width if
-  // the string (a wide "°"/prefix value) would overflow.
-  draw_centered(ctx, r, buf, r.size.h * 52 / 100, s_text_fg);
-  draw_seam(ctx, r);
+  draw_simple(ctx, r, buf, 52);
 }
 
 // Width of the digit a no-zero clock leaves out ("4:33" against "16:33"), zero
@@ -477,30 +461,6 @@ static void draw_beat(GContext *ctx, GRect r) {
   draw_seam(ctx, r);
 }
 
-static void draw_day(GContext *ctx, GRect r) {
-  char buf[4];
-  snprintf(buf, sizeof(buf), "%d", s_now.tm_mday);
-  draw_panel(ctx, r, s_panel_bg);
-  draw_centered(ctx, r, buf, r.size.h * 50 / 100, s_text_fg);
-  draw_seam(ctx, r);
-}
-
-// Big hours / minutes block: one big centred 2-digit number, like the day.
-static void draw_big_number(GContext *ctx, GRect r, const char *txt) {
-  draw_panel(ctx, r, s_panel_bg);
-  draw_centered(ctx, r, txt, r.size.h * 50 / 100, s_text_fg);
-  draw_seam(ctx, r);
-}
-
-// Big temperature block: same big number treatment as the day-of-month.
-static void draw_temp_big(GContext *ctx, GRect r) {
-  char buf[16];
-  weather_temp_str(buf, sizeof(buf));
-  draw_panel(ctx, r, s_panel_bg);
-  draw_centered(ctx, r, buf, r.size.h * 40 / 100, s_text_fg);   // "°" widens it
-  draw_seam(ctx, r);
-}
-
 // Big digital clock: hours in the top half, minutes in the bottom half, split by
 // the seam. (The small/banner variant is just "HH:MM" via draw_value_block.)
 // nozero drops the hour's leading zero but keeps its width, so the single digit
@@ -550,82 +510,6 @@ static void draw_caption_value(GContext *ctx, GRect r, const char *caption,
   draw_centered(ctx, big_r, value, r.size.h * 46 / 100, s_text_fg);        // big
 }
 
-// Calendar block: weekday name (small) over the day-of-month (big), split by the
-// seam. On weekends the weekday name is drawn in the accent/weekend colour.
-static void draw_calendar(GContext *ctx, GRect r) {
-  draw_panel(ctx, r, s_panel_bg);
-  bool weekend = (s_now.tm_wday == 0 || s_now.tm_wday == 6);
-  GColor dow_fg = weekend ? s_weekend_bg : s_text_fg;
-  char day[4];
-  snprintf(day, sizeof(day), "%d", s_now.tm_mday);
-  draw_caption_value(ctx, r, wday_name(), dow_fg, day, true);
-  draw_seam(ctx, r);
-}
-
-// Calendar variant: month name (small) over the day-of-month (big). No accent.
-static void draw_month_cal(GContext *ctx, GRect r) {
-  draw_panel(ctx, r, s_panel_bg);
-  char day[4];
-  snprintf(day, sizeof(day), "%d", s_now.tm_mday);
-  draw_caption_value(ctx, r, month_name(), s_text_fg, day, true);
-  draw_seam(ctx, r);
-}
-
-// Big humidity: localised "Hum" caption over the "47%" value.
-static void draw_humidity_big(GContext *ctx, GRect r) {
-  draw_panel(ctx, r, s_panel_bg);
-  char v[8];
-  weather_humidity_str(v, sizeof(v));
-  draw_caption_value(ctx, r, humidity_label3(), s_text_fg, v, true);
-  draw_seam(ctx, r);
-}
-
-// Big battery: localised "Batt" caption over the "82%" value.
-static void draw_battery_big(GContext *ctx, GRect r) {
-  draw_panel(ctx, r, s_panel_bg);
-  char v[8];
-  snprintf(v, sizeof(v), "%d%%", battery_state_service_peek().charge_percent);
-  draw_caption_value(ctx, r, battery_label(), s_text_fg, v, true);
-  draw_seam(ctx, r);
-}
-
-// Big heart rate: the BPM number over a "BPM" caption.
-static void draw_hr_big(GContext *ctx, GRect r) {
-  draw_panel(ctx, r, s_panel_bg);
-  char v[8];
-  block_text(BLK_HR, v, sizeof(v));
-  draw_caption_value(ctx, r, "BPM", s_text_fg, v, false);
-  draw_seam(ctx, r);
-}
-
-// Big UV index: the big number over a "UV I" caption (same as the HR block).
-static void draw_uv_big(GContext *ctx, GRect r) {
-  draw_panel(ctx, r, s_panel_bg);
-  char v[8];
-  weather_uv_str(v, sizeof(v));
-  draw_caption_value(ctx, r, UV_LABEL_BIG, s_text_fg, v, false);
-  draw_seam(ctx, r);
-}
-
-// Big .beat time: the beat count over a ".beat" caption (like the HR block), the
-// caption in the text's accent colour to match the "@" on the small block.
-static void draw_beat_big(GContext *ctx, GRect r) {
-  draw_panel(ctx, r, s_panel_bg);
-  char v[8];
-  snprintf(v, sizeof(v), "%03d", beat_time());
-  draw_caption_value(ctx, r, ".beat", get_closest_accent_color(s_text_fg), v, false);
-  draw_seam(ctx, r);
-}
-
-// Big air quality: the index over an "AQI" caption (same shape as the UV block).
-static void draw_aqi_big(GContext *ctx, GRect r) {
-  draw_panel(ctx, r, s_panel_bg);
-  char v[8];
-  weather_aqi_str(v, sizeof(v));
-  draw_caption_value(ctx, r, "AQI", s_text_fg, v, false);
-  draw_seam(ctx, r);
-}
-
 // Split a short block's value ("3.2km", "12km/h") into its numeric part and an
 // upper-cased unit, so a big block can stack the two. "--" yields an empty unit.
 static void split_num_unit(const char *src, char *num, size_t nn,
@@ -641,24 +525,70 @@ static void split_num_unit(const char *src, char *num, size_t nn,
   unit[u] = '\0';
 }
 
-// Big distance: the number over its unit (KM/M/MI). Reuses the short block's
-// value formatting (same rounding / imperial handling).
-static void draw_km_big(GContext *ctx, GRect r) {
-  draw_panel(ctx, r, s_panel_bg);
-  char buf[16], num[8], unit[8];
-  block_text(BLK_KM, buf, sizeof(buf));   // e.g. "3.2km" or "--"
-  split_num_unit(buf, num, sizeof(num), unit, sizeof(unit));
-  draw_caption_value(ctx, r, unit, s_text_fg, num, false);
-  draw_seam(ctx, r);
-}
+// Every big two-line block is the same drawing with different strings: a small
+// caption and a big value, the caption above (calendar / humidity / battery) or
+// below (HR / UV / distance / wind / AQI / .beat). Only the strings and the
+// caption colour vary, so they share one body.
+static void draw_caption_block(GContext *ctx, GRect r, QuadBlock blk) {
+  char val[16], num[8], unit[8];
+  const char *caption = "", *value = val;
+  GColor caption_fg = s_text_fg;
+  bool label_top = false;
 
-// Big wind speed: the number over its unit (KM/H or MPH), like the distance block.
-static void draw_wind_big(GContext *ctx, GRect r) {
+  switch (blk) {
+    case BLK_CALENDAR:   // weekday over the day, weekend name in the accent
+      snprintf(val, sizeof(val), "%d", s_now.tm_mday);
+      caption = wday_name();
+      if (s_now.tm_wday == 0 || s_now.tm_wday == 6) caption_fg = s_weekend_bg;
+      label_top = true;
+      break;
+    case BLK_MONTH_CAL:  // month name over the day
+      snprintf(val, sizeof(val), "%d", s_now.tm_mday);
+      caption = month_name();
+      label_top = true;
+      break;
+    case BLK_HUMIDITY_BIG:
+      weather_humidity_str(val, sizeof(val));
+      caption = humidity_label3();   // localised "Hum"
+      label_top = true;
+      break;
+    case BLK_BATTERY_BIG:
+      snprintf(val, sizeof(val), "%d%%", battery_state_service_peek().charge_percent);
+      caption = battery_label();     // localised "Batt"
+      label_top = true;
+      break;
+    case BLK_HR_BIG:
+      block_text(BLK_HR, val, sizeof(val));
+      caption = "BPM";
+      break;
+    case BLK_UV_BIG:
+      weather_uv_str(val, sizeof(val));
+      caption = UV_LABEL_BIG;
+      break;
+    case BLK_AQI_BIG:
+      weather_aqi_str(val, sizeof(val));
+      caption = "AQI";
+      break;
+    case BLK_BEAT_BIG:   // caption in the accent, matching the small block's "@"
+      snprintf(val, sizeof(val), "%03d", beat_time());
+      caption = ".beat";
+      caption_fg = get_closest_accent_color(s_text_fg);
+      break;
+    // Number over its unit, both taken from the short block's own formatting
+    // (same rounding / imperial handling).
+    case BLK_KM_BIG:
+    case BLK_WIND_BIG:
+      if (blk == BLK_KM_BIG) block_text(BLK_KM, val, sizeof(val));  // "3.2km"
+      else                   weather_wind_str(val, sizeof(val));    // "12km/h"
+      split_num_unit(val, num, sizeof(num), unit, sizeof(unit));
+      caption = unit;
+      value = num;
+      break;
+    default: return;
+  }
+
   draw_panel(ctx, r, s_panel_bg);
-  char buf[16], num[8], unit[8];
-  weather_wind_str(buf, sizeof(buf));     // e.g. "12km/h" or "--"
-  split_num_unit(buf, num, sizeof(num), unit, sizeof(unit));
-  draw_caption_value(ctx, r, unit, s_text_fg, num, false);
+  draw_caption_value(ctx, r, caption, caption_fg, value, label_top);
   draw_seam(ctx, r);
 }
 
@@ -674,12 +604,6 @@ static void draw_minmax_big(GContext *ctx, GRect r) {
   GRect bot = GRect(r.origin.x, r.origin.y + half, r.size.w, r.size.h - half);
   draw_centered(ctx, top, mx, half * 75 / 100, s_text_fg);
   draw_centered(ctx, bot, mn, half * 75 / 100, get_closest_accent_color(s_text_fg));
-  draw_seam(ctx, r);
-}
-
-static void draw_month(GContext *ctx, GRect r) {
-  draw_panel(ctx, r, s_panel_bg);
-  draw_centered(ctx, r, month_name(), r.size.h * 52 / 100, s_text_fg);
   draw_seam(ctx, r);
 }
 
@@ -951,28 +875,25 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
 
   switch (base_block(blk)) {
     case BLK_DOW:      draw_dow(ctx, r);      break;
-    case BLK_DAY:      draw_day(ctx, r);      break;
     case BLK_CLOCK:    draw_clock(ctx, r);    break;
-    case BLK_MONTH:    draw_month(ctx, r);    break;
-    case BLK_TEMP_BIG: draw_temp_big(ctx, r); break;
+    case BLK_MONTH:    draw_simple(ctx, r, month_name(), 52); break;
     case BLK_DIGITAL_BIG: draw_digital_big(ctx, r, false); break;
     case BLK_DIGITAL_BIG_NOZERO: draw_digital_big(ctx, r, true); break;
-    case BLK_CALENDAR: draw_calendar(ctx, r); break;
-    case BLK_MONTH_CAL: draw_month_cal(ctx, r); break;
-    case BLK_HUMIDITY_BIG: draw_humidity_big(ctx, r); break;
-    case BLK_BATTERY_BIG: draw_battery_big(ctx, r); break;
-    case BLK_HR_BIG:   draw_hr_big(ctx, r);   break;
-    case BLK_KM_BIG:   draw_km_big(ctx, r);   break;
+    // The big two-line blocks all share one body (see draw_caption_block).
+    case BLK_CALENDAR:  case BLK_MONTH_CAL: case BLK_HUMIDITY_BIG:
+    case BLK_BATTERY_BIG: case BLK_HR_BIG:  case BLK_KM_BIG:
+    case BLK_UV_BIG:    case BLK_WIND_BIG:  case BLK_AQI_BIG:
+    case BLK_BEAT_BIG:  draw_caption_block(ctx, r, base_block(blk)); break;
     case BLK_MINMAX_BIG: draw_minmax_big(ctx, r); break;
-    case BLK_UV_BIG:   draw_uv_big(ctx, r);   break;
-    case BLK_WIND_BIG: draw_wind_big(ctx, r); break;
     case BLK_WIND_DIR_BIG: draw_wind_dir_big(ctx, r); break;
-    case BLK_AQI_BIG:  draw_aqi_big(ctx, r);  break;
-    case BLK_BEAT_BIG: draw_beat_big(ctx, r); break;
     case BLK_BEAT:     draw_beat(ctx, r);     break;
     case BLK_DIGITAL_NOZERO: draw_digital_nozero(ctx, r); break;
-    case BLK_HOURS_BIG: { char b[4]; hours_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
-    case BLK_MINUTES_BIG: { char b[4]; minutes_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
+    case BLK_DAY: { char b[4]; snprintf(b, sizeof b, "%d", s_now.tm_mday);
+                    draw_simple(ctx, r, b, 50); break; }
+    case BLK_TEMP_BIG: { char b[16]; weather_temp_str(b, sizeof b);
+                         draw_simple(ctx, r, b, 40); break; }   // "°" widens it
+    case BLK_HOURS_BIG: { char b[4]; hours_str(b, sizeof b); draw_simple(ctx, r, b, 50); break; }
+    case BLK_MINUTES_BIG: { char b[4]; minutes_str(b, sizeof b); draw_simple(ctx, r, b, 50); break; }
     case BLK_AMPM:     draw_ampm(ctx, r);     break;
     case BLK_AMPM_STACK: draw_ampm_stack(ctx, r); break;
     case BLK_WEATHER:  draw_icon_block(ctx, r, weather_icon_resource()); break;
@@ -1011,7 +932,7 @@ static bool block_centered_text(QuadBlock b, char *buf, size_t n) {
   switch (b) {
     case BLK_DAY:   snprintf(buf, n, "%d", s_now.tm_mday); return true;
     case BLK_MONTH: snprintf(buf, n, "%s", month_name());  return true;
-    case BLK_STEPS: case BLK_KM:  case BLK_BATTERY:
+    case BLK_STEPS: case BLK_STEPS_FULL: case BLK_KM: case BLK_BATTERY:
     case BLK_TEMP:  case BLK_TEMP_BIG: case BLK_HUMIDITY:
     case BLK_PRECIP: case BLK_DIGITAL: case BLK_WIND: case BLK_AQI:
     // ponytail: the no-zero clock flips plainly centred, so its digits sit half

@@ -73,6 +73,8 @@ typedef enum {
   BLK_BEAT_BIG,   // beat number over a ".beat" caption (big)
   BLK_DIGITAL_NOZERO, // digital clock, no leading zero but its width kept (small)
   BLK_DIGITAL_BIG_NOZERO, // hours over minutes, hour's leading zero dropped (big)
+  BLK_STEPS_FULL, // step count, every digit ("8234") (small / banner)
+  BLK_COUNT,      // sentinel: how many block kinds there are
 } QuadBlock;
 
 // --- Localisation ----------------------------------------------------------
@@ -102,6 +104,8 @@ bool block_valid_band(int v);         // may sit in the banner
 #define FLIP_STEPS 8           // frames per flip (~FLIP_STEPS * 40ms total)
 typedef struct {
   QuadBlock blk;               // which block this layer shows (was the layer data)
+  GColor    panel;             // this position's resolved panel colour
+  bool      pill;              // draws as a text-hugging banner pill, not a block
   uint8_t   anim;              // 0 = idle, else countdown FLIP_STEPS..1
   char      shown[16];         // text currently on screen (empty = first paint)
   char      old[16];           // pre-flip text, shown during the collapse half

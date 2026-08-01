@@ -1,8 +1,6 @@
-# script accept a name (emulator name), looks in the asset folder for current screennshots and add new one after current series 
-# (for example if user pass name "basalt", there are 4 screenshots, the last one says "basalt_4.png" the new screenhost to create should be "basalt_5.png")
-# script is "pebble screenshot assets/basalt_5.png --emulator basalt". Optional second value is number, in case of override
-
 #!/bin/bash
+# Take an emulator screenshot into assets/<emulator>_<n>.png, numbered after the
+# ones already there. Pass a number as the second argument to override it.
 if [ -z "$1" ]; then
     echo "Usage: $0 <emulator_name> [screenshot_number]"
     exit 1

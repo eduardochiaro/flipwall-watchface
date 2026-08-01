@@ -36,20 +36,31 @@ static int temp_out(int celsius) {
   return (tenths + (tenths < 0 ? -5 : 5)) / 10 + 32;
 }
 
+// The whole reading: one row per value, tying its persist key to its variable.
+// Load, receive and cache all just walk this. A field the cache predates simply
+// reads back 0. (The AppMessage keys can't join it — the SDK's MESSAGE_KEY_*
+// are runtime symbols, not compile-time constants — so they sit in a matching
+// array inside weather_handle_message.)
+static const struct { WeatherPersistKey pk; int *dst; } FIELDS[] = {
+  { PK_W_TEMP,     &s_temp },
+  { PK_W_CODE,     &s_code },
+  { PK_W_HUMIDITY, &s_humidity },
+  { PK_W_MIN,      &s_min },
+  { PK_W_MAX,      &s_max },
+  { PK_W_PRECIP,   &s_precip },
+  { PK_W_UV,       &s_uv },
+  { PK_W_WIND,     &s_wind },
+  { PK_W_WIND_DIR, &s_wind_dir },
+  { PK_W_AQI,      &s_aqi },
+};
+#define FIELD_COUNT (sizeof(FIELDS) / sizeof(FIELDS[0]))
+
 void weather_init(void) {
   if (persist_exists(PK_W_UNITS)) s_imperial = persist_read_bool(PK_W_UNITS);
   if (!persist_exists(PK_W_VALID)) return;
-  s_have     = true;
-  s_temp     = persist_read_int(PK_W_TEMP);
-  s_code     = persist_read_int(PK_W_CODE);
-  s_humidity = persist_read_int(PK_W_HUMIDITY);
-  s_min      = persist_read_int(PK_W_MIN);
-  s_max      = persist_read_int(PK_W_MAX);
-  s_precip   = persist_read_int(PK_W_PRECIP);
-  s_uv       = persist_read_int(PK_W_UV);   // 0 when cached before UV existed
-  s_wind     = persist_read_int(PK_W_WIND);       // 0 when cached before wind
-  s_wind_dir = persist_read_int(PK_W_WIND_DIR);   // existed
-  s_aqi      = persist_read_int(PK_W_AQI);        // 0 when cached before AQI
+  s_have = true;
+  for (unsigned i = 0; i < FIELD_COUNT; i++)
+    *FIELDS[i].dst = persist_read_int(FIELDS[i].pk);
 }
 
 void weather_set_units(bool imperial) {
@@ -60,66 +71,44 @@ void weather_set_units(bool imperial) {
 // Clay/config saves and weather pushes arrive on the same inbox; this reads the
 // weather tuples if present and reports whether it found any.
 bool weather_handle_message(DictionaryIterator *iter) {
-  Tuple *t = dict_find(iter, MESSAGE_KEY_WEATHER_TEMPERATURE);
-  if (!t) return false;
-  s_temp = t->value->int32;
+  // Temperature is the marker for "this is a weather push" (FIELDS[0]).
+  const uint32_t msg[FIELD_COUNT] = {
+    MESSAGE_KEY_WEATHER_TEMPERATURE, MESSAGE_KEY_WEATHER_CODE,
+    MESSAGE_KEY_WEATHER_HUMIDITY,    MESSAGE_KEY_WEATHER_MIN_TEMP,
+    MESSAGE_KEY_WEATHER_MAX_TEMP,    MESSAGE_KEY_WEATHER_PRECIPITATION,
+    MESSAGE_KEY_WEATHER_UV,          MESSAGE_KEY_WEATHER_WIND_SPEED,
+    MESSAGE_KEY_WEATHER_WIND_DIR,    MESSAGE_KEY_WEATHER_AQI };
+  if (!dict_find(iter, msg[0])) return false;
 
-  Tuple *c = dict_find(iter, MESSAGE_KEY_WEATHER_CODE);
-  if (c) s_code = c->value->int32;
-  Tuple *h = dict_find(iter, MESSAGE_KEY_WEATHER_HUMIDITY);
-  if (h) s_humidity = h->value->int32;
-  Tuple *mn = dict_find(iter, MESSAGE_KEY_WEATHER_MIN_TEMP);
-  if (mn) s_min = mn->value->int32;
-  Tuple *mx = dict_find(iter, MESSAGE_KEY_WEATHER_MAX_TEMP);
-  if (mx) s_max = mx->value->int32;
-  Tuple *pr = dict_find(iter, MESSAGE_KEY_WEATHER_PRECIPITATION);
-  if (pr) s_precip = pr->value->int32;
-  Tuple *uv = dict_find(iter, MESSAGE_KEY_WEATHER_UV);
-  if (uv) s_uv = uv->value->int32;
-  Tuple *ws = dict_find(iter, MESSAGE_KEY_WEATHER_WIND_SPEED);
-  if (ws) s_wind = ws->value->int32;
-  Tuple *wd = dict_find(iter, MESSAGE_KEY_WEATHER_WIND_DIR);
-  if (wd) s_wind_dir = wd->value->int32;
-  Tuple *aq = dict_find(iter, MESSAGE_KEY_WEATHER_AQI);
-  if (aq) s_aqi = aq->value->int32;
+  for (unsigned i = 0; i < FIELD_COUNT; i++) {
+    Tuple *t = dict_find(iter, msg[i]);
+    if (t) *FIELDS[i].dst = t->value->int32;
+  }
 
   s_have = true;
   persist_write_bool(PK_W_VALID, true);
-  persist_write_int(PK_W_TEMP, s_temp);
-  persist_write_int(PK_W_CODE, s_code);
-  persist_write_int(PK_W_HUMIDITY, s_humidity);
-  persist_write_int(PK_W_MIN, s_min);
-  persist_write_int(PK_W_MAX, s_max);
-  persist_write_int(PK_W_PRECIP, s_precip);
-  persist_write_int(PK_W_UV, s_uv);
-  persist_write_int(PK_W_WIND, s_wind);
-  persist_write_int(PK_W_WIND_DIR, s_wind_dir);
-  persist_write_int(PK_W_AQI, s_aqi);
+  for (unsigned i = 0; i < FIELD_COUNT; i++)
+    persist_write_int(FIELDS[i].pk, *FIELDS[i].dst);
   return true;
 }
 
-void weather_temp_str(char *buf, size_t n) {
-  if (s_have) snprintf(buf, n, "%d°", temp_out(s_temp));
+// Every readout is its number formatted, or "--" until the first reading lands.
+static void num_str(char *buf, size_t n, const char *fmt, int v) {
+  if (s_have) snprintf(buf, n, fmt, v);
   else        snprintf(buf, n, "--");
 }
 
-void weather_humidity_str(char *buf, size_t n) {
-  if (s_have) snprintf(buf, n, "%d%%", s_humidity);
-  else        snprintf(buf, n, "--");
-}
+void weather_temp_str(char *buf, size_t n) { num_str(buf, n, "%d°", temp_out(s_temp)); }
+void weather_max_str(char *buf, size_t n)  { num_str(buf, n, "%d°", temp_out(s_max)); }
+void weather_min_str(char *buf, size_t n)  { num_str(buf, n, "%d°", temp_out(s_min)); }
+void weather_humidity_str(char *buf, size_t n) { num_str(buf, n, "%d%%", s_humidity); }
+void weather_uv_str(char *buf, size_t n)   { num_str(buf, n, "%d", s_uv); }
+// The scale (European 0..100+ or US 0..500) is picked on the phone; the watch
+// just shows the number it was sent.
+void weather_aqi_str(char *buf, size_t n)  { num_str(buf, n, "%d", s_aqi); }
 
 void weather_minmax_str(char *buf, size_t n) {
   if (s_have) snprintf(buf, n, "%d/%d°", temp_out(s_max), temp_out(s_min));
-  else        snprintf(buf, n, "--");
-}
-
-void weather_max_str(char *buf, size_t n) {
-  if (s_have) snprintf(buf, n, "%d°", temp_out(s_max));
-  else        snprintf(buf, n, "--");
-}
-
-void weather_min_str(char *buf, size_t n) {
-  if (s_have) snprintf(buf, n, "%d°", temp_out(s_min));
   else        snprintf(buf, n, "--");
 }
 
@@ -132,18 +121,6 @@ void weather_precip_str(char *buf, size_t n) {
   } else {
     snprintf(buf, n, "%dmm", s_precip);
   }
-}
-
-void weather_uv_str(char *buf, size_t n) {
-  if (s_have) snprintf(buf, n, "%d", s_uv);
-  else        snprintf(buf, n, "--");
-}
-
-// The scale (European 0..100+ or US 0..500) is picked on the phone; the watch
-// just shows the number it was sent.
-void weather_aqi_str(char *buf, size_t n) {
-  if (s_have) snprintf(buf, n, "%d", s_aqi);
-  else        snprintf(buf, n, "--");
 }
 
 void weather_wind_str(char *buf, size_t n) {
