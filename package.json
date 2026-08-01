@@ -10,7 +10,7 @@
   ],
   "private": true,
   "scripts": {
-    "build": "pebble clean && pebble build",
+    "build": "pebble clean && pebble build && zip -qd build/*.pbw pebble-js-app.js.map",
     "test": "./test/run.sh",
     "emulator": "npm run build && pebble install --emulator ",
     "phone": "npm run build && pebble install --phone",
