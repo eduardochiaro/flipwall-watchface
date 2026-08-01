@@ -1,6 +1,7 @@
 var Clay = require('@rebble/clay');
 var clayConfig = require('./config');
 var getWeather = require('./modules/weather');
+var { tzInfo, DEFAULT_ZONE } = require('./modules/timezone');
 var { clayCustomFn } = require('./modules/preview');
 
 var clay = new Clay(clayConfig, clayCustomFn, { autoHandleEvents: false });
@@ -48,20 +49,69 @@ var INT_KEYS = {
   LAYOUT: 0                                  // classic 5-block face
 };
 
+// One zone per block slot, in BlockPos order (the order the watch indexes its
+// own array by): TL, TR, BL, BR, banner, middle left, middle right.
+var TZ_SLOTS = 7;
+
+// The watch is told each slot's current offset and abbreviation, not its zone
+// name — it has no tz data. Resolved on every send, so a DST change lands on
+// the next update rather than waiting for the config page. The names then come
+// out of the message: they are the phone's business, and seven of them would
+// be a third of the inbox.
+function addTimezones(settings) {
+  for (var i = 0; i < TZ_SLOTS; i++) {
+    var key = 'TZ_ZONE[' + i + ']';
+    var info = tzInfo(readValue(settings, key) || DEFAULT_ZONE);
+    writeValue(settings, 'TZ_OFFSET[' + i + ']', info.offset);
+    writeValue(settings, 'TZ_ABBR[' + i + ']', info.abbr);
+    delete settings[key];
+  }
+  return settings;
+}
+
 function sanitize(settings) {
   Object.keys(INT_KEYS).forEach(function(key) {
     toInt(settings, key, INT_KEYS[key]);
   });
-  return settings;
+  return addTimezones(settings);
 }
 
-// Update weather on app start and every 30 minutes
+// Clay persists the saved settings to localStorage before we get them, so the
+// refresh below reads the zones back from there rather than needing the config
+// page to have been opened this run.
+function savedZones() {
+  var s = {};
+  try {
+    s = JSON.parse(localStorage.getItem('clay-settings')) || {};
+  } catch (e) { /* nothing saved yet: every slot falls back to the default */ }
+  var out = [];
+  for (var i = 0; i < TZ_SLOTS; i++) {
+    out.push(readValue(s, 'TZ_ZONE[' + i + ']') || DEFAULT_ZONE);
+  }
+  return out;
+}
+
+function sendTimezones() {
+  var msg = {};
+  savedZones().forEach(function(zone, i) {
+    var info = tzInfo(zone);
+    msg['TZ_OFFSET[' + i + ']'] = info.offset;
+    msg['TZ_ABBR[' + i + ']'] = info.abbr;
+  });
+  Pebble.sendAppMessage(Clay.prepareSettingsForAppMessage(msg),
+    function() { console.log('Sent time zones to Pebble'); },
+    function(error) {
+      console.log('Failed to send time zones: ' + JSON.stringify(error));
+    });
+}
+
+// Update weather and the time-zone offsets on app start and every 30 minutes
 Pebble.addEventListener('ready', function() {
   console.log('PebbleKit JS ready!');
   getWeather();
-  
-  // Update weather every 30 minutes
-  setInterval(getWeather, 30 * 60 * 1000);
+  sendTimezones();
+
+  setInterval(function() { getWeather(); sendTimezones(); }, 30 * 60 * 1000);
 });
 
 Pebble.addEventListener('showConfiguration', function() {

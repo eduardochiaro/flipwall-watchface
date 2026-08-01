@@ -59,6 +59,7 @@ function clayCustomFn() {
                  hr: '72', uv: '7',
                  wind: '12km/h', windNum: '12', windUnit: 'KM/H',
                  windDir: 'WNW', windDeg: 292, aqi: '34', beat: '642',
+                 tzTime: '10:09', tzAbbr: 'UTC', tzOff: '+0',
                  weekend: true, isPM: false, hour: 10, min: 9, sec: 30 };
 
   // Localised month/weekday names — must match MONTHS/WDAYS in the C source.
@@ -94,8 +95,9 @@ function clayCustomFn() {
             '↓', '↙', '←', '↖'][Math.round((deg + 180) / 45) % 8];
   }
 
-  // Display text for the data blocks (steps / distance / battery / year).
-  function valueText(v) {
+  // Display text for the data blocks (steps / distance / battery / year). `tz`
+  // is the block's own second time zone (see tzText), needed by 50/51 only.
+  function valueText(v, tz) {
     if (v === 4) { return SAMPLE.steps; }
     if (v === 49) { return SAMPLE.stepsFull; }
     if (v === 5) { return SAMPLE.dist; }
@@ -120,6 +122,9 @@ function clayCustomFn() {
     if (v === 37) { return windArrow(SAMPLE.windDeg) + ' ' + SAMPLE.windDir; }
     if (v === 39) { return 'AQI ' + SAMPLE.aqi; }
     if (v === 45) { return '@' + SAMPLE.beat; }
+    // Second time zone: the clock there, then its offset / abbreviation.
+    if (v === 50) { return tz.time + ' ' + tz.off; }
+    if (v === 51) { return tz.time + ' ' + tz.abbr; }
     return SAMPLE.year;
   }
 
@@ -156,6 +161,31 @@ function clayCustomFn() {
   function beatMarkup(txt, text) {
     return '<span style="color:' + accent(text) +
       ';position:relative;top:-0.17em;">@</span>' + txt.slice(1);
+  }
+
+  // One slot's second time zone, as the block draws it: the sample clock moved
+  // by the zone's distance from here (`delta`, worked out in clayCustomFn), so
+  // every clock on the face reads as the same moment. `offset` is the zone's
+  // own distance from UTC, which is what the offset label says.
+  function tzText(tz) {
+    tz = tz || { delta: 0, abbr: 'UTC', offset: 0 };
+    function pad2(n) { return (n < 10 ? '0' : '') + n; }
+    var m = ((SAMPLE.hour * 60 + SAMPLE.min + tz.delta) % 1440 + 1440) % 1440;
+    var ao = Math.abs(tz.offset);
+    return {
+      time: pad2(Math.floor(m / 60)) + ':' + pad2(m % 60),
+      abbr: tz.abbr,
+      off: (tz.offset < 0 ? '-' : '+') + Math.floor(ao / 60) +
+        (ao % 60 ? ':' + pad2(ao % 60) : '')
+    };
+  }
+
+  // The zone label after a second-time-zone clock is drawn in the accent colour
+  // (draw_tz_text in the C source), so it reads as an annotation, not a digit.
+  function tzMarkup(txt, text) {
+    var at = txt.lastIndexOf(' ') + 1;
+    return txt.slice(0, at) + '<span style="color:' + accent(text) + ';">' +
+      txt.slice(at) + '</span>';
   }
 
   // The no-zero clocks drop the hour's leading zero but keep its width (the
@@ -299,7 +329,7 @@ function clayCustomFn() {
     var band = indexColor(v);
     if (band) {
       c = { panel: band, text: contrast(band), weekend: c.weekend,
-            showSeconds: c.showSeconds };
+            showSeconds: c.showSeconds, tz: c.tz };
       v = BASE_BLOCK[v];
     }
     if (v === 2) {  // clock
@@ -351,7 +381,8 @@ function clayCustomFn() {
     // Big two-line blocks (caption + big value). label_top = caption on top.
     // Mirrors draw_caption_value in the C source (same 12%/38% proportions).
     if (v === 26 || v === 27 || v === 28 || v === 29 || v === 30 || v === 31 ||
-        v === 34 || v === 36 || v === 38 || v === 40 || v === 46) {
+        v === 34 || v === 36 || v === 38 || v === 40 || v === 46 ||
+        v === 52 || v === 53) {
       var cvM = Math.round(h * 0.12), cvInH = h - 2 * cvM;
       var cvSmallH = Math.round(cvInH * 0.38);
       var caption, value, capColor = c.text, labelTop;
@@ -369,6 +400,12 @@ function clayCustomFn() {
       // ".beat" captions in the accent colour, like the "@" on the small block.
       else if (v === 46) { caption = '.beat'; value = SAMPLE.beat; labelTop = false;
                            capColor = accent(c.text); }
+      // Second time zone: the clock over its label, captioned in the accent
+      // like the label on the short block.
+      else if (v === 52 || v === 53) {
+        caption = v === 53 ? c.tz.abbr : c.tz.off;
+        value = c.tz.time; labelTop = false; capColor = accent(c.text);
+      }
       // Wind direction: the arrow takes the big line, the compass word captions it.
       else if (v === 38) { caption = SAMPLE.windDir; value = windArrow(SAMPLE.windDeg); labelTop = false; }
       else { caption = SAMPLE.distUnit; value = SAMPLE.distNum; labelTop = false; }
@@ -386,10 +423,11 @@ function clayCustomFn() {
         halfDiv(SAMPLE.tmin, true, accent(c.text), fontMM) + seam(w, h));
     }
     // day number (big), temp (big), month name, or a data readout.
-    var txt = v === 1 ? SAMPLE.day : (v === 3 ? SAMPLE.month : valueText(v));
+    var txt = v === 1 ? SAMPLE.day : (v === 3 ? SAMPLE.month : valueText(v, c.tz));
     var font = (v === 1 || v === 12) ? Math.round(h * 0.6) : Math.round(h * 0.5);
     if (v === 45) { txt = beatMarkup(txt, c.text); }
     if (v === 47) { txt = nozeroMarkup(txt); }
+    if (v === 50 || v === 51) { txt = tzMarkup(txt, c.text); }
     return panelDiv(x, y, w, h, c.panel,
       textDiv(txt, c.text, font, 'center', 0) + seam(w, h));
   }
@@ -397,16 +435,17 @@ function clayCustomFn() {
   function bandBlock(v, x, y, w, h, c, idx) {
     var band = indexColor(v);
     if (band) {
-      c = { panel: band, text: contrast(band), weekend: c.weekend };
+      c = { panel: band, text: contrast(band), weekend: c.weekend, tz: c.tz };
       v = BASE_BLOCK[v];
     }
-    var txt = valueText(v);
+    var txt = valueText(v, c.tz);
     var font = Math.round(h * 0.62);
     // Width the panel to the text (mirrors draw_band sizing to content), so
     // longer strings like "Jun 26" don't wrap onto a second line.
     var pw = Math.max(Math.round(h * 1.9), Math.round(txt.length * font * 0.62) + 12);
     if (v === 45) { txt = beatMarkup(txt, c.text); }
     if (v === 47) { txt = nozeroMarkup(txt); }   // after the width, so the pill keeps it
+    if (v === 50 || v === 51) { txt = tzMarkup(txt, c.text); }
     var px0 = x + Math.floor((w - pw) / 2);
     return panelDiv(px0, y, pw, h, c.panel,
       textDiv(txt, c.text, font, 'center', 0) + seam(pw, h)) +
@@ -471,13 +510,17 @@ function clayCustomFn() {
     var colH = square + GUTTER + shortH;
     var yearH = Math.floor(square * 45 / 100);
 
-    // Per-block panel colors, indexed like BlockPos in the C source:
-    // [TL, TR, BL, BR, banner, midLeft, midRight]. Fall back to cfg.panel.
+    // Per-block panel colors and second time zones, indexed like BlockPos in
+    // the C source: [TL, TR, BL, BR, banner, midLeft, midRight]. Colors fall
+    // back to cfg.panel, zones to UTC.
     var panels = cfg.panels || [cfg.panel, cfg.panel, cfg.panel, cfg.panel,
                                 cfg.panel, cfg.panel, cfg.panel];
-    function mk(panel) {
+    var zones = (cfg.tz || []).map(tzText);
+    // `pos` is the slot, so one index picks both its color and its zone.
+    function mk(pos) {
+      var panel = panels[pos];
       return { panel: panel, weekend: cfg.weekend, text: contrast(panel),
-               showSeconds: cfg.showSeconds };
+               showSeconds: cfg.showSeconds, tz: zones[pos] || tzText() };
     }
     // BlockPos order, so a position indexes blocks[] and panels[] alike.
     var blocks = cfg.blocks.concat([cfg.band, cfg.midLeft, cfg.midRight]);
@@ -502,9 +545,9 @@ function clayCustomFn() {
           topH = square; botH = shortH;
         }
         var x = innerX + col * (colW + GUTTER);
-        out += block(topBlk, x, areaY, colW, topH, mk(panels[col]));
+        out += block(topBlk, x, areaY, colW, topH, mk(col));
         out += slotOverlay(col, x, areaY, colW, topH);
-        out += block(botBlk, x, areaY + topH + GUTTER, colW, botH, mk(panels[col + 2]));
+        out += block(botBlk, x, areaY + topH + GUTTER, colW, botH, mk(col + 2));
         out += slotOverlay(col + 2, x, areaY + topH + GUTTER, colW, botH);
       }
       return out;
@@ -524,7 +567,7 @@ function clayCustomFn() {
       h[2] = colH - h[0] - h[1] - 2 * GUTTER;
       var out = '';
       for (var i = 0; i < 3; i++) {
-        out += block(blocks[order[i]], x, y, colW, h[i], mk(panels[order[i]]));
+        out += block(blocks[order[i]], x, y, colW, h[i], mk(order[i]));
         out += slotOverlay(order[i], x, y, colW, h[i]);
         y += h[i] + GUTTER;
       }
@@ -556,14 +599,14 @@ function clayCustomFn() {
       var y = topY;
       if (strips || cfg.yearTop) {
         var first = strips ? 5 : 4;   // top strip = middle left / the banner
-        html += bandBlock(blocks[first], innerX, y, innerW, yearH, mk(panels[first]), first);
+        html += bandBlock(blocks[first], innerX, y, innerW, yearH, mk(first), first);
         y += yearH + GUTTER;
       }
       html += grid(y);
       y += colH + GUTTER;
       if (strips || !cfg.yearTop) {
         var last = strips ? 6 : 4;    // bottom strip = middle right / the banner
-        html += bandBlock(blocks[last], innerX, y, innerW, yearH, mk(panels[last]), last);
+        html += bandBlock(blocks[last], innerX, y, innerW, yearH, mk(last), last);
       }
     }
 
@@ -575,12 +618,13 @@ function clayCustomFn() {
   // uses, so a chip is exactly what the watch will draw. The box takes the
   // block's own shape — square for a big one, half height for a small one — so
   // a chip is never mostly empty.
-  // o: { panel, weekend, face, showSeconds, box, scale }.
+  // o: { panel, weekend, face, showSeconds, tz, box, scale }; `tz` is the
+  // selected slot's own zone, so a time-zone chip previews what it would place.
   function swatch(v, o) {
     SCALE = o.scale;
     var h = isShort(v) ? Math.round(o.box / 2) : o.box;
     var c = { panel: o.panel, text: contrast(o.panel), weekend: o.weekend,
-              showSeconds: o.showSeconds };
+              showSeconds: o.showSeconds, tz: tzText(o.tz) };
     return '<div style="position:relative;margin:0 auto;width:' + px(o.box) +
       ';height:' + px(h) + ';background:' + o.face + ';border-radius:' + px(4) +
       ';overflow:hidden;">' + block(v, 0, 0, o.box, h, c) + '</div>';
@@ -609,6 +653,55 @@ function clayCustomFn() {
   var platform = watchInfo.platform || 'basalt';
   var isRound = platform === 'chalk' || platform === 'gabbro';
 
+  // Second time zone. The webview has the platform's own tz data, so the sample
+  // the preview draws is the real distance from here to the chosen zone. This
+  // repeats src/pkjs/modules/timezone.js (which is what the watch is actually
+  // told): clayCustomFn is serialised on its own and can't require a module.
+  function zoneOffset(zone, d) {
+    var f = new Intl.DateTimeFormat('en-US', {
+      timeZone: zone, hour12: false, year: 'numeric', month: '2-digit',
+      day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit'
+    });
+    var p = {};
+    f.formatToParts(d).forEach(function(part) { p[part.type] = part.value; });
+    return Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24,
+      +p.minute, +p.second) - d.getTime()) / 60000);
+  }
+
+  // The zone's [standard, summer] abbreviations, off the zone select's own
+  // option label ("Paris (CET/CEST)") — the pair timezone.js sends the watch.
+  // Every slot's select carries the same list, so the first one answers for all.
+  function zoneAbbrs(zone) {
+    var pair = [zone.replace(/^.*\//, '').replace(/_/g, ' ')];
+    var sel = selectFor(SLOT_ZONE[SLOT_KEYS[0]]);
+    eachNode(sel && sel.querySelectorAll('option'), function(opt) {
+      var m = opt.value === zone && /\(([^)]+)\)/.exec(opt.textContent);
+      if (m) { pair = m[1].split('/'); }
+    });
+    return pair;
+  }
+
+  function tzSample(zoneKey) {
+    var it = clayConfig.getItemByMessageKey(zoneKey);
+    var zone = (it && it.get()) || 'UTC';
+    var d = new Date();
+    var pair = zoneAbbrs(zone);
+    var off = 0, abbr = pair[0];
+    try {
+      off = zoneOffset(zone, d);
+      // Intl spells out only the US abbreviations; elsewhere pick the summer
+      // one when the zone is ahead of its own standard offset (see timezone.js).
+      var s = new Intl.DateTimeFormat('en-US', {
+        timeZone: zone, timeZoneName: 'short' }).format(d);
+      var m = /[A-Z]{2,5}$/.exec(s.replace(/\s+$/, ''));
+      var y = d.getUTCFullYear();
+      var std = Math.min(zoneOffset(zone, new Date(Date.UTC(y, 0, 15))),
+                         zoneOffset(zone, new Date(Date.UTC(y, 6, 15))));
+      abbr = m ? m[0] : (off > std && pair[1] ? pair[1] : pair[0]);
+    } catch (e) { /* no tz data here: preview the zone as UTC */ }
+    return { delta: off + d.getTimezoneOffset(), abbr: abbr, offset: off };
+  }
+
   function isSixLayout() {
     var it = clayConfig.getItemByMessageKey('LAYOUT');
     return it ? parseInt(it.get(), 10) === 1 : false;
@@ -628,6 +721,7 @@ function clayCustomFn() {
       yearTop: clayConfig.getItemByMessageKey('YEAR_TOP').get(),
       lang: blockVal('LANG'),
       units: blockVal('UNITS'),
+      tz: SLOT_KEYS.map(function(key) { return tzSample(SLOT_ZONE[key]); }),
       band: blockVal('BLOCK_BAND'),
       midLeft: blockVal('BLOCK_MID_LEFT'),
       midRight: blockVal('BLOCK_MID_RIGHT'),
@@ -666,6 +760,11 @@ function clayCustomFn() {
     BLOCK_BAND: 'PANEL_BAND_COLOR', BLOCK_MID_LEFT: 'PANEL_ML_COLOR',
     BLOCK_MID_RIGHT: 'PANEL_MR_COLOR'
   };
+  // Each slot's own second time zone, indexed by BlockPos in the message key.
+  var SLOT_ZONE = {};
+  SLOT_KEYS.forEach(function(key, i) { SLOT_ZONE[key] = 'TZ_ZONE[' + i + ']'; });
+  // The blocks that have a zone to pick (see VARIATIONS below).
+  var TZ_BLOCKS = { 50: 1, 51: 1, 52: 1, 53: 1 };
 
   // What the palette calls the selected slot. The per-item label is the one
   // applyColumnLabels() maintains, so it already says "Top strip" and friends on
@@ -693,6 +792,8 @@ function clayCustomFn() {
     { name: 'Weather icon', options: [[11, 'Hidden'], [25, 'Shown']] },
     { name: 'Second line', options: [[26, 'Weekday'], [29, 'Month']] },
     { name: 'AM/PM layout', options: [[22, 'Side by side'], [23, 'Stacked']] },
+    { name: 'Zone label', options: [[50, 'Offset'], [51, 'Abbreviation']] },
+    { name: 'Zone label', options: [[52, 'Offset'], [53, 'Abbreviation']] },
     { name: 'Band color', options: [[33, 'Off'], [41, 'On']] },
     { name: 'Band color', options: [[34, 'Off'], [42, 'On']] },
     { name: 'Band color', options: [[39, 'Off'], [43, 'On']] },
@@ -729,6 +830,7 @@ function clayCustomFn() {
       weekend: colorHex('WEEKEND_COLOR'),
       face: colorHex('FACE_COLOR'),
       showSeconds: clayConfig.getItemByMessageKey('SHOW_SECONDS').get(),
+      tz: tzSample(SLOT_ZONE[selected]),
       box: CHIP_BOX, scale: CHIP_SCALE
     };
   }
@@ -823,7 +925,8 @@ function clayCustomFn() {
   }
 
   // Hide every block select (the palette replaces them) and show only the
-  // selected block's color picker. With nothing selected the whole Selected
+  // selected block's color picker — and its zone picker, which belongs to the
+  // second-time-zone blocks alone. With nothing selected the whole Selected
   // Block section is empty, so its heading goes too.
   function applyEditorVisibility() {
     SLOT_KEYS.forEach(function(key) {
@@ -831,6 +934,10 @@ function clayCustomFn() {
       if (it) { it.hide(); }
       var color = clayConfig.getItemByMessageKey(SLOT_COLOR[key]);
       if (color) { key === selected ? color.show() : color.hide(); }
+      var zone = clayConfig.getItemByMessageKey(SLOT_ZONE[key]);
+      if (zone) {
+        key === selected && TZ_BLOCKS[blockVal(key)] ? zone.show() : zone.hide();
+      }
     });
     var heading = clayConfig.getItemById('BLOCKS_HEADING');
     if (heading) { selected ? heading.show() : heading.hide(); }
@@ -856,10 +963,12 @@ function clayCustomFn() {
   }
 
   // Placing a block redraws the face, the chips and the share code through the
-  // item's own change event; only the variation select is left to catch up.
+  // item's own change event; the variation select and the zone picker (which
+  // only the second-time-zone blocks have) are left to catch up.
   function place(value) {
     setBlock(selected, value);
     buildVariation();
+    applyEditorVisibility();
   }
 
   function bindEditor() {
@@ -941,6 +1050,10 @@ function clayCustomFn() {
   //
   // The layout is the format. Only ever append to it, and bump CODE_VERSION
   // when you do, so old codes are refused rather than silently misread.
+  //
+  // The second time zone is not in a code: it is a zone name, not a byte, and a
+  // shared face is about the look. An imported face with a second-time-zone
+  // block shows whatever zone this watch is already set to.
   var CODE_VERSION = 1;
   var CODE_FLAGS = ['LAYOUT', 'UNITS', 'YEAR_TOP', 'SHOW_SECONDS', 'FLIP_ANIM',
     'DRAW_SEAM'];
@@ -1356,8 +1469,9 @@ function clayCustomFn() {
     // chips while they are open, not the next time they are rebuilt.
     var watched = ['LAYOUT', 'YEAR_TOP', 'LANG', 'UNITS', 'BLOCK_BAND',
       'BLOCK_MID_LEFT', 'BLOCK_MID_RIGHT', 'FACE_COLOR', 'PANEL_COLOR',
-      'WEEKEND_COLOR', 'SHOW_SECONDS',
-      'DRAW_SEAM'].concat(GRID_KEYS).concat(PANEL_KEYS);
+      'WEEKEND_COLOR', 'SHOW_SECONDS', 'DRAW_SEAM']
+      .concat(GRID_KEYS).concat(PANEL_KEYS)
+      .concat(SLOT_KEYS.map(function(key) { return SLOT_ZONE[key]; }));
     watched.forEach(function(key) {
       var item = clayConfig.getItemByMessageKey(key);
       if (item) { item.on('change', redraw); }

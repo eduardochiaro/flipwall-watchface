@@ -51,6 +51,15 @@ bool s_show_seconds = false;   // off by default (battery friendly)
 bool s_flip_enabled = true;    // flip animation on value change (on by default)
 bool s_seam_enabled = true;    // thin seam line across each block (on by default)
 int  s_lang = 0;               // 0 = English (see lang.c)
+// Second time zones, one per position (BlockPos order). The watch has no tz
+// data: the phone resolves each slot's zone to its current offset and
+// abbreviation and pushes both — on a config save and on every weather refresh,
+// so a DST change lands without the wearer opening the settings. The two
+// globals point at the entry of the block currently drawing, like s_panel_bg.
+static int  s_tz_offsets[POS_COUNT];
+static char s_tz_abbrs[POS_COUNT][TZ_ABBR_LEN];
+int         s_tz_offset = 0;
+const char *s_tz_abbr = "UTC";
 
 // --- Color defaults (used until the user overrides them) ------------------
 #define FACE_BG      PBL_IF_COLOR_ELSE(GColorOrange, GColorWhite)
@@ -103,6 +112,10 @@ typedef enum {
   PK_PANEL_MID_L,
   PK_BLOCK_MID_R,
   PK_PANEL_MID_R,
+  // The per-position second time zones as resolved by the phone, cached as two
+  // blobs rather than a key per slot. Appended last, as ever.
+  PK_TZ_OFFSETS,
+  PK_TZ_ABBRS,
 } PersistKey;
 
 #if defined(PBL_PLATFORM_EMERY)
@@ -156,6 +169,10 @@ static void block_layer_update(Layer *layer, GContext *ctx) {
   // the block draws (which read s_panel_bg / s_text_fg) pick up its override.
   s_panel_bg = st->panel;
   s_text_fg  = contrast_color(s_panel_bg);
+  // Same idea for the second time zone: this position's, read live off the
+  // tables so a zone push doesn't have to re-tag every layer.
+  s_tz_offset = s_tz_offsets[st->pos];
+  s_tz_abbr   = s_tz_abbrs[st->pos];
   if (st->pill)
     draw_band(ctx, layer_get_bounds(layer), st->blk);
   else
@@ -316,6 +333,7 @@ static void layout(void) {
     BlockState *st = layer_get_data(s_layer[i]);
     st->blk = s_blocks[i];
     st->panel = s_panel_colors[i];
+    st->pos = (uint8_t)i;
     st->pill = draws_as_pill((BlockPos)i);
     st->anim = 0;
     st->shown[0] = '\0';
@@ -340,7 +358,11 @@ static Trigger block_trigger(QuadBlock b) {
     case BLK_AMPM:
     case BLK_AMPM_STACK:
     case BLK_BEAT:
-    case BLK_BEAT_BIG:    return TRG_CLOCK;
+    case BLK_BEAT_BIG:
+    case BLK_TZ:
+    case BLK_TZ_ABBR:
+    case BLK_TZ_BIG:
+    case BLK_TZ_BIG_ABBR: return TRG_CLOCK;
     case BLK_STEPS:
     case BLK_STEPS_FULL:
     case BLK_KM:
@@ -467,6 +489,13 @@ static void settings_load(void) {
   s_lang = persist_exists(PK_LANG) ? persist_read_int(PK_LANG) : 0;
   if (s_lang < 0 || s_lang >= LANG_COUNT) s_lang = 0;
 
+  // Zones: UTC everywhere until the phone says otherwise.
+  for (int i = 0; i < POS_COUNT; i++) strcpy(s_tz_abbrs[i], "UTC");
+  if (persist_exists(PK_TZ_OFFSETS))
+    persist_read_data(PK_TZ_OFFSETS, s_tz_offsets, sizeof s_tz_offsets);
+  if (persist_exists(PK_TZ_ABBRS))
+    persist_read_data(PK_TZ_ABBRS, s_tz_abbrs, sizeof s_tz_abbrs);
+
   s_layout = persist_exists(PK_LAYOUT) ? persist_read_int(PK_LAYOUT) : LAYOUT_CLASSIC;
   if (s_layout != LAYOUT_SIX) s_layout = LAYOUT_CLASSIC;
 
@@ -513,11 +542,44 @@ static void apply_color(DictionaryIterator *iter, uint32_t msg_key,
   persist_write_int(pk, hex);
 }
 
+// Each position's second time zone, if this message carries them: the phone
+// sends both arrays whole, keyed MESSAGE_KEY_TZ_* + BlockPos. Returns true when
+// anything was present.
+static bool apply_tz(DictionaryIterator *iter) {
+  bool got = false;
+  for (int i = 0; i < POS_COUNT; i++) {
+    Tuple *off = dict_find(iter, MESSAGE_KEY_TZ_OFFSET + i);
+    if (off) {
+      s_tz_offsets[i] = off->value->int32;
+      got = true;
+    }
+    Tuple *abbr = dict_find(iter, MESSAGE_KEY_TZ_ABBR + i);
+    if (abbr) {
+      strncpy(s_tz_abbrs[i], abbr->value->cstring, TZ_ABBR_LEN - 1);
+      s_tz_abbrs[i][TZ_ABBR_LEN - 1] = '\0';
+      got = true;
+    }
+  }
+  if (got) {
+    persist_write_data(PK_TZ_OFFSETS, s_tz_offsets, sizeof s_tz_offsets);
+    persist_write_data(PK_TZ_ABBRS, s_tz_abbrs, sizeof s_tz_abbrs);
+  }
+  return got;
+}
+
 // Both Clay config saves and weather pushes arrive on this inbox.
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if (weather_handle_message(iter)) {
     mark_blocks(TRG_WEATHER);   // repaint only the weather blocks
     return;   // a weather push carries no config keys
+  }
+
+  // The phone also refreshes the second zone on its own (DST), with no config
+  // keys alongside it: take it and repaint the clocks, nothing else. A config
+  // save always carries LAYOUT, so it is the marker for the full path.
+  if (apply_tz(iter) && !dict_find(iter, MESSAGE_KEY_LAYOUT)) {
+    mark_blocks(TRG_CLOCK);
+    return;
   }
 
   apply_bool(iter, MESSAGE_KEY_YEAR_TOP, PK_YEAR_TOP, &s_year_top);

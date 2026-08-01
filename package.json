@@ -76,7 +76,10 @@
       "BLOCK_MID_LEFT",
       "BLOCK_MID_RIGHT",
       "PANEL_ML_COLOR",
-      "PANEL_MR_COLOR"
+      "PANEL_MR_COLOR",
+      "TZ_ZONE[7]",
+      "TZ_OFFSET[7]",
+      "TZ_ABBR[7]"
     ],
     "resources": {
       "media": [

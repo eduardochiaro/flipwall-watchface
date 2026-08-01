@@ -21,9 +21,13 @@
 //   45 = .beat time (small / banner), 46 = .beat time (big),
 //   47 = Digital clock, no leading zero (small / banner),
 //   48 = Digital clock, no leading zero (big),
-//   49 = Steps, full count (small / banner).
+//   49 = Steps, full count (small / banner),
+//   50/51 = Second time zone, offset / abbreviation (small / banner),
+//   52/53 = Second time zone, offset / abbreviation (big).
 // The "- color" variants draw like their plain counterpart but paint the panel
 // with the index's own band color (see block_panel_color in blocks.c).
+// Each second-time-zone block carries its own zone (TZ_ZONE[n], one per slot in
+// BlockPos order), so a face can show several at once.
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
 // Day of month / Clock / Weather icon / Temperature (big) are "big".
 
@@ -37,6 +41,8 @@ var BIG_TIME = [
   { label: "Digital clock, no leading zero (big)", value: 48 },
   { label: "Hours (big)", value: 19 },
   { label: "Minutes (big)", value: 21 },
+  { label: "Second time zone (big)", value: 52 },
+  { label: "Second time zone, abbreviation (big)", value: 53 },
   { label: ".beat time (big)", value: 46 }
 ];
 
@@ -72,6 +78,8 @@ var SMALL_TIME = [
   { label: "Minutes (small)", value: 20 },
   { label: "AM/PM (small)", value: 22 },
   { label: "AM/PM stacked (small)", value: 23 },
+  { label: "Second time zone (small)", value: 50 },
+  { label: "Second time zone, abbreviation (small)", value: 51 },
   { label: ".beat time (small)", value: 45 }
 ];
 
@@ -125,6 +133,8 @@ var BAND_OPTIONS = [
     { label: "Digital clock, no leading zero", value: 47 },
     { label: "Month + Day", value: 9 },
     { label: "Weekday + Day", value: 10 },
+    { label: "Second time zone", value: 50 },
+    { label: "Second time zone, abbreviation", value: 51 },
     { label: ".beat time", value: 45 }
   ] },
   { label: "Activity", value: [
@@ -165,6 +175,31 @@ var LAYOUT_OPTIONS = [
   { label: "Classic (5 blocks)", value: 0 },
   { label: "Columns (6 blocks)", value: 1 }
 ];
+
+// The second time zone the "Second time zone" blocks read. One per face, so it
+// lives here in General rather than on the block. The value is the IANA zone
+// name: the phone resolves it to the current UTC offset and abbreviation (DST
+// included) before sending, see src/pkjs/modules/timezone.js.
+// The label carries the zone's abbreviations, standard and summer: the preview
+// reads them back off these selects (clayCustomFn can't require the module).
+var TZ_OPTIONS = require('./modules/timezone').ZONES.map(function(z) {
+  return { label: z.city + ' (' + z.abbr + (z.dst ? '/' + z.dst : '') + ')',
+           value: z.zone };
+});
+
+// The zone picker for one slot. It sits with that slot's color picker under
+// Selected Block and only shows while a second-time-zone block is tapped, so
+// each block on the face can be a different zone. `pos` is the slot's BlockPos
+// index, which is what the watch indexes its own zone array by.
+function tzZone(pos) {
+  return {
+    type: "select",
+    messageKey: "TZ_ZONE[" + pos + "]",
+    label: "Time zone",
+    defaultValue: "UTC",
+    options: TZ_OPTIONS
+  };
+}
 
 var LANG_OPTIONS = [
   { label: "English", value: 0 },
@@ -334,6 +369,7 @@ module.exports = [
         options: BLOCK_OPTIONS_GROUPS
       },
       { type: "color", messageKey: "PANEL_TL_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
+      tzZone(0),
       {
         type: "select",
         messageKey: "BLOCK_MID_LEFT",
@@ -342,6 +378,7 @@ module.exports = [
         options: BLOCK_OPTIONS_GROUPS
       },
       { type: "color", messageKey: "PANEL_ML_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
+      tzZone(5),
       {
         type: "select",
         messageKey: "BLOCK_BOTTOM_LEFT",
@@ -350,6 +387,7 @@ module.exports = [
         options: BLOCK_OPTIONS_GROUPS
       },
       { type: "color", messageKey: "PANEL_BL_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
+      tzZone(2),
       {
         type: "select",
         messageKey: "BLOCK_TOP_RIGHT",
@@ -358,6 +396,7 @@ module.exports = [
         options: BLOCK_OPTIONS_GROUPS
       },
       { type: "color", messageKey: "PANEL_TR_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
+      tzZone(1),
       {
         type: "select",
         messageKey: "BLOCK_MID_RIGHT",
@@ -366,6 +405,7 @@ module.exports = [
         options: BLOCK_OPTIONS_GROUPS
       },
       { type: "color", messageKey: "PANEL_MR_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
+      tzZone(6),
       {
         type: "select",
         messageKey: "BLOCK_BOTTOM_RIGHT",
@@ -374,6 +414,7 @@ module.exports = [
         options: BLOCK_OPTIONS_GROUPS
       },
       { type: "color", messageKey: "PANEL_BR_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
+      tzZone(3),
       {
         type: "select",
         messageKey: "BLOCK_BAND",
@@ -382,6 +423,7 @@ module.exports = [
         options: BAND_OPTIONS
       },
       { type: "color", messageKey: "PANEL_BAND_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
+      tzZone(4),
     ]
   },
 

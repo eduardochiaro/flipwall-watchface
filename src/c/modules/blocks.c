@@ -24,7 +24,8 @@ static const uint64_t BIG_SET =
     BLKBIT(BLK_HUMIDITY_BIG) | BLKBIT(BLK_BATTERY_BIG) | BLKBIT(BLK_HR_BIG) |
     BLKBIT(BLK_KM_BIG) | BLKBIT(BLK_MINMAX_BIG) | BLKBIT(BLK_UV_BIG) |
     BLKBIT(BLK_UV_BIG_COLOR) | BLKBIT(BLK_WIND_BIG) | BLKBIT(BLK_WIND_DIR_BIG) |
-    BLKBIT(BLK_AQI_BIG) | BLKBIT(BLK_AQI_BIG_COLOR) | BLKBIT(BLK_BEAT_BIG);
+    BLKBIT(BLK_AQI_BIG) | BLKBIT(BLK_AQI_BIG_COLOR) | BLKBIT(BLK_BEAT_BIG) |
+    BLKBIT(BLK_TZ_BIG) | BLKBIT(BLK_TZ_BIG_ABBR);
 
 // What the banner can hold: the short blocks that draw as one centred string
 // (or an icon + value), so the panel can hug their text.
@@ -35,7 +36,8 @@ static const uint64_t BAND_SET =
     BLKBIT(BLK_MINMAX) | BLKBIT(BLK_PRECIP) | BLKBIT(BLK_DIGITAL) |
     BLKBIT(BLK_DIGITAL_NOZERO) | BLKBIT(BLK_HR) | BLKBIT(BLK_UV) |
     BLKBIT(BLK_UV_COLOR) | BLKBIT(BLK_WIND) | BLKBIT(BLK_WIND_DIR) |
-    BLKBIT(BLK_AQI) | BLKBIT(BLK_AQI_COLOR) | BLKBIT(BLK_BEAT);
+    BLKBIT(BLK_AQI) | BLKBIT(BLK_AQI_COLOR) | BLKBIT(BLK_BEAT) |
+    BLKBIT(BLK_TZ) | BLKBIT(BLK_TZ_ABBR);
 
 // Every block kind is legal in the 2x2 grid; the banner takes a subset.
 bool block_valid_grid(int v) { return v >= BLK_DOW && v < BLK_COUNT; }
@@ -260,6 +262,29 @@ static void minutes_str(char *buf, size_t n) {
   strftime(buf, n, "%M", &s_now);
 }
 
+// The second zone's wall time. The phone sends the zone's current offset from
+// UTC (DST already in it), so shifting UTC by it and reading the result as UTC
+// is the whole conversion — the watch needs no tz data of its own.
+static void tz_time_str(char *buf, size_t n) {
+  int off = s_tz_offset;
+  if (off > TZ_MAX_OFFSET || off < -TZ_MAX_OFFSET) off = 0;
+  time_t t = time(NULL) + off * 60;
+  struct tm z = *gmtime(&t);
+  bool h24 = clock_is_24h_style();
+  strftime(buf, n, h24 ? "%H:%M" : "%I:%M", &z);
+  if (!h24 && buf[0] == '0') memmove(buf, buf + 1, strlen(buf));
+}
+
+// What labels the second zone: "+1" / "-8" / "+5:30", or its abbreviation.
+static void tz_label_str(char *buf, size_t n, bool abbr) {
+  if (abbr) { snprintf(buf, n, "%s", s_tz_abbr); return; }
+  int m = s_tz_offset < 0 ? -s_tz_offset : s_tz_offset;
+  if (m > TZ_MAX_OFFSET) m = 0;   // nothing sane came from the phone
+  const char *sign = s_tz_offset < 0 ? "-" : "+";
+  if (m % 60) snprintf(buf, n, "%s%d:%02d", sign, m / 60, m % 60);
+  else        snprintf(buf, n, "%s%d", sign, m / 60);
+}
+
 // Swatch Internet Time: the day split into 1000 beats, counted from midnight in
 // Biel (UTC+1) with no timezones and no DST, so it is the same number worldwide.
 static int beat_time(void) {
@@ -350,6 +375,14 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
     case BLK_BEAT:
       snprintf(buf, n, "@%03d", beat_time());
       break;
+    case BLK_TZ:
+    case BLK_TZ_ABBR: {
+      char t[8], l[10];
+      tz_time_str(t, sizeof t);
+      tz_label_str(l, sizeof l, b == BLK_TZ_ABBR);
+      snprintf(buf, n, "%s %s", t, l);   // drawn two-tone, see draw_tz_text
+      break;
+    }
     case BLK_DIGITAL:
       digital_str(buf, n, false);
       break;
@@ -427,30 +460,52 @@ static void draw_digital_nozero(GContext *ctx, GRect r) {
   draw_seam(ctx, r);
 }
 
-// "@642" with the "@" in the text's accent colour (the shade the big digital
-// clock gives its minutes), so the marker reads as a prefix and not a digit.
-// Shrinks to fit like draw_centered, then lays the two pieces out side by side
-// about the block's centre.
-static void draw_beat_text(GContext *ctx, GRect r, const char *txt, int cap_h) {
+// One centred string in two colours: the first `head` bytes in `head_fg`, the
+// rest in `tail_fg`, with the head raised by `lift` pixels. Shrinks to fit like
+// draw_centered, then lays the two pieces out side by side about the block's
+// centre. Used by the .beat block (accent "@" prefix) and the second-time-zone
+// blocks (accent label after the time).
+static void draw_two_tone(GContext *ctx, GRect r, const char *txt, size_t head,
+                          int cap_h, GColor head_fg, GColor tail_fg, int lift) {
+  char lead[12];
+  size_t n = head < sizeof lead - 1 ? head : sizeof lead - 1;
+  memcpy(lead, txt, n);
+  lead[n] = '\0';
+
   int avail = r.size.w - 6;
   int w = text_width(ctx, txt, cap_h);
   if (w > avail && avail > 0) {
     cap_h = cap_h * avail / w;
     w = text_width(ctx, txt, cap_h);
   }
-  int w_at = text_width(ctx, "@", cap_h);
+  int w_head = text_width(ctx, lead, cap_h);
   int x = r.origin.x + (r.size.w - w) / 2;
+  // Both pieces run to the block's right edge so neither layout box clips.
+  GRect hr = GRect(x, r.origin.y - lift, r.origin.x + r.size.w - x, r.size.h);
+  GRect tr = GRect(x + w_head, r.origin.y, r.origin.x + r.size.w - x - w_head,
+                   r.size.h);
+  text_in_rect(ctx, hr, lead, cap_h, head_fg, GTextAlignmentLeft);
+  text_in_rect(ctx, tr, txt + n, cap_h, tail_fg, GTextAlignmentLeft);
+}
+
+// "@642" with the "@" in the text's accent colour (the shade the big digital
+// clock gives its minutes), so the marker reads as a prefix and not a digit.
+static void draw_beat_text(GContext *ctx, GRect r, const char *txt, int cap_h) {
   // The "@" hangs below the baseline where the digits sit on it, so sharing a
   // baseline reads as the marker sitting low. Lift it off the shared line.
   // ponytail: empirical knob, ~3px at the usual short-block cap height. Shrink
   // the divisor to lift it further.
-  int lift = cap_h / 6;
-  // Both pieces run to the block's right edge so neither layout box clips.
-  GRect at = GRect(x, r.origin.y - lift, r.origin.x + r.size.w - x, r.size.h);
-  GRect num = GRect(x + w_at, r.origin.y, r.origin.x + r.size.w - x - w_at, r.size.h);
-  text_in_rect(ctx, at, "@", cap_h, get_closest_accent_color(s_text_fg),
-               GTextAlignmentLeft);
-  text_in_rect(ctx, num, txt + 1, cap_h, s_text_fg, GTextAlignmentLeft);
+  draw_two_tone(ctx, r, txt, 1, cap_h, get_closest_accent_color(s_text_fg),
+                s_text_fg, cap_h / 6);
+}
+
+// "10:09 PST": the time in the text colour, the zone label after it in the
+// accent, so the label reads as an annotation rather than part of the clock.
+static void draw_tz_text(GContext *ctx, GRect r, const char *txt, int cap_h) {
+  const char *gap = strrchr(txt, ' ');
+  size_t head = gap ? (size_t)(gap - txt) + 1 : strlen(txt);
+  draw_two_tone(ctx, r, txt, head, cap_h, s_text_fg,
+                get_closest_accent_color(s_text_fg), 0);
 }
 
 static void draw_beat(GContext *ctx, GRect r) {
@@ -458,6 +513,14 @@ static void draw_beat(GContext *ctx, GRect r) {
   block_text(BLK_BEAT, buf, sizeof(buf));
   draw_panel(ctx, r, s_panel_bg);
   draw_beat_text(ctx, r, buf, r.size.h * 52 / 100);   // same cap as draw_value_block
+  draw_seam(ctx, r);
+}
+
+static void draw_tz(GContext *ctx, GRect r, QuadBlock blk) {
+  char buf[20];
+  block_text(blk, buf, sizeof(buf));
+  draw_panel(ctx, r, s_panel_bg);
+  draw_tz_text(ctx, r, buf, r.size.h * 52 / 100);     // same cap as draw_value_block
   draw_seam(ctx, r);
 }
 
@@ -530,7 +593,7 @@ static void split_num_unit(const char *src, char *num, size_t nn,
 // below (HR / UV / distance / wind / AQI / .beat). Only the strings and the
 // caption colour vary, so they share one body.
 static void draw_caption_block(GContext *ctx, GRect r, QuadBlock blk) {
-  char val[16], num[8], unit[8];
+  char val[16], num[8], unit[8], zone[10];
   const char *caption = "", *value = val;
   GColor caption_fg = s_text_fg;
   bool label_top = false;
@@ -572,6 +635,15 @@ static void draw_caption_block(GContext *ctx, GRect r, QuadBlock blk) {
     case BLK_BEAT_BIG:   // caption in the accent, matching the small block's "@"
       snprintf(val, sizeof(val), "%03d", beat_time());
       caption = ".beat";
+      caption_fg = get_closest_accent_color(s_text_fg);
+      break;
+    // Second time zone: the clock over its label, which the caption band shows
+    // in full — the same accent as the short block gives it.
+    case BLK_TZ_BIG:
+    case BLK_TZ_BIG_ABBR:
+      tz_time_str(val, sizeof(val));
+      tz_label_str(zone, sizeof(zone), blk == BLK_TZ_BIG_ABBR);
+      caption = zone;
       caption_fg = get_closest_accent_color(s_text_fg);
       break;
     // Number over its unit, both taken from the short block's own formatting
@@ -816,7 +888,7 @@ void draw_band(GContext *ctx, GRect band, QuadBlock band_blk) {
   if (!gcolor_equal(s_panel_bg, save_bg)) s_text_fg = contrast_color(s_panel_bg);
   QuadBlock blk = base_block(band_blk);
 
-  char buf[16];
+  char buf[20];
   block_text(blk, buf, sizeof(buf));
   int cap_h = band.size.h * 60 / 100;
 
@@ -855,6 +927,8 @@ void draw_band(GContext *ctx, GRect band, QuadBlock band_blk) {
     draw_centered(ctx, nr, buf, cap_h, s_text_fg);
   } else if (blk == BLK_BEAT) {
     draw_beat_text(ctx, r, buf, cap_h);
+  } else if (blk == BLK_TZ || blk == BLK_TZ_ABBR) {
+    draw_tz_text(ctx, r, buf, cap_h);
   } else {
     GRect tr = r;
     tr.origin.x += pad_w / 2;   // right-align inside the padded box (no-zero clock)
@@ -883,10 +957,13 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_CALENDAR:  case BLK_MONTH_CAL: case BLK_HUMIDITY_BIG:
     case BLK_BATTERY_BIG: case BLK_HR_BIG:  case BLK_KM_BIG:
     case BLK_UV_BIG:    case BLK_WIND_BIG:  case BLK_AQI_BIG:
-    case BLK_BEAT_BIG:  draw_caption_block(ctx, r, base_block(blk)); break;
+    case BLK_BEAT_BIG:  case BLK_TZ_BIG:    case BLK_TZ_BIG_ABBR:
+      draw_caption_block(ctx, r, base_block(blk)); break;
     case BLK_MINMAX_BIG: draw_minmax_big(ctx, r); break;
     case BLK_WIND_DIR_BIG: draw_wind_dir_big(ctx, r); break;
     case BLK_BEAT:     draw_beat(ctx, r);     break;
+    case BLK_TZ:
+    case BLK_TZ_ABBR:  draw_tz(ctx, r, base_block(blk)); break;
     case BLK_DIGITAL_NOZERO: draw_digital_nozero(ctx, r); break;
     case BLK_DAY: { char b[4]; snprintf(b, sizeof b, "%d", s_now.tm_mday);
                     draw_simple(ctx, r, b, 50); break; }
