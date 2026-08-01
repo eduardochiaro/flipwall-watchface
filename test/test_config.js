@@ -288,6 +288,25 @@ PLATFORMS.forEach(function(platform) {
   checks++;
 })();
 
+// --- No-zero digital clocks -------------------------------------------------
+// 47/48 drop the hour's leading zero but keep its width, so the preview has to
+// hide the digit rather than delete it (a plain "9:09" would sit too far left).
+(function noZeroClock() {
+  global.document = makeDocument();
+  var clay = makeClay('basalt');
+  clayCustomFn.call(clay);
+  clay.build();
+  clay.getItemByMessageKey('LAYOUT').set(1);
+  clay.getItemByMessageKey('BLOCK_TOP_LEFT').set(48);    // big, no leading zero
+  clay.getItemByMessageKey('BLOCK_MID_LEFT').set(47);    // small, no leading zero
+
+  var html = clay.vals['#PREVIEW'];
+  var hidden = (html.match(/visibility:hidden">0<\/span>/g) || []).length;
+  assert.strictEqual(hidden, 2, 'expected both clocks to hide a leading zero');
+  assert.ok(html.indexOf('>9:09<') > -1, 'small clock kept its leading zero');
+  checks++;
+})();
+
 // --- Share code -----------------------------------------------------------
 // A code has to carry the whole face there and back: build one from a face that
 // differs from the defaults in every kind of field, wipe the page, and check

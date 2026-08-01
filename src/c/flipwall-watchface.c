@@ -333,7 +333,9 @@ static Trigger block_trigger(QuadBlock b) {
   switch (b) {
     case BLK_CLOCK:
     case BLK_DIGITAL:
+    case BLK_DIGITAL_NOZERO:
     case BLK_DIGITAL_BIG:
+    case BLK_DIGITAL_BIG_NOZERO:
     case BLK_HOURS:
     case BLK_HOURS_BIG:
     case BLK_MINUTES:

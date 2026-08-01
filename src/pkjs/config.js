@@ -18,7 +18,9 @@
 //   37 = Wind direction (small / banner), 38 = Wind direction (big),
 //   39 = Air quality (small / banner), 40 = Air quality (big),
 //   41/42 = UV index - color (small / big), 43/44 = Air quality - color,
-//   45 = .beat time (small / banner), 46 = .beat time (big).
+//   45 = .beat time (small / banner), 46 = .beat time (big),
+//   47 = Digital clock, no leading zero (small / banner),
+//   48 = Digital clock, no leading zero (big).
 // The "- color" variants draw like their plain counterpart but paint the panel
 // with the index's own band color (see block_panel_color in blocks.c).
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
@@ -31,6 +33,7 @@
 var BIG_TIME = [
   { label: "Analog clock (big)", value: 2 },
   { label: "Digital clock (big)", value: 17 },
+  { label: "Digital clock, no leading zero (big)", value: 48 },
   { label: "Hours (big)", value: 19 },
   { label: "Minutes (big)", value: 21 },
   { label: ".beat time (big)", value: 46 }
@@ -63,6 +66,7 @@ var BIG_WEATHER = [
 
 var SMALL_TIME = [
   { label: "Digital clock (small)", value: 16 },
+  { label: "Digital clock, no leading zero (small)", value: 47 },
   { label: "Hours (small)", value: 18 },
   { label: "Minutes (small)", value: 20 },
   { label: "AM/PM (small)", value: 22 },
@@ -116,6 +120,7 @@ var BAND_OPTIONS = [
   { label: "Date & time", value: [
     { label: "Year", value: 7 },
     { label: "Digital clock", value: 16 },
+    { label: "Digital clock, no leading zero", value: 47 },
     { label: "Month + Day", value: 9 },
     { label: "Weekday + Day", value: 10 },
     { label: ".beat time", value: 45 }
