@@ -228,6 +228,13 @@ module.exports = [
         label: "Seam line",
         defaultValue: true,
         description: "Thin line across each block's middle (the flip-display look)."
+      },
+      // Banner-only, so clayCustomFn hides it under the 6-block layout.
+      {
+        type: "toggle",
+        messageKey: "YEAR_TOP",
+        label: "Banner at top",
+        defaultValue: true
       }
     ]
   },
@@ -283,43 +290,28 @@ module.exports = [
     ]
   },
 
+  // The face is the editor: clayCustomFn draws it into PREVIEW with a tap
+  // target over every block, and fills PALETTE with the blocks the tapped one
+  // can be swapped for. Both are injected, since they need the webview DOM.
   {
     type: "section",
     items: [
-      { type: "heading", defaultValue: "Preview" },
       { type: "text", id: "PREVIEW", label: "", defaultValue: "" },
+      { type: "text", id: "PALETTE", label: "", defaultValue: "" },
+      { type: "text", id: "LAYOUT_TIP", defaultValue: "" },
     ]
   },
 
-  // The banner belongs to the classic layout only; clayCustomFn hides this
-  // whole section (heading included, hence the id) under the 6-block one.
+  // What the block on the tapped slot can be tuned to: its panel color, and a
+  // select for whichever detail it has a choice about (VARIATION, injected by
+  // clayCustomFn). The seven block selects live here too but stay hidden —
+  // they carry the message keys Save sends to the watch, and their labels are
+  // what the palette header reads, via applyColumnLabels().
   {
     type: "section",
     items: [
-      { type: "heading", id: "BANNER_HEADING", defaultValue: "Banner Block" },
-      {
-        type: "select",
-        messageKey: "BLOCK_BAND",
-        label: "Type",
-        defaultValue: 7,
-        options: BAND_OPTIONS
-      },
-      { type: "color", messageKey: "PANEL_BAND_COLOR", label: "Banner", defaultValue: "000000", sunlight: false },
-      {
-        type: "toggle",
-        messageKey: "YEAR_TOP",
-        label: "Show at top",
-        defaultValue: true
-      },
-    ]
-  },
-
-  // Both layouts are two columns; the 6-block one just adds a middle block to
-  // each, which clayCustomFn hides under the classic layout.
-  {
-    type: "section",
-    items: [
-      { type: "heading", defaultValue: "Left Column" },
+      { type: "heading", id: "BLOCKS_HEADING", defaultValue: "Selected Block" },
+      { type: "text", id: "VARIATION", label: "", defaultValue: "" },
       {
         type: "select",
         messageKey: "BLOCK_TOP_LEFT",
@@ -327,7 +319,7 @@ module.exports = [
         defaultValue: 0,
         options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_TL_COLOR", label: "Top Color", defaultValue: "000000", sunlight: false },
+      { type: "color", messageKey: "PANEL_TL_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_MID_LEFT",
@@ -335,7 +327,7 @@ module.exports = [
         defaultValue: 16,
         options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_ML_COLOR", label: "Middle Color", defaultValue: "000000", sunlight: false },
+      { type: "color", messageKey: "PANEL_ML_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_BOTTOM_LEFT",
@@ -343,13 +335,7 @@ module.exports = [
         defaultValue: 2,
         options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_BL_COLOR", label: "Bottom Color", defaultValue: "000000", sunlight: false },
-    ]
-  },
-  {
-    type: "section",
-    items: [
-      { type: "heading", defaultValue: "Right Column" },
+      { type: "color", messageKey: "PANEL_BL_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_TOP_RIGHT",
@@ -357,7 +343,7 @@ module.exports = [
         defaultValue: 1,
         options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_TR_COLOR", label: "Top Color", defaultValue: "000000", sunlight: false },
+      { type: "color", messageKey: "PANEL_TR_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_MID_RIGHT",
@@ -365,7 +351,7 @@ module.exports = [
         defaultValue: 4,
         options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_MR_COLOR", label: "Middle Color", defaultValue: "000000", sunlight: false },
+      { type: "color", messageKey: "PANEL_MR_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_BOTTOM_RIGHT",
@@ -373,10 +359,17 @@ module.exports = [
         defaultValue: 3,
         options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_BR_COLOR", label: "Bottom Color", defaultValue: "000000", sunlight: false }
+      { type: "color", messageKey: "PANEL_BR_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
+      {
+        type: "select",
+        messageKey: "BLOCK_BAND",
+        label: "Banner",
+        defaultValue: 7,
+        options: BAND_OPTIONS
+      },
+      { type: "color", messageKey: "PANEL_BAND_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
     ]
   },
-  { type: "text", id: "LAYOUT_TIP", defaultValue: "" },
 
   {
     type: "submit",

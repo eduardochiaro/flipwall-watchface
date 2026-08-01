@@ -47,7 +47,19 @@ A digital watchface for Pebble smartwatches based on flip clock design.
 
 ## Configuration options
 
-Configure via the Pebble app settings page.
+Configure via the Pebble app settings page. Settings, colors, presets and share codes come first; the face itself sits at the bottom, as a live preview that doubles as the editor. **Tap a block on the preview** and a palette opens right under it holding every block that slot can take, big and small, each drawn as a miniature of itself. Tap one to place it, or tap the face again to close.
+
+**Selected Block**, below the palette, holds what that one block can be tuned to: its panel color, and — for the blocks that have a choice — a select for the detail that separates two otherwise identical blocks:
+
+| Block | Choice |
+|---|---|
+| Digital clock (big or small) | Leading zero shown or hidden |
+| Temperature (small) | Weather icon shown or hidden |
+| Calendar (big) | Second line reads the weekday or the month |
+| AM/PM (small) | Side by side or stacked diagonally |
+| UV index, Air quality (big or small) | Band color off, or the panel painted in the reading's own band color |
+
+Those variations are listed once in the palette and swapped from the select, so the palette stays a list of *what* a block shows rather than every spelling of it.
 
 ### General
 - **Language** — translates month and weekday names. 10 Latin-script languages: English, Espanol, Portugues, Francais, Deutsch, Italiano, Nederlands, Polski, Turkce, Indonesia.
@@ -64,13 +76,13 @@ Both faces are two columns. Blocks come in two sizes — **big** (fills a square
 
 - **Banner block** — banner content, classic layout only: Year, Digital clock, .beat time, Month + Day, Weekday + Day, Steps, Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, or Wind direction.
 - **Banner at top** — banner above the columns (on) or below them (off). Classic layout only.
-- **Left / Right column middle block** — 6-block layout only. Same choices as the top and bottom blocks below, big or small — so a column can carry its big block in the middle. On round screens these two leave their columns and become the strips above and below the grid, so there they are limited to the banner block list, and every block in the column shifts: the left column is drawn strip / top / bottom and the right column top / bottom / strip. The settings page relabels and reorders both columns to match, so each one always reads in the order it is drawn.
+- **Left / Right column middle block** — 6-block layout only. Same choices as the top and bottom blocks below, big or small — so a column can carry its big block in the middle. On round screens these two leave their columns and become the strips above and below the grid, so there they are limited to the banner block list, and every block in the column shifts: the left column is drawn strip / top / bottom and the right column top / bottom / strip. The palette names each slot the way the watch draws it, so a strip is called one.
 - **Top / Middle / Bottom block of each column** — fill each slot with:
   - **Date/time:** Day of week, Day of month, Calendar (weekday over day), Calendar + Month (month over day), Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Month, Year, Month + Day, Weekday + Day, .beat time (big or small)
   - **Activity:** Steps, Distance (small or big), Battery (small or big), Heart rate (small or big)
   - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Max/Min temp (small or big), Humidity (small or big), Precipitation, UV index (small or big, plain or `- color`), Air quality (small or big, plain or `- color`), Wind speed (small or big), Wind direction (small or big)
 
-  The selectors group the blocks by size first (the column rule pairs one big with one small) and then by content — Time, Date, Activity, Weather — in that order.
+  The palette groups them by size first (the column rule pairs one big with one small, so that is the choice that matters) and then by content — Time, Date, Activity, Weather — in that order.
 
   Big two-line blocks stack a caption over a large value: Calendar, Calendar + Month, Humidity (`Hum` / `47%`), Battery (`Batt` / `82%`), Heart rate (number / `BPM`), Distance (number / `KM`·`M`·`MI`), UV index (`UV Index` / `7`), Wind speed (number / `KM/H`·`MPH`), Air quality (number / `AQI`). Max/Min temp (big) stacks the max over the min, with the min drawn in the accent color like the big digital clock. Captions (`Hum`, `Batt`) are translated with the language setting; `UV Index` is not, it reads the same everywhere.
 
@@ -105,7 +117,7 @@ The alphabet is [Crockford base32](https://www.crockford.com/base32.html) — di
 ### Colors
 - **Face background** — color behind the panels.
 - **All panels** — master panel color; sets every block and the banner at once. Override any individual one afterward.
-- **Per-block panel colors** — each quadrant (Top/Bottom × Left/Right), the banner and the two column middles have their own color picker, so blocks can differ. Changing **All panels** (or applying a preset) refills them.
+- **Per-block panel colors** — each quadrant (Top/Bottom × Left/Right), the banner and the two column middles have their own color picker, shown under **Selected Block** while that block is tapped on the preview, so blocks can differ. Changing **All panels** (or applying a preset) refills them.
 - **Weekend / accent** — day-of-week panel color on weekends, also used for the inactive AM/PM label.
 
 Text color is automatic: black on light backgrounds, white on dark ones. On the big digital clock (minutes) and the big Max/Min temp (min), the secondary value is drawn in an auto-derived accent shade of the text color (lighter on dark panels, darker on light ones).
