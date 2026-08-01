@@ -71,6 +71,8 @@ typedef enum {
   BLK_AQI_BIG_COLOR,
   BLK_BEAT,       // Swatch Internet Time, "@642" (small / banner)
   BLK_BEAT_BIG,   // beat number over a ".beat" caption (big)
+  BLK_DIGITAL_NOZERO, // digital clock, no leading zero but its width kept (small)
+  BLK_DIGITAL_BIG_NOZERO, // hours over minutes, hour's leading zero dropped (big)
 } QuadBlock;
 
 // --- Localisation ----------------------------------------------------------

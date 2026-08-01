@@ -5,7 +5,8 @@
 // pair exactly one of each, so the two columns line up.
 var BIG_BLOCKS = { 1: true, 2: true, 8: true, 12: true, 17: true, 19: true,
   21: true, 26: true, 27: true, 28: true, 29: true, 30: true, 31: true, 32: true,
-  34: true, 36: true, 38: true, 40: true, 42: true, 44: true, 46: true };
+  34: true, 36: true, 38: true, 40: true, 42: true, 44: true, 46: true,
+  48: true };
 // Day, Clock, Weather, Temp(big), Digital(big), Hours(big), Minutes(big),
 // Calendar, Humidity, Battery, Calendar+Month, HR, Distance, Max/Min, UV,
 // Wind speed, Wind direction, Air quality (big)
@@ -50,7 +51,7 @@ function clayCustomFn() {
     return n === 1 || n === 2 || n === 8 || n === 12 || n === 17 ||
            n === 19 || n === 21 || n === 26 || (n >= 27 && n <= 32) ||
            n === 34 || n === 36 || n === 38 || n === 40 ||
-           n === 42 || n === 44 || n === 46;
+           n === 42 || n === 44 || n === 46 || n === 48;
   }
   var FALLBACK_SMALL = 0;   // Day of week
   var FALLBACK_BIG = 2;     // Clock
@@ -86,7 +87,8 @@ function clayCustomFn() {
                  temp: '22°', humid: '45%', humLabel: 'Hu', humLabel3: 'Hum',
                  battLabel: 'Batt', minmax: '24/12°', tmax: '24°', tmin: '12°',
                  distNum: '3.2', distUnit: 'KM',
-                 precip: '2mm', time: '10:09', hr: '72', uv: '7',
+                 precip: '2mm', time: '10:09', timeLead: '09:09',
+                 hr: '72', uv: '7',
                  wind: '12km/h', windNum: '12', windUnit: 'KM/H',
                  windDir: 'WNW', windDeg: 292, aqi: '34', beat: '642',
                  weekend: true, isPM: false, hour: 10, min: 9, sec: 30 };
@@ -120,7 +122,7 @@ function clayCustomFn() {
     return v !== 1 && v !== 2 && v !== 8 && v !== 12 && v !== 17 &&
            v !== 19 && v !== 21 && v !== 26 && !(v >= 27 && v <= 32) &&
            v !== 34 && v !== 36 && v !== 38 && v !== 40 &&
-           v !== 42 && v !== 44 && v !== 46;
+           v !== 42 && v !== 44 && v !== 46 && v !== 48;
   }
 
   // The wind arrow, approximated to the nearest of 8 glyphs (the watch rotates
@@ -143,6 +145,10 @@ function clayCustomFn() {
     if (v === 14) { return SAMPLE.minmax; }
     if (v === 15) { return SAMPLE.precip; }
     if (v === 16) { return SAMPLE.time; }
+    // 47 drops the hour's leading zero but keeps its width, which a two-digit
+    // hour can't show — preview it an hour earlier ("09:09") so the gap is
+    // visible. nozeroMarkup() hides the zero and leaves its width behind.
+    if (v === 47) { return SAMPLE.timeLead; }
     if (v === 18 || v === 19) { return (SAMPLE.hour < 10 ? '0' : '') + SAMPLE.hour; }
     if (v === 20 || v === 21) { return (SAMPLE.min < 10 ? '0' : '') + SAMPLE.min; }
     if (v === 24) { return '♥' + SAMPLE.hr; }   // heart + BPM
@@ -188,6 +194,14 @@ function clayCustomFn() {
   function beatMarkup(txt, text) {
     return '<span style="color:' + accent(text) +
       ';position:relative;top:-0.17em;">@</span>' + txt.slice(1);
+  }
+
+  // The no-zero clocks drop the hour's leading zero but keep its width (the
+  // watch measures a "0" and lays the text out in the full-width box); hiding
+  // the digit rather than deleting it reproduces that in HTML.
+  function nozeroMarkup(txt) {
+    return '<span style="visibility:hidden">' + txt.charAt(0) + '</span>' +
+      txt.slice(1);
   }
 
   function px(n) { return (n * SCALE).toFixed(2) + 'px'; }
@@ -326,8 +340,11 @@ function clayCustomFn() {
         ampm('PM', false, SAMPLE.isPM ? fg : DIM) + seam(w, h);
       return panelDiv(x, y, w, h, bg, inner);
     }
-    if (v === 17) {  // digital clock (big): hours over minutes, split by seam
-      var hh = (SAMPLE.hour < 10 ? '0' : '') + SAMPLE.hour;   // leading zero
+    if (v === 17 || v === 48) {  // digital clock (big): hours over minutes
+      // 48 drops the hour's leading zero and keeps its width, so it previews an
+      // hour earlier ("09") with the zero hidden — a two-digit hour shows nothing.
+      var hh = v === 48 ? nozeroMarkup(SAMPLE.timeLead.slice(0, 2))
+                        : (SAMPLE.hour < 10 ? '0' : '') + SAMPLE.hour;
       var mm = (SAMPLE.min < 10 ? '0' : '') + SAMPLE.min;
       var fontD = Math.round(h * 0.34);
       function halfText(t, topHalf, color) {
@@ -415,6 +432,7 @@ function clayCustomFn() {
     var txt = v === 1 ? SAMPLE.day : (v === 3 ? SAMPLE.month : valueText(v));
     var font = (v === 1 || v === 12) ? Math.round(h * 0.6) : Math.round(h * 0.5);
     if (v === 45) { txt = beatMarkup(txt, c.text); }
+    if (v === 47) { txt = nozeroMarkup(txt); }
     return panelDiv(x, y, w, h, c.panel,
       textDiv(txt, c.text, font, 'center', 0) + seam(w, h));
   }
@@ -431,6 +449,7 @@ function clayCustomFn() {
     // longer strings like "Jun 26" don't wrap onto a second line.
     var pw = Math.max(Math.round(h * 1.9), Math.round(txt.length * font * 0.62) + 12);
     if (v === 45) { txt = beatMarkup(txt, c.text); }
+    if (v === 47) { txt = nozeroMarkup(txt); }   // after the width, so the pill keeps it
     var px0 = x + Math.floor((w - pw) / 2);
     return panelDiv(px0, y, pw, h, c.panel,
       textDiv(txt, c.text, font, 'center', 0) + seam(pw, h));

@@ -32,7 +32,8 @@ bool block_valid_grid(int v) {
          v == BLK_WIND_DIR || v == BLK_WIND_DIR_BIG ||
          v == BLK_AQI || v == BLK_AQI_BIG ||
          (v >= BLK_UV_COLOR && v <= BLK_AQI_BIG_COLOR) ||
-         v == BLK_BEAT || v == BLK_BEAT_BIG;
+         v == BLK_BEAT || v == BLK_BEAT_BIG || v == BLK_DIGITAL_NOZERO ||
+         v == BLK_DIGITAL_BIG_NOZERO;
 }
 bool block_valid_band(int v) {
   return v == BLK_YEAR || (v >= BLK_STEPS && v <= BLK_BATTERY) ||
@@ -41,7 +42,8 @@ bool block_valid_band(int v) {
          v == BLK_PRECIP || v == BLK_DIGITAL || v == BLK_HR ||
          v == BLK_TEMP_ICON || v == BLK_UV ||
          v == BLK_WIND || v == BLK_WIND_DIR || v == BLK_AQI ||
-         v == BLK_UV_COLOR || v == BLK_AQI_COLOR || v == BLK_BEAT;
+         v == BLK_UV_COLOR || v == BLK_AQI_COLOR || v == BLK_BEAT ||
+         v == BLK_DIGITAL_NOZERO;
 }
 bool block_is_short(QuadBlock b) {
   return !(b == BLK_DAY || b == BLK_CLOCK || b == BLK_WEATHER ||
@@ -52,7 +54,8 @@ bool block_is_short(QuadBlock b) {
            b == BLK_HR_BIG || b == BLK_KM_BIG || b == BLK_MINMAX_BIG ||
            b == BLK_UV_BIG || b == BLK_WIND_BIG || b == BLK_WIND_DIR_BIG ||
            b == BLK_AQI_BIG || b == BLK_UV_BIG_COLOR ||
-           b == BLK_AQI_BIG_COLOR || b == BLK_BEAT_BIG);
+           b == BLK_AQI_BIG_COLOR || b == BLK_BEAT_BIG ||
+           b == BLK_DIGITAL_BIG_NOZERO);
 }
 
 // A "- colour" variant draws exactly like the block it mirrors; only the panel
@@ -302,21 +305,15 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
     case BLK_KM: {
 #if defined(PBL_HEALTH)
       int m = (int)health_service_sum_today(HealthMetricWalkedDistanceMeters);
-      const char *type = "m";
-      int t = (m + 50);
-      if (m >= 1000) {
-        type = "km";
-        t = (m + 50) / 100;
-      }     // km * 10, rounded
       if (health_service_get_measurement_system_for_display(
               HealthMetricWalkedDistanceMeters) == MeasurementSystemImperial) {
-        t = (m * 10 + 804) / 1609;   // miles * 10, rounded
-        type = "mi";
-      }
-      if (t > 99) {
-        snprintf(buf, n, "%d%s", t / 10, type);
+        int t = (m * 10 + 804) / 1609;            // miles * 10, rounded
+        snprintf(buf, n, "%d.%dmi", t / 10, t % 10);
+      } else if (m >= 1000) {
+        int t = (m + 50) / 100;                   // km * 10, rounded
+        snprintf(buf, n, "%d.%dkm", t / 10, t % 10);
       } else {
-        snprintf(buf, n, "%d.%d%s", t / 10, t % 10, type);
+        snprintf(buf, n, "%dm", m);               // whole metres below 1 km
       }
 #else
       snprintf(buf, n, "--");
@@ -373,6 +370,13 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
       snprintf(buf, n, "%s:%s", hh, mm);
       break;
     }
+    case BLK_DIGITAL_NOZERO: {
+      char hh[4], mm[4];
+      digital_parts(hh, sizeof(hh), mm, sizeof(mm));   // 12h drops the zero already
+      const char *h = (hh[0] == '0' && hh[1]) ? hh + 1 : hh;   // 24h: drop it too
+      snprintf(buf, n, "%s:%s", h, mm);
+      break;
+    }
     case BLK_HOURS:
     case BLK_HOURS_BIG:
       hours_str(buf, n);
@@ -406,6 +410,36 @@ static void draw_value_block(GContext *ctx, GRect r, QuadBlock blk) {
   // Big cap (matches the month block); draw_centered shrinks it to fit width if
   // the string (a wide "°"/prefix value) would overflow.
   draw_centered(ctx, r, buf, r.size.h * 52 / 100, s_text_fg);
+  draw_seam(ctx, r);
+}
+
+// Width of the digit a no-zero clock leaves out ("4:33" against "16:33"), zero
+// when nothing was dropped. The text is then laid out inside the full-width box
+// (shifted right by half the gap), so the digits hold their place all day.
+static int nozero_pad(GContext *ctx, bool dropped, int cap_h) {
+  return dropped ? text_width(ctx, "0", cap_h) : 0;
+}
+
+// Digital clock with the hour's leading zero dropped but its width kept: the
+// string is centred in a box widened by the missing digit, i.e. pushed right by
+// half of it, so the colon and minutes sit where "16:33" would put them.
+static void draw_digital_nozero(GContext *ctx, GRect r) {
+  char buf[8];
+  block_text(BLK_DIGITAL_NOZERO, buf, sizeof(buf));
+  draw_panel(ctx, r, s_panel_bg);
+
+  bool dropped = strlen(buf) < 5;           // "4:33", not "16:33"
+  int cap_h = r.size.h * 52 / 100;          // same cap as draw_value_block
+  int avail = r.size.w - 6;
+  int pad = nozero_pad(ctx, dropped, cap_h);
+  int w = text_width(ctx, buf, cap_h) + pad;
+  if (w > avail && avail > 0) {             // shrink on the padded width
+    cap_h = cap_h * avail / w;
+    pad = nozero_pad(ctx, dropped, cap_h);
+  }
+  GRect tr = r;
+  tr.origin.x += pad / 2;
+  draw_centered(ctx, tr, buf, cap_h, s_text_fg);
   draw_seam(ctx, r);
 }
 
@@ -469,16 +503,21 @@ static void draw_temp_big(GContext *ctx, GRect r) {
 
 // Big digital clock: hours in the top half, minutes in the bottom half, split by
 // the seam. (The small/banner variant is just "HH:MM" via draw_value_block.)
-static void draw_digital_big(GContext *ctx, GRect r) {
+// nozero drops the hour's leading zero but keeps its width, so the single digit
+// stays over the minutes' second digit instead of sliding to the centre.
+static void draw_digital_big(GContext *ctx, GRect r, bool nozero) {
   char hh[4], mm[4];
   hours_str(hh, sizeof(hh));     // keep the leading zero (2 digits)
+  bool dropped = nozero && hh[0] == '0' && hh[1];
+  if (dropped) memmove(hh, hh + 1, strlen(hh));
   minutes_str(mm, sizeof(mm));
   draw_panel(ctx, r, s_panel_bg);
-  int half = r.size.h / 2;
-  GRect top = GRect(r.origin.x, r.origin.y, r.size.w, half);
+  int half = r.size.h / 2, cap_h = half * 75 / 100;
+  GRect top = GRect(r.origin.x + nozero_pad(ctx, dropped, cap_h) / 2, r.origin.y,
+                    r.size.w, half);
   GRect bot = GRect(r.origin.x, r.origin.y + half, r.size.w, r.size.h - half);
-  draw_centered(ctx, top, hh, half * 75 / 100, s_text_fg);
-  draw_centered(ctx, bot, mm, half * 75 / 100, get_closest_accent_color(s_text_fg));
+  draw_centered(ctx, top, hh, cap_h, s_text_fg);
+  draw_centered(ctx, bot, mm, cap_h, get_closest_accent_color(s_text_fg));
   draw_seam(ctx, r);
 }
 
@@ -857,8 +896,10 @@ void draw_band(GContext *ctx, GRect band, QuadBlock band_blk) {
   block_text(blk, buf, sizeof(buf));
   int cap_h = band.size.h * 60 / 100;
 
-  // Measure the string so the panel hugs the text.
-  int text_w = text_width(ctx, buf, cap_h);
+  // Measure the string so the panel hugs the text. The no-zero clock also books
+  // the dropped digit's width, so neither the pill nor the digits move at 9->10.
+  int pad_w = nozero_pad(ctx, blk == BLK_DIGITAL_NOZERO && strlen(buf) < 5, cap_h);
+  int text_w = text_width(ctx, buf, cap_h) + pad_w;
 
   const int pad_x = 8;
   // Some banner blocks carry a PDC icon left of the value, like their grid form.
@@ -891,7 +932,9 @@ void draw_band(GContext *ctx, GRect band, QuadBlock band_blk) {
   } else if (blk == BLK_BEAT) {
     draw_beat_text(ctx, r, buf, cap_h);
   } else {
-    draw_centered(ctx, r, buf, cap_h, s_text_fg);
+    GRect tr = r;
+    tr.origin.x += pad_w / 2;   // right-align inside the padded box (no-zero clock)
+    draw_centered(ctx, tr, buf, cap_h, s_text_fg);
   }
   draw_seam(ctx, r);
 
@@ -912,7 +955,8 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_CLOCK:    draw_clock(ctx, r);    break;
     case BLK_MONTH:    draw_month(ctx, r);    break;
     case BLK_TEMP_BIG: draw_temp_big(ctx, r); break;
-    case BLK_DIGITAL_BIG: draw_digital_big(ctx, r); break;
+    case BLK_DIGITAL_BIG: draw_digital_big(ctx, r, false); break;
+    case BLK_DIGITAL_BIG_NOZERO: draw_digital_big(ctx, r, true); break;
     case BLK_CALENDAR: draw_calendar(ctx, r); break;
     case BLK_MONTH_CAL: draw_month_cal(ctx, r); break;
     case BLK_HUMIDITY_BIG: draw_humidity_big(ctx, r); break;
@@ -926,6 +970,7 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_AQI_BIG:  draw_aqi_big(ctx, r);  break;
     case BLK_BEAT_BIG: draw_beat_big(ctx, r); break;
     case BLK_BEAT:     draw_beat(ctx, r);     break;
+    case BLK_DIGITAL_NOZERO: draw_digital_nozero(ctx, r); break;
     case BLK_HOURS_BIG: { char b[4]; hours_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
     case BLK_MINUTES_BIG: { char b[4]; minutes_str(b, sizeof b); draw_big_number(ctx, r, b); break; }
     case BLK_AMPM:     draw_ampm(ctx, r);     break;
@@ -969,6 +1014,10 @@ static bool block_centered_text(QuadBlock b, char *buf, size_t n) {
     case BLK_STEPS: case BLK_KM:  case BLK_BATTERY:
     case BLK_TEMP:  case BLK_TEMP_BIG: case BLK_HUMIDITY:
     case BLK_PRECIP: case BLK_DIGITAL: case BLK_WIND: case BLK_AQI:
+    // ponytail: the no-zero clock flips plainly centred, so its digits sit half
+    // a digit left of rest during the ~8 squashed frames. Give draw_flip an x
+    // offset if that ever reads as a jump.
+    case BLK_DIGITAL_NOZERO:
     case BLK_HOURS: case BLK_HOURS_BIG:
     case BLK_MINUTES: case BLK_MINUTES_BIG: case BLK_MINMAX:
     case BLK_MONTH_DAY: case BLK_DOW_DAY:
