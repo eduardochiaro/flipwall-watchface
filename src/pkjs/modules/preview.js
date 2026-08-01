@@ -1079,9 +1079,19 @@ function clayCustomFn() {
     var item = clayConfig.getItemById('TRANSFER');
     if (!item) { return; }
     var btn = 'padding:10px 6px;border:none;border-radius:6px;cursor:pointer;' +
-      'font-weight:bold;font-size:14px;';
-    var field = 'width:100%;box-sizing:border-box;padding:8px;border-radius:6px;' +
-      'border:1px solid #999;font-family:monospace;font-size:12px;';
+      'font-weight:bold;font-size:14px;background:#444;color:#FFF;';
+    var field = 'display: block;' +
+      'width: 100%;' +
+      'background: #333333;' +
+      'border-radius: 0.25rem;' +
+      'padding: 0.35rem 0.375rem;' +
+      'border: none;' +
+      'vertical-align: baseline;' +
+      'color: #ffffff;' +
+      'font-size: inherit;' +
+      '-webkit-appearance: none;' +
+      'appearance: none;' +
+      'min-height: 2.1rem;';
     item.set(
       '<textarea data-transfer="code" readonly rows="3" style="' + field +
         'resize:none;"></textarea>' +
