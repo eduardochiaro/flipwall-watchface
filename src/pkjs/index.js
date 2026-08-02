@@ -77,27 +77,39 @@ function sanitize(settings) {
 }
 
 // Clay persists the saved settings to localStorage before we get them, so the
-// refresh below reads the zones back from there rather than needing the config
+// refresh below reads the face back from there rather than needing the config
 // page to have been opened this run.
-function savedZones() {
-  var s = {};
+function savedSettings() {
   try {
-    s = JSON.parse(localStorage.getItem('clay-settings')) || {};
-  } catch (e) { /* nothing saved yet: every slot falls back to the default */ }
-  var out = [];
-  for (var i = 0; i < TZ_SLOTS; i++) {
-    out.push(readValue(s, 'TZ_ZONE[' + i + ']') || DEFAULT_ZONE);
+    return JSON.parse(localStorage.getItem('clay-settings')) || {};
+  } catch (e) {
+    return {};
   }
-  return out;
 }
 
+// The four second-time-zone blocks (see QuadBlock in src/c/flipwall.h).
+var TZ_BLOCK_IDS = { 50: 1, 51: 1, 52: 1, 53: 1 };
+
+function usesTimezone(s) {
+  return Object.keys(INT_KEYS).some(function(key) {
+    return key.indexOf('BLOCK_') === 0 &&
+      TZ_BLOCK_IDS[parseInt(readValue(s, key), 10)];
+  });
+}
+
+// Only sent while a second-time-zone block is actually on the face: every push
+// wakes the watch over Bluetooth, and a face without one of these blocks has
+// nothing to do with it. A config save carries the zones regardless, so adding
+// a block still lights it up straight away.
 function sendTimezones() {
+  var s = savedSettings();
+  if (!usesTimezone(s)) { return; }
   var msg = {};
-  savedZones().forEach(function(zone, i) {
-    var info = tzInfo(zone);
+  for (var i = 0; i < TZ_SLOTS; i++) {
+    var info = tzInfo(readValue(s, 'TZ_ZONE[' + i + ']') || DEFAULT_ZONE);
     msg['TZ_OFFSET[' + i + ']'] = info.offset;
     msg['TZ_ABBR[' + i + ']'] = info.abbr;
-  });
+  }
   Pebble.sendAppMessage(Clay.prepareSettingsForAppMessage(msg),
     function() { console.log('Sent time zones to Pebble'); },
     function(error) {
