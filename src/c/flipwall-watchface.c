@@ -402,6 +402,13 @@ static void mark_blocks(Trigger t) {
     if (block_trigger(s_blocks[i]) == t) layer_mark_dirty(s_layer[i]);
 }
 
+// True when at least one placed block is driven by `t`.
+static bool blocks_need(Trigger t) {
+  for (int i = 0; i < POS_COUNT; i++)
+    if (block_trigger(s_blocks[i]) == t) return true;
+  return false;
+}
+
 static bool clock_present(void) {
   for (int i = 0; i < POS_COUNT; i++)
     if (s_blocks[i] == BLK_CLOCK) return true;
@@ -410,7 +417,22 @@ static bool clock_present(void) {
 
 static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   s_now = *tick_time;
-  mark_blocks(TRG_CLOCK);
+  // Between minutes there is exactly one thing to redraw: the analog dial's
+  // second hand. Every other clock block still reads the same, so repainting
+  // the lot 60 times a minute is 60x the vector rendering for nothing.
+  if (units_changed & MINUTE_UNIT) {
+    mark_blocks(TRG_CLOCK);
+    // Steps / distance / heart rate ride on the minute tick rather than on the
+    // health service's own events: those fire every few seconds while the
+    // wearer walks, and waking the app that often to redraw a step count that
+    // is about to change again is the most expensive thing this face could do.
+    // The cost is that a step count can be up to a minute stale.
+    mark_blocks(TRG_HEALTH);
+  } else {
+    for (int i = 0; i < POS_COUNT; i++)
+      if (s_blocks[i] == BLK_CLOCK) layer_mark_dirty(s_layer[i]);
+    return;   // a second tick can't cross midnight on its own
+  }
   if (s_now.tm_yday != s_prev_yday) {   // crossed midnight
     s_prev_yday = s_now.tm_yday;
     mark_blocks(TRG_DATE);
@@ -427,14 +449,6 @@ static void battery_handler(BatteryChargeState state) { mark_blocks(TRG_BATTERY)
 static void unobstructed_did_change(void *context) { layout(); }
 #endif
 
-#if defined(PBL_HEALTH)
-static void health_handler(HealthEventType event, void *ctx) {
-  if (event == HealthEventMovementUpdate || event == HealthEventSignificantUpdate ||
-      event == HealthEventHeartRateUpdate)
-    mark_blocks(TRG_HEALTH);
-}
-#endif
-
 // ---------------------------------------------------------------------------
 // Settings (Clay config page <-> persistent storage)
 // ---------------------------------------------------------------------------
@@ -444,6 +458,21 @@ static void health_handler(HealthEventType event, void *ctx) {
 static void apply_tick_interval(void) {
   bool secs = s_show_seconds && clock_present();
   tick_timer_service_subscribe(secs ? SECOND_UNIT : MINUTE_UNIT, tick_handler);
+}
+
+// The battery service is subscribed only while a block on the face shows the
+// battery, so a face without one never wakes for a charge event. Re-run on a
+// settings change, so the subscription follows the blocks.
+// (There is no health subscription: those blocks refresh on the minute tick,
+// see tick_handler.)
+static bool s_battery_subscribed;
+
+static void apply_services(void) {
+  bool want_battery = blocks_need(TRG_BATTERY);
+  if (want_battery == s_battery_subscribed) { return; }
+  want_battery ? battery_state_service_subscribe(battery_handler)
+               : battery_state_service_unsubscribe();
+  s_battery_subscribed = want_battery;
 }
 
 // The six-block middles are full column blocks on rect screens, so they take
@@ -543,28 +572,39 @@ static void apply_color(DictionaryIterator *iter, uint32_t msg_key,
 }
 
 // Each position's second time zone, if this message carries them: the phone
-// sends both arrays whole, keyed MESSAGE_KEY_TZ_* + BlockPos. Returns true when
-// anything was present.
-static bool apply_tz(DictionaryIterator *iter) {
-  bool got = false;
+// sends both arrays whole, keyed MESSAGE_KEY_TZ_* + BlockPos. Sets *changed
+// when a value actually moved; returns true when the keys were present at all.
+//
+// The phone re-sends these every half hour so a DST change lands on its own,
+// and almost every one of those is identical to what is already here. Writing
+// them back would be a flash write and a repaint every 30 minutes for nothing,
+// so an unchanged push is dropped on the floor.
+static bool apply_tz(DictionaryIterator *iter, bool *changed) {
+  bool present = false;
   for (int i = 0; i < POS_COUNT; i++) {
     Tuple *off = dict_find(iter, MESSAGE_KEY_TZ_OFFSET + i);
     if (off) {
-      s_tz_offsets[i] = off->value->int32;
-      got = true;
+      present = true;
+      if (s_tz_offsets[i] != off->value->int32) {
+        s_tz_offsets[i] = off->value->int32;
+        *changed = true;
+      }
     }
     Tuple *abbr = dict_find(iter, MESSAGE_KEY_TZ_ABBR + i);
     if (abbr) {
-      strncpy(s_tz_abbrs[i], abbr->value->cstring, TZ_ABBR_LEN - 1);
-      s_tz_abbrs[i][TZ_ABBR_LEN - 1] = '\0';
-      got = true;
+      present = true;
+      if (strncmp(s_tz_abbrs[i], abbr->value->cstring, TZ_ABBR_LEN) != 0) {
+        strncpy(s_tz_abbrs[i], abbr->value->cstring, TZ_ABBR_LEN - 1);
+        s_tz_abbrs[i][TZ_ABBR_LEN - 1] = '\0';
+        *changed = true;
+      }
     }
   }
-  if (got) {
+  if (*changed) {
     persist_write_data(PK_TZ_OFFSETS, s_tz_offsets, sizeof s_tz_offsets);
     persist_write_data(PK_TZ_ABBRS, s_tz_abbrs, sizeof s_tz_abbrs);
   }
-  return got;
+  return present;
 }
 
 // Both Clay config saves and weather pushes arrive on this inbox.
@@ -574,11 +614,13 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
     return;   // a weather push carries no config keys
   }
 
-  // The phone also refreshes the second zone on its own (DST), with no config
-  // keys alongside it: take it and repaint the clocks, nothing else. A config
-  // save always carries LAYOUT, so it is the marker for the full path.
-  if (apply_tz(iter) && !dict_find(iter, MESSAGE_KEY_LAYOUT)) {
-    mark_blocks(TRG_CLOCK);
+  // The phone also refreshes the second zones on its own (DST), with no config
+  // keys alongside it: take them and repaint the clocks, nothing else — and
+  // only when something moved. A config save always carries LAYOUT, so it is
+  // the marker for the full path.
+  bool tz_changed = false;
+  if (apply_tz(iter, &tz_changed) && !dict_find(iter, MESSAGE_KEY_LAYOUT)) {
+    if (tz_changed) mark_blocks(TRG_CLOCK);
     return;
   }
 
@@ -627,6 +669,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   // Layout, block kinds, seconds and clock placement may all have changed.
   window_set_background_color(s_window, s_face_bg);
   apply_tick_interval();
+  apply_services();   // a block that needs health / battery may have come or gone
   layout();   // reframes + retags + repaints every block
 }
 
@@ -653,24 +696,18 @@ static void prv_window_load(Window *window) {
 
   layout();
 
-  battery_state_service_subscribe(battery_handler);
+  apply_services();   // the battery service, only if a block on the face wants it
 #if !PBL_PLATFORM_APLITE
   unobstructed_area_service_subscribe(
       (UnobstructedAreaHandlers){ .did_change = unobstructed_did_change }, NULL);
-#endif
-#if defined(PBL_HEALTH)
-  health_service_events_subscribe(health_handler, NULL);
 #endif
 }
 
 static void prv_window_unload(Window *window) {
   if (s_flip_timer) { app_timer_cancel(s_flip_timer); s_flip_timer = NULL; }
-  battery_state_service_unsubscribe();
+  if (s_battery_subscribed) { battery_state_service_unsubscribe(); s_battery_subscribed = false; }
 #if !PBL_PLATFORM_APLITE
   unobstructed_area_service_unsubscribe();
-#endif
-#if defined(PBL_HEALTH)
-  health_service_events_unsubscribe();
 #endif
 #if !PBL_PLATFORM_APLITE
   ffont_destroy(s_ffont);
