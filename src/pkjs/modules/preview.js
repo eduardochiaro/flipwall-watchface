@@ -59,7 +59,11 @@ function clayCustomFn() {
                  hr: '72', uv: '7',
                  wind: '12km/h', windNum: '12', windUnit: 'KM/H',
                  windDir: 'WNW', windDeg: 292, aqi: '34', beat: '642',
+                 sunrise: '06:12', sunset: '20:45',
                  tzTime: '10:09', tzAbbr: 'UTC', tzOff: '+0',
+                 // Utility statuses: connected, not charging, quiet time off —
+                 // so the preview shows both the lit and the ghosted state.
+                 bt: true, charging: false, quiet: false,
                  weekend: true, isPM: false, hour: 10, min: 9, sec: 30 };
 
   // Localised month/weekday names — must match MONTHS/WDAYS in the C source.
@@ -96,8 +100,9 @@ function clayCustomFn() {
   }
 
   // Display text for the data blocks (steps / distance / battery / year). `tz`
-  // is the block's own second time zone (see tzText), needed by 50/51 only.
-  function valueText(v, tz) {
+  // is the block's own second time zone (see tzText), needed by 50/51/55/56;
+  // `str` is its own free text, which only 57 shows.
+  function valueText(v, tz, str) {
     if (v === 4) { return SAMPLE.steps; }
     if (v === 49) { return SAMPLE.stepsFull; }
     if (v === 5) { return SAMPLE.dist; }
@@ -121,10 +126,16 @@ function clayCustomFn() {
     if (v === 35) { return SAMPLE.wind; }
     if (v === 37) { return windArrow(SAMPLE.windDeg) + ' ' + SAMPLE.windDir; }
     if (v === 39) { return 'AQI ' + SAMPLE.aqi; }
+    // Sun blocks: glyph stand-ins for the pdc icons, sunrise's before the time
+    // and sunset's after it (the watch mirrors the two, see draw_icon_value).
+    if (v === 58) { return '☀↑' + SAMPLE.sunrise; }
+    if (v === 59) { return SAMPLE.sunset + '☀↓'; }
     if (v === 45) { return '@' + SAMPLE.beat; }
     // Second time zone: the clock there, then its offset / abbreviation.
     if (v === 50) { return tz.time + ' ' + tz.off; }
     if (v === 51) { return tz.time + ' ' + tz.abbr; }
+    if (v === 55 || v === 56) { return tz.time; }   // no label, just the clock
+    if (v === 57) { return str || ''; }
     return SAMPLE.year;
   }
 
@@ -329,7 +340,7 @@ function clayCustomFn() {
     var band = indexColor(v);
     if (band) {
       c = { panel: band, text: contrast(band), weekend: c.weekend,
-            showSeconds: c.showSeconds, tz: c.tz };
+            showSeconds: c.showSeconds, tz: c.tz, str: c.str };
       v = BASE_BLOCK[v];
     }
     if (v === 2) {  // clock
@@ -358,6 +369,22 @@ function clayCustomFn() {
         seam(w, h);
       return panelDiv(x, y, w, h, c.panel, inner2);
     }
+    if (v === 54) {  // utility: quiet time / charging / bluetooth, evenly spaced
+      // Glyph stand-ins for the pdc icons the watch draws (as elsewhere in the
+      // preview); an off status takes the panel's own accent, an on one the
+      // text colour. Mirrors draw_utility in the C source.
+      var uIcons = ['☾', '⚡', 'ᛒ'];
+      var uOn = [SAMPLE.quiet, SAMPLE.charging, SAMPLE.bt];
+      var uOff = accent(c.panel), uFont = Math.round(h * 0.55), uInner = '';
+      for (var ui = 0; ui < 3; ui++) {
+        uInner += '<div style="position:absolute;top:0;bottom:0;left:' +
+          (ui * 100 / 3).toFixed(2) + '%;width:' + (100 / 3).toFixed(2) +
+          '%;display:flex;align-items:center;justify-content:center;color:' +
+          (uOn[ui] ? c.text : uOff) + ';font-size:' + px(uFont) +
+          ';line-height:1;">' + uIcons[ui] + '</div>';
+      }
+      return panelDiv(x, y, w, h, c.panel, uInner + seam(w, h));
+    }
     if (v === 0) {  // day of week
       var bg = SAMPLE.weekend ? c.weekend : c.panel;
       var fg = SAMPLE.weekend ? contrast(c.weekend) : c.text;
@@ -382,7 +409,7 @@ function clayCustomFn() {
     // Mirrors draw_caption_value in the C source (same 12%/38% proportions).
     if (v === 26 || v === 27 || v === 28 || v === 29 || v === 30 || v === 31 ||
         v === 34 || v === 36 || v === 38 || v === 40 || v === 46 ||
-        v === 52 || v === 53) {
+        v === 52 || v === 53 || v === 60 || v === 61) {
       var cvM = Math.round(h * 0.12), cvInH = h - 2 * cvM;
       var cvSmallH = Math.round(cvInH * 0.38);
       var caption, value, capColor = c.text, labelTop;
@@ -406,6 +433,13 @@ function clayCustomFn() {
         caption = v === 53 ? c.tz.abbr : c.tz.off;
         value = c.tz.time; labelTop = false; capColor = accent(c.text);
       }
+      // Sunrise / sunset: the time captioned with the word, in the accent like
+      // the zone blocks.
+      else if (v === 60 || v === 61) {
+        caption = v === 61 ? 'Sunset' : 'Sunrise';
+        value = v === 61 ? SAMPLE.sunset : SAMPLE.sunrise;
+        labelTop = false; capColor = accent(c.text);
+      }
       // Wind direction: the arrow takes the big line, the compass word captions it.
       else if (v === 38) { caption = SAMPLE.windDir; value = windArrow(SAMPLE.windDeg); labelTop = false; }
       else { caption = SAMPLE.distUnit; value = SAMPLE.distNum; labelTop = false; }
@@ -423,7 +457,8 @@ function clayCustomFn() {
         halfDiv(SAMPLE.tmin, true, accent(c.text), fontMM) + seam(w, h));
     }
     // day number (big), temp (big), month name, or a data readout.
-    var txt = v === 1 ? SAMPLE.day : (v === 3 ? SAMPLE.month : valueText(v, c.tz));
+    var txt = v === 1 ? SAMPLE.day
+            : (v === 3 ? SAMPLE.month : valueText(v, c.tz, c.str));
     var font = (v === 1 || v === 12) ? Math.round(h * 0.6) : Math.round(h * 0.5);
     if (v === 45) { txt = beatMarkup(txt, c.text); }
     if (v === 47) { txt = nozeroMarkup(txt); }
@@ -435,10 +470,11 @@ function clayCustomFn() {
   function bandBlock(v, x, y, w, h, c, idx) {
     var band = indexColor(v);
     if (band) {
-      c = { panel: band, text: contrast(band), weekend: c.weekend, tz: c.tz };
+      c = { panel: band, text: contrast(band), weekend: c.weekend, tz: c.tz,
+            str: c.str };
       v = BASE_BLOCK[v];
     }
-    var txt = valueText(v, c.tz);
+    var txt = valueText(v, c.tz, c.str);
     var font = Math.round(h * 0.62);
     // Width the panel to the text (mirrors draw_band sizing to content), so
     // longer strings like "Jun 26" don't wrap onto a second line.
@@ -516,11 +552,13 @@ function clayCustomFn() {
     var panels = cfg.panels || [cfg.panel, cfg.panel, cfg.panel, cfg.panel,
                                 cfg.panel, cfg.panel, cfg.panel];
     var zones = (cfg.tz || []).map(tzText);
-    // `pos` is the slot, so one index picks both its color and its zone.
+    var texts = cfg.texts || [];
+    // `pos` is the slot, so one index picks its color, its zone and its text.
     function mk(pos) {
       var panel = panels[pos];
       return { panel: panel, weekend: cfg.weekend, text: contrast(panel),
-               showSeconds: cfg.showSeconds, tz: zones[pos] || tzText() };
+               showSeconds: cfg.showSeconds, tz: zones[pos] || tzText(),
+               str: texts[pos] || '' };
     }
     // BlockPos order, so a position indexes blocks[] and panels[] alike.
     var blocks = cfg.blocks.concat([cfg.band, cfg.midLeft, cfg.midRight]);
@@ -618,13 +656,14 @@ function clayCustomFn() {
   // uses, so a chip is exactly what the watch will draw. The box takes the
   // block's own shape — square for a big one, half height for a small one — so
   // a chip is never mostly empty.
-  // o: { panel, weekend, face, showSeconds, tz, box, scale }; `tz` is the
-  // selected slot's own zone, so a time-zone chip previews what it would place.
+  // o: { panel, weekend, face, showSeconds, tz, str, box, scale }; `tz` and
+  // `str` are the selected slot's own zone and text, so a time-zone or text
+  // chip previews what it would place.
   function swatch(v, o) {
     SCALE = o.scale;
     var h = isShort(v) ? Math.round(o.box / 2) : o.box;
     var c = { panel: o.panel, text: contrast(o.panel), weekend: o.weekend,
-              showSeconds: o.showSeconds, tz: tzText(o.tz) };
+              showSeconds: o.showSeconds, tz: tzText(o.tz), str: o.str };
     return '<div style="position:relative;margin:0 auto;width:' + px(o.box) +
       ';height:' + px(h) + ';background:' + o.face + ';border-radius:' + px(4) +
       ';overflow:hidden;">' + block(v, 0, 0, o.box, h, c) + '</div>';
@@ -722,6 +761,7 @@ function clayCustomFn() {
       lang: blockVal('LANG'),
       units: blockVal('UNITS'),
       tz: SLOT_KEYS.map(function(key) { return tzSample(SLOT_ZONE[key]); }),
+      texts: SLOT_KEYS.map(function(key) { return textSample(SLOT_TEXT[key]); }),
       band: blockVal('BLOCK_BAND'),
       midLeft: blockVal('BLOCK_MID_LEFT'),
       midRight: blockVal('BLOCK_MID_RIGHT'),
@@ -760,11 +800,23 @@ function clayCustomFn() {
     BLOCK_BAND: 'PANEL_BAND_COLOR', BLOCK_MID_LEFT: 'PANEL_ML_COLOR',
     BLOCK_MID_RIGHT: 'PANEL_MR_COLOR'
   };
-  // Each slot's own second time zone, indexed by BlockPos in the message key.
-  var SLOT_ZONE = {};
-  SLOT_KEYS.forEach(function(key, i) { SLOT_ZONE[key] = 'TZ_ZONE[' + i + ']'; });
-  // The blocks that have a zone to pick (see VARIATIONS below).
-  var TZ_BLOCKS = { 50: 1, 51: 1, 52: 1, 53: 1 };
+  // Each slot's own second time zone and free text, indexed by BlockPos in the
+  // message key.
+  var SLOT_ZONE = {}, SLOT_TEXT = {};
+  SLOT_KEYS.forEach(function(key, i) {
+    SLOT_ZONE[key] = 'TZ_ZONE[' + i + ']';
+    SLOT_TEXT[key] = 'TEXT[' + i + ']';
+  });
+  // The blocks that have a zone to pick (see VARIATIONS below), and the one
+  // that has a string to type.
+  var TZ_BLOCKS = { 50: 1, 51: 1, 52: 1, 53: 1, 55: 1, 56: 1 };
+  var TEXT_BLOCKS = { 57: 1 };
+
+  // One slot's typed text, as the block draws it.
+  function textSample(textKey) {
+    var it = clayConfig.getItemByMessageKey(textKey);
+    return (it && it.get()) || '';
+  }
 
   // What the palette calls the selected slot. The per-item label is the one
   // applyColumnLabels() maintains, so it already says "Top strip" and friends on
@@ -792,8 +844,10 @@ function clayCustomFn() {
     { name: 'Weather icon', options: [[11, 'Hidden'], [25, 'Shown']] },
     { name: 'Second line', options: [[26, 'Weekday'], [29, 'Month']] },
     { name: 'AM/PM layout', options: [[22, 'Side by side'], [23, 'Stacked']] },
-    { name: 'Zone label', options: [[50, 'Offset'], [51, 'Abbreviation']] },
-    { name: 'Zone label', options: [[52, 'Offset'], [53, 'Abbreviation']] },
+    { name: 'Zone label',
+      options: [[50, 'Offset'], [51, 'Abbreviation'], [55, 'None']] },
+    { name: 'Zone label',
+      options: [[52, 'Offset'], [53, 'Abbreviation'], [56, 'None']] },
     { name: 'Band color', options: [[33, 'Off'], [41, 'On']] },
     { name: 'Band color', options: [[34, 'Off'], [42, 'On']] },
     { name: 'Band color', options: [[39, 'Off'], [43, 'On']] },
@@ -831,6 +885,7 @@ function clayCustomFn() {
       face: colorHex('FACE_COLOR'),
       showSeconds: clayConfig.getItemByMessageKey('SHOW_SECONDS').get(),
       tz: tzSample(SLOT_ZONE[selected]),
+      str: textSample(SLOT_TEXT[selected]),
       box: CHIP_BOX, scale: CHIP_SCALE
     };
   }
@@ -937,6 +992,10 @@ function clayCustomFn() {
       var zone = clayConfig.getItemByMessageKey(SLOT_ZONE[key]);
       if (zone) {
         key === selected && TZ_BLOCKS[blockVal(key)] ? zone.show() : zone.hide();
+      }
+      var text = clayConfig.getItemByMessageKey(SLOT_TEXT[key]);
+      if (text) {
+        key === selected && TEXT_BLOCKS[blockVal(key)] ? text.show() : text.hide();
       }
     });
     var heading = clayConfig.getItemById('BLOCKS_HEADING');
@@ -1051,9 +1110,9 @@ function clayCustomFn() {
   // The layout is the format. Only ever append to it, and bump CODE_VERSION
   // when you do, so old codes are refused rather than silently misread.
   //
-  // The second time zone is not in a code: it is a zone name, not a byte, and a
-  // shared face is about the look. An imported face with a second-time-zone
-  // block shows whatever zone this watch is already set to.
+  // The second time zone and the free text are not in a code: neither is a
+  // byte, and a shared face is about the look. An imported face keeps whatever
+  // zone and text this watch is already set to.
   var CODE_VERSION = 1;
   var CODE_FLAGS = ['LAYOUT', 'UNITS', 'YEAR_TOP', 'SHOW_SECONDS', 'FLIP_ANIM',
     'DRAW_SEAM'];
@@ -1471,7 +1530,8 @@ function clayCustomFn() {
       'BLOCK_MID_LEFT', 'BLOCK_MID_RIGHT', 'FACE_COLOR', 'PANEL_COLOR',
       'WEEKEND_COLOR', 'SHOW_SECONDS', 'DRAW_SEAM']
       .concat(GRID_KEYS).concat(PANEL_KEYS)
-      .concat(SLOT_KEYS.map(function(key) { return SLOT_ZONE[key]; }));
+      .concat(SLOT_KEYS.map(function(key) { return SLOT_ZONE[key]; }))
+      .concat(SLOT_KEYS.map(function(key) { return SLOT_TEXT[key]; }));
     watched.forEach(function(key) {
       var item = clayConfig.getItemByMessageKey(key);
       if (item) { item.on('change', redraw); }

@@ -25,7 +25,8 @@ static const uint64_t BIG_SET =
     BLKBIT(BLK_KM_BIG) | BLKBIT(BLK_MINMAX_BIG) | BLKBIT(BLK_UV_BIG) |
     BLKBIT(BLK_UV_BIG_COLOR) | BLKBIT(BLK_WIND_BIG) | BLKBIT(BLK_WIND_DIR_BIG) |
     BLKBIT(BLK_AQI_BIG) | BLKBIT(BLK_AQI_BIG_COLOR) | BLKBIT(BLK_BEAT_BIG) |
-    BLKBIT(BLK_TZ_BIG) | BLKBIT(BLK_TZ_BIG_ABBR);
+    BLKBIT(BLK_TZ_BIG) | BLKBIT(BLK_TZ_BIG_ABBR) | BLKBIT(BLK_TZ_BIG_NONE) |
+    BLKBIT(BLK_SUNRISE_BIG) | BLKBIT(BLK_SUNSET_BIG);
 
 // What the banner can hold: the short blocks that draw as one centred string
 // (or an icon + value), so the panel can hug their text.
@@ -37,7 +38,8 @@ static const uint64_t BAND_SET =
     BLKBIT(BLK_DIGITAL_NOZERO) | BLKBIT(BLK_HR) | BLKBIT(BLK_UV) |
     BLKBIT(BLK_UV_COLOR) | BLKBIT(BLK_WIND) | BLKBIT(BLK_WIND_DIR) |
     BLKBIT(BLK_AQI) | BLKBIT(BLK_AQI_COLOR) | BLKBIT(BLK_BEAT) |
-    BLKBIT(BLK_TZ) | BLKBIT(BLK_TZ_ABBR);
+    BLKBIT(BLK_TZ) | BLKBIT(BLK_TZ_ABBR) | BLKBIT(BLK_TZ_NONE) |
+    BLKBIT(BLK_TEXT) | BLKBIT(BLK_SUNRISE) | BLKBIT(BLK_SUNSET);
 
 // Every block kind is legal in the 2x2 grid; the banner takes a subset.
 bool block_valid_grid(int v) { return v >= BLK_DOW && v < BLK_COUNT; }
@@ -372,6 +374,12 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
     case BLK_WIND_DIR:
       weather_wind_dir_str(buf, n);   // the arrow icon carries the angle
       break;
+    case BLK_SUNRISE:
+    case BLK_SUNSET:
+    case BLK_SUNRISE_BIG:
+    case BLK_SUNSET_BIG:
+      weather_sun_str(buf, n, b == BLK_SUNSET || b == BLK_SUNSET_BIG);
+      break;
     case BLK_BEAT:
       snprintf(buf, n, "@%03d", beat_time());
       break;
@@ -383,6 +391,14 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
       snprintf(buf, n, "%s %s", t, l);   // drawn two-tone, see draw_tz_text
       break;
     }
+    // Unlabelled: one colour, one string, so it draws like any value block.
+    case BLK_TZ_NONE:
+    case BLK_TZ_BIG_NONE:
+      tz_time_str(buf, n);
+      break;
+    case BLK_TEXT:
+      snprintf(buf, n, "%s", s_text);
+      break;
     case BLK_DIGITAL:
       digital_str(buf, n, false);
       break;
@@ -646,6 +662,14 @@ static void draw_caption_block(GContext *ctx, GRect r, QuadBlock blk) {
       caption = zone;
       caption_fg = get_closest_accent_color(s_text_fg);
       break;
+    // Sunrise / sunset: the time captioned with the word, laid out like the
+    // zone blocks (accent caption under the value).
+    case BLK_SUNRISE_BIG:
+    case BLK_SUNSET_BIG:
+      block_text(blk, val, sizeof(val));
+      caption = blk == BLK_SUNSET_BIG ? "Sunset" : "Sunrise";
+      caption_fg = get_closest_accent_color(s_text_fg);
+      break;
     // Number over its unit, both taken from the short block's own formatting
     // (same rounding / imperial handling).
     case BLK_KM_BIG:
@@ -838,24 +862,59 @@ static void draw_icon_block(GContext *ctx, GRect r, uint32_t res_id) {
   draw_seam(ctx, r);
 }
 
-// A short block: a small PDC icon on the left, the value string filling the
+// A short block: a small PDC icon beside the value string, which fills the
 // rest. The number is what changes, so it (not the icon) carries the value.
-// Shared by the HR block (heart), the temperature-with-icon block and the wind
-// direction block (whose icon is rotated by `angle`).
+// Shared by the HR block (heart), the temperature-with-icon block, the wind
+// direction block (whose icon is rotated by `angle`) and the sun blocks — the
+// sunset one puts its icon on the right (`right`), mirroring sunrise.
 static void draw_icon_value(GContext *ctx, GRect r, uint32_t res_id,
-                            const char *txt, int32_t angle) {
+                            const char *txt, int32_t angle, bool right) {
   draw_panel(ctx, r, s_panel_bg);
 
   int icon = r.size.h * 55 / 100;
-  GRect ibox = GRect(r.origin.x + 6, r.origin.y + (r.size.h - icon) / 2, icon, icon);
+  int ix = right ? r.origin.x + r.size.w - 6 - icon : r.origin.x + 6;
+  GRect ibox = GRect(ix, r.origin.y + (r.size.h - icon) / 2, icon, icon);
   draw_pdc_in(ctx, res_id, ibox, s_text_fg, get_closest_accent_color(s_panel_bg),
               angle);
 
-  // Value centred in the space to the right of the icon.
+  // Value centred in the space left over on the icon's other side.
   GRect nr = r;
-  nr.origin.x = ibox.origin.x + icon;
-  nr.size.w   = r.origin.x + r.size.w - nr.origin.x - 4;
+  if (right) {
+    nr.origin.x += 4;
+    nr.size.w = ibox.origin.x - nr.origin.x;
+  } else {
+    nr.origin.x = ibox.origin.x + icon;
+    nr.size.w   = r.origin.x + r.size.w - nr.origin.x - 4;
+  }
   draw_centered(ctx, nr, txt, r.size.h * 52 / 100, s_text_fg);
+  draw_seam(ctx, r);
+}
+
+// Utility: three watch-status icons evenly spaced across a short block —
+// quiet time, charging, bluetooth. An "on" icon is stroked in the text colour
+// and filled with its opposite (white text -> black fill), so the outline reads
+// against the panel; an "off" one uses the panel's accent for both, so it reads
+// as a ghost of the icon rather than a second state.
+static void draw_utility(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  const uint32_t res[3] = { RESOURCE_ID_ICON_QUIET,
+                            RESOURCE_ID_ICON_CHARGING,
+                            RESOURCE_ID_ICON_BLUETOOTH };
+  const bool on[3] = { quiet_time_is_active(),
+                       battery_state_service_peek().is_charging,
+                       connection_service_peek_pebble_app_connection() };
+  GColor off_c = get_closest_accent_color(s_panel_bg);
+  GColor on_fill = contrast_color(s_text_fg);
+
+  int icon = r.size.h * 55 / 100;
+  int gap = (r.size.w - 3 * icon) / 4;   // equal margins, edges included
+  if (gap < 1) gap = 1;
+  int y = r.origin.y + (r.size.h - icon) / 2;
+  for (int i = 0; i < 3; i++) {
+    GRect box = GRect(r.origin.x + gap + i * (icon + gap), y, icon, icon);
+    draw_pdc_in(ctx, res[i], box, on[i] ? s_text_fg : off_c,
+                on[i] ? on_fill : off_c, 0);
+  }
   draw_seam(ctx, r);
 }
 
@@ -903,9 +962,13 @@ void draw_band(GContext *ctx, GRect band, QuadBlock band_blk) {
                     : blk == BLK_UV        ? RESOURCE_ID_ICON_UV
                     : blk == BLK_WIND_DIR  ? RESOURCE_ID_ICON_WIND_DIRECTION_N
                     : blk == BLK_TEMP_ICON ? weather_icon_resource_small()
+                    : blk == BLK_SUNRISE   ? RESOURCE_ID_ICON_SUNRISE
+                    : blk == BLK_SUNSET    ? RESOURCE_ID_ICON_SUNSET
                     : 0;
   // Only the wind arrow turns; every other banner icon is drawn upright.
   int32_t icon_angle = blk == BLK_WIND_DIR ? weather_wind_angle() : 0;
+  // Sunset mirrors sunrise here too: its icon follows the time.
+  bool icon_right = blk == BLK_SUNSET;
   int icon = icon_res ? band.size.h * 60 / 100 : 0;
   int gap  = icon_res ? 4 : 0;
 
@@ -917,13 +980,19 @@ void draw_band(GContext *ctx, GRect band, QuadBlock band_blk) {
 
   draw_panel(ctx, r, s_panel_bg);
   if (icon_res) {
-    GRect ibox = GRect(r.origin.x + pad_x, r.origin.y + (r.size.h - icon) / 2,
-                       icon, icon);
+    int ix = icon_right ? r.origin.x + r.size.w - pad_x - icon
+                        : r.origin.x + pad_x;
+    GRect ibox = GRect(ix, r.origin.y + (r.size.h - icon) / 2, icon, icon);
     draw_pdc_in(ctx, icon_res, ibox, s_text_fg, get_closest_accent_color(s_panel_bg),
                 icon_angle);
     GRect nr = r;
-    nr.origin.x = ibox.origin.x + icon + gap;
-    nr.size.w   = r.origin.x + r.size.w - nr.origin.x - pad_x;
+    if (icon_right) {
+      nr.origin.x += pad_x;
+      nr.size.w = ibox.origin.x - gap - nr.origin.x;
+    } else {
+      nr.origin.x = ibox.origin.x + icon + gap;
+      nr.size.w   = r.origin.x + r.size.w - nr.origin.x - pad_x;
+    }
     draw_centered(ctx, nr, buf, cap_h, s_text_fg);
   } else if (blk == BLK_BEAT) {
     draw_beat_text(ctx, r, buf, cap_h);
@@ -958,6 +1027,7 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_BATTERY_BIG: case BLK_HR_BIG:  case BLK_KM_BIG:
     case BLK_UV_BIG:    case BLK_WIND_BIG:  case BLK_AQI_BIG:
     case BLK_BEAT_BIG:  case BLK_TZ_BIG:    case BLK_TZ_BIG_ABBR:
+    case BLK_SUNRISE_BIG: case BLK_SUNSET_BIG:
       draw_caption_block(ctx, r, base_block(blk)); break;
     case BLK_MINMAX_BIG: draw_minmax_big(ctx, r); break;
     case BLK_WIND_DIR_BIG: draw_wind_dir_big(ctx, r); break;
@@ -974,22 +1044,32 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_AMPM:     draw_ampm(ctx, r);     break;
     case BLK_AMPM_STACK: draw_ampm_stack(ctx, r); break;
     case BLK_WEATHER:  draw_icon_block(ctx, r, weather_icon_resource()); break;
+    case BLK_UTILITY:  draw_utility(ctx, r);  break;
     case BLK_HR: {
       char b[8]; block_text(BLK_HR, b, sizeof b);
-      draw_icon_value(ctx, r, RESOURCE_ID_ICON_HEART, b, 0); break;
+      draw_icon_value(ctx, r, RESOURCE_ID_ICON_HEART, b, 0, false); break;
     }
     case BLK_TEMP_ICON: {
       char b[16]; block_text(BLK_TEMP_ICON, b, sizeof b);
-      draw_icon_value(ctx, r, weather_icon_resource_small(), b, 0); break;
+      draw_icon_value(ctx, r, weather_icon_resource_small(), b, 0, false); break;
     }
     case BLK_UV: {
       char b[8]; block_text(BLK_UV, b, sizeof b);
-      draw_icon_value(ctx, r, RESOURCE_ID_ICON_UV, b, 0); break;
+      draw_icon_value(ctx, r, RESOURCE_ID_ICON_UV, b, 0, false); break;
     }
     case BLK_WIND_DIR: {
       char b[8]; block_text(BLK_WIND_DIR, b, sizeof b);
       draw_icon_value(ctx, r, RESOURCE_ID_ICON_WIND_DIRECTION_N, b,
-                      weather_wind_angle()); break;
+                      weather_wind_angle(), false); break;
+    }
+    // Sunrise's icon sits left of the time, sunset's right of it.
+    case BLK_SUNRISE:
+    case BLK_SUNSET: {
+      bool set = base_block(blk) == BLK_SUNSET;
+      char b[8]; block_text(base_block(blk), b, sizeof b);
+      draw_icon_value(ctx, r, set ? RESOURCE_ID_ICON_SUNSET
+                                  : RESOURCE_ID_ICON_SUNRISE, b, 0, set);
+      break;
     }
     default:           draw_value_block(ctx, r, base_block(blk)); break;  // steps / km / battery / temp / humidity
   }
@@ -1019,6 +1099,9 @@ static bool block_centered_text(QuadBlock b, char *buf, size_t n) {
     case BLK_HOURS: case BLK_HOURS_BIG:
     case BLK_MINUTES: case BLK_MINUTES_BIG: case BLK_MINMAX:
     case BLK_MONTH_DAY: case BLK_DOW_DAY:
+    // The unlabelled zone clocks and the free-text block draw as one plain
+    // centred string too (draw_value_block, via draw_block's default arm).
+    case BLK_TZ_NONE: case BLK_TZ_BIG_NONE: case BLK_TEXT:
       block_text(b, buf, n); return true;
     // BLK_HR draws its own icon+number (draw_hr), so it isn't a flippable
     // single-string block -> fall through to draw_block.

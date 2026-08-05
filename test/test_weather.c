@@ -9,6 +9,11 @@ static int s_pass, s_fail;
 
 static void group(const char *name) { printf("\n%s\n", name); }
 
+// weather_sun_str takes which event it is; the EQ macro calls a (buf, size)
+// formatter, so give it one per event.
+static void sunrise_str(char *b, size_t n) { weather_sun_str(b, n, false); }
+static void sunset_str(char *b, size_t n)  { weather_sun_str(b, n, true); }
+
 // One check: prints the expression under test and what it produced, so a run
 // reads as a description of the module's behaviour rather than a bare "ok".
 static void check(bool ok, const char *what, const char *got, const char *want) {
@@ -92,12 +97,49 @@ int main(void) {
   EQ(s_precip = 5,  weather_precip_str, "0.2in");   // 5 mm = 0.197 in
   EQ(s_temp = -10,  weather_temp_str,   "14°");     // rounds away from zero
 
+  // The phone already picked which day's event this is; the watch only turns
+  // the minute of the day into a clock.
+  group("sunrise / sunset");
+  s_imperial = false;
+  s_host_24h = true;
+  EQ(s_sunrise = 6 * 60 + 12,  sunrise_str, "06:12");
+  EQ(s_sunset  = 20 * 60 + 45, sunset_str,  "20:45");
+  s_host_24h = false;
+  EQ(s_sunrise = 6 * 60 + 12,  sunrise_str, "6:12");    // 12h drops the zero
+  EQ(s_sunset  = 20 * 60 + 45, sunset_str,  "8:45");
+  EQ(s_sunset  = 12 * 60 + 5,  sunset_str,  "12:05");   // noon is 12, not 0
+  EQ(s_sunrise = 0,            sunrise_str, "--");      // polar day/night
+  s_host_24h = true;
+
   group("no reading yet");
   EQ(s_have = false, weather_temp_str,     "--");
   EQ((void)0,        weather_wind_str,     "--");
   EQ((void)0,        weather_wind_dir_str, "--");
   EQ((void)0,        weather_precip_str,   "--");
   EQ((void)0,        weather_aqi_str,      "--");
+  EQ(s_sunrise = 6 * 60, sunrise_str,      "--");   // cached minute, no reading
+
+  // The wire parser: a blob the phone packed (packWeather in pack.js), with a
+  // mask that leaves the fields the API was never asked for alone.
+  group("packed reading");
+  s_have = false; s_temp = 0; s_code = 0; s_aqi = 99;
+  uint8_t blob[WEATHER_BLOB_LEN];
+  memset(blob, 0, sizeof blob);
+  blob[0] = WIRE_VERSION;
+  blob[1] = 0x03;                     // temperature + code present, nothing else
+  blob[3] = (uint8_t)(-7 & 255);      // temperature, int16 LE
+  blob[4] = 0xFF;
+  blob[5] = 61;                       // weather code
+  EQ_INT((void)0, weather_apply_blob(blob, sizeof blob), true);
+  EQ_INT((void)0, s_temp, -7);        // signed values survive the wire
+  EQ_INT((void)0, s_code, 61);
+  EQ_INT((void)0, s_aqi, 99);         // bit clear -> the cached value stands
+  EQ_INT((void)0, s_have, true);
+  blob[0] = WIRE_VERSION + 1;
+  EQ_INT((void)0, weather_apply_blob(blob, sizeof blob), false);   // wrong version
+  blob[0] = WIRE_VERSION;
+  EQ_INT((void)0, weather_apply_blob(blob, sizeof blob - 1), false);  // truncated
+  EQ_INT((void)0, weather_apply_blob(NULL, sizeof blob), false);
 
   group("WMO code -> icon");
   EQ_INT(s_code = 0,  weather_icon_resource(),       RESOURCE_ID_ICON_SUNNY);

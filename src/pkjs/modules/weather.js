@@ -1,3 +1,5 @@
+var pack = require('./pack');
+
 // Clay persists the saved settings to localStorage under 'clay-settings'.
 function settings() {
   try {
@@ -44,12 +46,17 @@ var BLOCK_FIELDS = {
   39: ['aqi'],                                       // Air quality (small)
   40: ['aqi'],                                       // Air quality (big)
   43: ['aqi'],                                       // Air quality - color (small)
-  44: ['aqi']                                        // Air quality - color (big)
+  44: ['aqi'],                                       // Air quality - color (big)
+  58: ['sunrise'],                                   // Sunrise (small)
+  59: ['sunset'],                                    // Sunset (small)
+  60: ['sunrise'],                                   // Sunrise (big)
+  61: ['sunset']                                     // Sunset (big)
 };
 
 // The daily=... fields of the forecast API; AIR fields come from the separate
 // air-quality endpoint instead. Everything else is a forecast current=... field.
-var DAILY = { temperature_2m_min: 1, temperature_2m_max: 1 };
+var DAILY = { temperature_2m_min: 1, temperature_2m_max: 1, sunrise: 1,
+              sunset: 1 };
 var AIR = { uv_index: 1, aqi: 1 };
 
 // Sort a set of field names into the two endpoints and their sections.
@@ -101,7 +108,12 @@ function buildUrl(lat, lon, fields) {
             '&longitude=' + lon +
             '&current=' + fields.current.join(',');
   if (fields.daily.length) {
-    url += '&daily=' + fields.daily.join(',') + '&forecast_days=1';
+    // Two days only when a sun block is on the face: past today's sunrise the
+    // next one is tomorrow's, so today alone has nothing left to show. The
+    // min/max blocks read entry [0] either way.
+    var days = fields.daily.indexOf('sunrise') > -1 ||
+               fields.daily.indexOf('sunset') > -1 ? 2 : 1;
+    url += '&daily=' + fields.daily.join(',') + '&forecast_days=' + days;
   }
   return url + '&timezone=auto';
 }
@@ -118,9 +130,30 @@ function buildAirUrl(lat, lon, air, imperial) {
          '&longitude=' + lon + '&current=' + fields.join(',') + '&timezone=auto';
 }
 
-// AppMessage carries int32s; round so floats don't get mangled. Only the keys
-// that were actually requested are sent — weather.c keeps its cached value for
-// any key that's absent.
+// The next of a daily event, as minutes since local midnight. Open-Meteo sends
+// local ISO stamps ("2026-08-05T06:12", timezone=auto), one per forecast day,
+// so the first one still ahead is the one the block should show — after that,
+// tomorrow's. The watch is sent a minute of the day and nothing else, so it
+// never has to decide which day it is looking at.
+// ponytail: the pick is only redone on the half-hourly fetch, so an event can
+// read up to 30 minutes stale (today's 06:12 rather than tomorrow's 06:13).
+function nextSunMinutes(times) {
+  if (!times) { return undefined; }
+  var now = Date.now();
+  for (var i = 0; i < times.length; i++) {
+    // A null entry is a polar day or night — no such event that day, skip it.
+    if (!times[i]) { continue; }
+    if (Date.parse(times[i]) > now || i === times.length - 1) {
+      return parseInt(times[i].slice(11, 13), 10) * 60 +
+             parseInt(times[i].slice(14, 16), 10);
+    }
+  }
+  return undefined;
+}
+
+// The blob carries int16s; round so floats don't get mangled. Only the keys
+// that were actually requested are put in it — packWeather's present mask
+// leaves the rest clear, and weather.c keeps its cached value for those.
 function buildMessage(data) {
   var current = data.current || {};
   var daily = data.daily || {};
@@ -147,6 +180,10 @@ function buildMessage(data) {
   if (daily.temperature_2m_max) {
     msg.WEATHER_MAX_TEMP = Math.round(daily.temperature_2m_max[0]);
   }
+  var sunrise = nextSunMinutes(daily.sunrise);
+  var sunset = nextSunMinutes(daily.sunset);
+  if (sunrise !== undefined) { msg.WEATHER_SUNRISE = sunrise; }
+  if (sunset !== undefined) { msg.WEATHER_SUNSET = sunset; }
   return msg;
 }
 
@@ -207,7 +244,7 @@ function getWeather() {
   var imperial = parseInt(readValue(s, 'UNITS'), 10) === 1;
 
   function send(msg) {
-    Pebble.sendAppMessage(msg, function() {
+    Pebble.sendAppMessage({ WEATHER: pack.packWeather(msg) }, function() {
       console.log('Weather data sent to Pebble successfully');
     }, function(error) {
       console.log('Failed to send weather data to Pebble: ' + JSON.stringify(error));
@@ -238,3 +275,4 @@ module.exports = getWeather;
 module.exports.requestedFields = requestedFields;
 module.exports.buildUrl = buildUrl;
 module.exports.buildAirUrl = buildAirUrl;
+module.exports.buildMessage = buildMessage;

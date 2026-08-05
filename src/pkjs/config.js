@@ -23,11 +23,16 @@
 //   48 = Digital clock, no leading zero (big),
 //   49 = Steps, full count (small / banner),
 //   50/51 = Second time zone, offset / abbreviation (small / banner),
-//   52/53 = Second time zone, offset / abbreviation (big).
+//   52/53 = Second time zone, offset / abbreviation (big),
+//   54 = Utility, quiet-time / charging / bluetooth icons (small),
+//   55/56 = Second time zone, no label (small / banner, big),
+//   57 = Text, the string typed into TEXT[n] (small / banner),
+//   58/59 = Sunrise / Sunset (small / banner), 60/61 = Sunrise / Sunset (big).
 // The "- color" variants draw like their plain counterpart but paint the panel
 // with the index's own band color (see block_panel_color in blocks.c).
 // Each second-time-zone block carries its own zone (TZ_ZONE[n], one per slot in
-// BlockPos order), so a face can show several at once.
+// BlockPos order), so a face can show several at once. The Text block carries
+// its own string the same way (TEXT[n]).
 // Defaults mirror the hard-coded layout/colors in flipwall-watchface.c.
 // Day of month / Clock / Weather icon / Temperature (big) are "big".
 
@@ -43,6 +48,7 @@ var BIG_TIME = [
   { label: "Minutes (big)", value: 21 },
   { label: "Second time zone (big)", value: 52 },
   { label: "Second time zone, abbreviation (big)", value: 53 },
+  { label: "Second time zone, no label (big)", value: 56 },
   { label: ".beat time (big)", value: 46 }
 ];
 
@@ -68,7 +74,9 @@ var BIG_WEATHER = [
   { label: "Air quality (big)", value: 40 },
   { label: "Air quality - color (big)", value: 44 },
   { label: "Wind speed (big)", value: 36 },
-  { label: "Wind direction (big)", value: 38 }
+  { label: "Wind direction (big)", value: 38 },
+  { label: "Sunrise (big)", value: 60 },
+  { label: "Sunset (big)", value: 61 }
 ];
 
 var SMALL_TIME = [
@@ -80,6 +88,7 @@ var SMALL_TIME = [
   { label: "AM/PM stacked (small)", value: 23 },
   { label: "Second time zone (small)", value: 50 },
   { label: "Second time zone, abbreviation (small)", value: 51 },
+  { label: "Second time zone, no label (small)", value: 55 },
   { label: ".beat time (small)", value: 45 }
 ];
 
@@ -96,7 +105,8 @@ var SMALL_ACTIVITY = [
   { label: "Steps, full count (small)", value: 49 },
   { label: "Distance (small)", value: 5 },
   { label: "Battery (small)", value: 6 },
-  { label: "Heart rate (small)", value: 24 }
+  { label: "Heart rate (small)", value: 24 },
+  { label: "Utility (small)", value: 54 }
 ];
 
 var SMALL_WEATHER = [
@@ -110,7 +120,14 @@ var SMALL_WEATHER = [
   { label: "Air quality (small)", value: 39 },
   { label: "Air quality - color (small)", value: 43 },
   { label: "Wind speed (small)", value: 35 },
-  { label: "Wind direction (small)", value: 37 }
+  { label: "Wind direction (small)", value: 37 },
+  { label: "Sunrise (small)", value: 58 },
+  { label: "Sunset (small)", value: 59 }
+];
+
+// Blocks that show neither a reading nor the date: the wearer's own text.
+var SMALL_OTHER = [
+  { label: "Text (small)", value: 57 }
 ];
 
 var BLOCK_OPTIONS_GROUPS = [
@@ -121,7 +138,8 @@ var BLOCK_OPTIONS_GROUPS = [
   { label: "Small - Time", value: SMALL_TIME },
   { label: "Small - Date", value: SMALL_DATE },
   { label: "Small - Activity", value: SMALL_ACTIVITY },
-  { label: "Small - Weather", value: SMALL_WEATHER }
+  { label: "Small - Weather", value: SMALL_WEATHER },
+  { label: "Small - Other", value: SMALL_OTHER }
 ];
 
 // The banner is a single short block, so it only needs the content grouping.
@@ -135,6 +153,7 @@ var BAND_OPTIONS = [
     { label: "Weekday + Day", value: 10 },
     { label: "Second time zone", value: 50 },
     { label: "Second time zone, abbreviation", value: 51 },
+    { label: "Second time zone, no label", value: 55 },
     { label: ".beat time", value: 45 }
   ] },
   { label: "Activity", value: [
@@ -155,7 +174,12 @@ var BAND_OPTIONS = [
     { label: "Air quality", value: 39 },
     { label: "Air quality - color", value: 43 },
     { label: "Wind speed", value: 35 },
-    { label: "Wind direction", value: 37 }
+    { label: "Wind direction", value: 37 },
+    { label: "Sunrise", value: 58 },
+    { label: "Sunset", value: 59 }
+  ] },
+  { label: "Other", value: [
+    { label: "Text", value: 57 }
   ] }
 ];
 
@@ -198,6 +222,23 @@ function tzZone(pos) {
     label: "Time zone",
     defaultValue: "UTC",
     options: TZ_OPTIONS
+  };
+}
+
+// The string one slot's Text block shows. Sits beside that slot's zone picker
+// and only comes out while a Text block is tapped, so each block on the face can
+// say something different. 15 characters is what fits a short block (and what
+// the wire carries, see TEXT_LEN in src/pkjs/modules/pack.js).
+function blockText(pos) {
+  return {
+    type: "input",
+    messageKey: "TEXT[" + pos + "]",
+    label: "Text",
+    defaultValue: "Text",
+    attributes: { maxlength: 15, placeholder: "Up to 15 characters" },
+    // The watch's vector font carries letters, digits and . - / % : @ ° only;
+    // anything else it has no glyph for simply draws blank.
+    description: "Letters, digits and . - / % : @ only. Long text is shrunk to fit."
   };
 }
 
@@ -368,8 +409,9 @@ module.exports = [
         defaultValue: 0,
         options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_TL_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       tzZone(0),
+      blockText(0),
+      { type: "color", messageKey: "PANEL_TL_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_MID_LEFT",
@@ -377,8 +419,9 @@ module.exports = [
         defaultValue: 16,
         options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_ML_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       tzZone(5),
+      blockText(5),
+      { type: "color", messageKey: "PANEL_ML_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_BOTTOM_LEFT",
@@ -386,8 +429,9 @@ module.exports = [
         defaultValue: 2,
         options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_BL_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       tzZone(2),
+      blockText(2),
+      { type: "color", messageKey: "PANEL_BL_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_TOP_RIGHT",
@@ -395,8 +439,9 @@ module.exports = [
         defaultValue: 1,
         options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_TR_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       tzZone(1),
+      blockText(1),
+      { type: "color", messageKey: "PANEL_TR_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_MID_RIGHT",
@@ -404,8 +449,9 @@ module.exports = [
         defaultValue: 4,
         options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_MR_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       tzZone(6),
+      blockText(6),
+      { type: "color", messageKey: "PANEL_MR_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_BOTTOM_RIGHT",
@@ -413,8 +459,9 @@ module.exports = [
         defaultValue: 3,
         options: BLOCK_OPTIONS_GROUPS
       },
-      { type: "color", messageKey: "PANEL_BR_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       tzZone(3),
+      blockText(3),
+      { type: "color", messageKey: "PANEL_BR_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       {
         type: "select",
         messageKey: "BLOCK_BAND",
@@ -422,8 +469,9 @@ module.exports = [
         defaultValue: 7,
         options: BAND_OPTIONS
       },
-      { type: "color", messageKey: "PANEL_BAND_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
       tzZone(4),
+      blockText(4),
+      { type: "color", messageKey: "PANEL_BAND_COLOR", label: "Color", defaultValue: "000000", sunlight: false },
     ]
   },
 

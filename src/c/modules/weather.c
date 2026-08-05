@@ -18,10 +18,15 @@ typedef enum {
   PK_W_WIND,
   PK_W_WIND_DIR,
   PK_W_AQI,
+  PK_W_SUNRISE,
+  PK_W_SUNSET,
 } WeatherPersistKey;
 
 static bool s_have = false;
 static int  s_temp, s_code, s_humidity, s_min, s_max, s_precip, s_uv, s_aqi;
+// The next sunrise / sunset, in minutes since local midnight. Which day that
+// is was decided on the phone; 0 means the API had none (polar day or night).
+static int  s_sunrise, s_sunset;
 // Wind speed in km/h (Open-Meteo's default) and the direction it blows from, in
 // degrees clockwise from north.
 static int  s_wind, s_wind_dir;
@@ -38,9 +43,8 @@ static int temp_out(int celsius) {
 
 // The whole reading: one row per value, tying its persist key to its variable.
 // Load, receive and cache all just walk this. A field the cache predates simply
-// reads back 0. (The AppMessage keys can't join it — the SDK's MESSAGE_KEY_*
-// are runtime symbols, not compile-time constants — so they sit in a matching
-// array inside weather_handle_message.)
+// reads back 0. The order is the wire order too: WEATHER_FIELDS in
+// src/pkjs/modules/pack.js packs the blob in exactly this sequence.
 static const struct { WeatherPersistKey pk; int *dst; } FIELDS[] = {
   { PK_W_TEMP,     &s_temp },
   { PK_W_CODE,     &s_code },
@@ -52,6 +56,8 @@ static const struct { WeatherPersistKey pk; int *dst; } FIELDS[] = {
   { PK_W_WIND,     &s_wind },
   { PK_W_WIND_DIR, &s_wind_dir },
   { PK_W_AQI,      &s_aqi },
+  { PK_W_SUNRISE,  &s_sunrise },
+  { PK_W_SUNSET,   &s_sunset },
 };
 #define FIELD_COUNT (sizeof(FIELDS) / sizeof(FIELDS[0]))
 
@@ -68,28 +74,33 @@ void weather_set_units(bool imperial) {
   persist_write_bool(PK_W_UNITS, imperial);
 }
 
-// Clay/config saves and weather pushes arrive on the same inbox; this reads the
-// weather tuples if present and reports whether it found any.
-bool weather_handle_message(DictionaryIterator *iter) {
-  // Temperature is the marker for "this is a weather push" (FIELDS[0]).
-  const uint32_t msg[FIELD_COUNT] = {
-    MESSAGE_KEY_WEATHER_TEMPERATURE, MESSAGE_KEY_WEATHER_CODE,
-    MESSAGE_KEY_WEATHER_HUMIDITY,    MESSAGE_KEY_WEATHER_MIN_TEMP,
-    MESSAGE_KEY_WEATHER_MAX_TEMP,    MESSAGE_KEY_WEATHER_PRECIPITATION,
-    MESSAGE_KEY_WEATHER_UV,          MESSAGE_KEY_WEATHER_WIND_SPEED,
-    MESSAGE_KEY_WEATHER_WIND_DIR,    MESSAGE_KEY_WEATHER_AQI };
-  if (!dict_find(iter, msg[0])) return false;
+// The packed reading (see packWeather in src/pkjs/modules/pack.js):
+//   0     version
+//   1..2  present mask, one bit per FIELDS entry
+//   3..   the values, int16 each, in FIELDS order
+// A field whose bit is clear was never asked of the API, so its cached value
+// stays put — the phone only requests what the blocks on the face use.
+#define WEATHER_BLOB_LEN (3 + 2 * (int)FIELD_COUNT)
 
-  for (unsigned i = 0; i < FIELD_COUNT; i++) {
-    Tuple *t = dict_find(iter, msg[i]);
-    if (t) *FIELDS[i].dst = t->value->int32;
-  }
+bool weather_apply_blob(const uint8_t *p, uint16_t len) {
+  if (!p || len < WEATHER_BLOB_LEN || p[0] != WIRE_VERSION) return false;
+  uint16_t mask = (uint16_t)(p[1] | (p[2] << 8));
+
+  for (unsigned i = 0; i < FIELD_COUNT; i++)
+    if (mask & (1 << i)) *FIELDS[i].dst = wire_int16(p + 3 + 2 * i);
 
   s_have = true;
   persist_write_bool(PK_W_VALID, true);
   for (unsigned i = 0; i < FIELD_COUNT; i++)
     persist_write_int(FIELDS[i].pk, *FIELDS[i].dst);
   return true;
+}
+
+// Config saves, zone pushes and weather pushes all arrive on the same inbox;
+// this takes the message only if it is a weather one.
+bool weather_handle_message(DictionaryIterator *iter) {
+  Tuple *t = dict_find(iter, MESSAGE_KEY_WEATHER);
+  return t && weather_apply_blob(t->value->data, t->length);
 }
 
 // Every readout is its number formatted, or "--" until the first reading lands.
@@ -139,6 +150,18 @@ void weather_wind_dir_str(char *buf, size_t n) {
   };
   if (s_have) snprintf(buf, n, "%s", DIRS[((s_wind_dir * 100 + 1125) / 2250) % 16]);
   else        snprintf(buf, n, "--");
+}
+
+// Minutes since midnight -> the wall clock, 12h dropping the hour's leading
+// zero like the digital blocks do. The icon (or the big block's caption) says
+// which event it is, so no AM/PM marker is drawn. 0 = the API had no such event
+// today (polar day/night), which reads as "--" like a missing reading.
+void weather_sun_str(char *buf, size_t n, bool sunset) {
+  int m = sunset ? s_sunset : s_sunrise;
+  if (!s_have || m <= 0 || m >= 24 * 60) { snprintf(buf, n, "--"); return; }
+  if (clock_is_24h_style()) { snprintf(buf, n, "%02d:%02d", m / 60, m % 60); return; }
+  int h12 = (m / 60) % 12;
+  snprintf(buf, n, "%d:%02d", h12 ? h12 : 12, m % 60);
 }
 
 int32_t weather_wind_angle(void) {

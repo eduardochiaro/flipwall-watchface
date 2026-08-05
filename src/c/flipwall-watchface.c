@@ -60,6 +60,10 @@ static int  s_tz_offsets[POS_COUNT];
 static char s_tz_abbrs[POS_COUNT][TZ_ABBR_LEN];
 int         s_tz_offset = 0;
 const char *s_tz_abbr = "UTC";
+// The free text of the BLK_TEXT blocks, one per position, same idea: the phone
+// sends all seven with the config, and the pointer follows the drawing block.
+static char s_texts[POS_COUNT][TEXT_LEN];
+const char *s_text = "";
 
 // --- Color defaults (used until the user overrides them) ------------------
 #define FACE_BG      PBL_IF_COLOR_ELSE(GColorOrange, GColorWhite)
@@ -116,6 +120,8 @@ typedef enum {
   // blobs rather than a key per slot. Appended last, as ever.
   PK_TZ_OFFSETS,
   PK_TZ_ABBRS,
+  // The per-position free text, cached as one blob like the zones above.
+  PK_TEXTS,
 } PersistKey;
 
 #if defined(PBL_PLATFORM_EMERY)
@@ -173,6 +179,7 @@ static void block_layer_update(Layer *layer, GContext *ctx) {
   // tables so a zone push doesn't have to re-tag every layer.
   s_tz_offset = s_tz_offsets[st->pos];
   s_tz_abbr   = s_tz_abbrs[st->pos];
+  s_text      = s_texts[st->pos];
   if (st->pill)
     draw_band(ctx, layer_get_bounds(layer), st->blk);
   else
@@ -342,7 +349,8 @@ static void layout(void) {
 }
 
 // What real-world change forces a given block to repaint.
-typedef enum { TRG_DATE, TRG_CLOCK, TRG_HEALTH, TRG_BATTERY, TRG_WEATHER } Trigger;
+typedef enum { TRG_DATE, TRG_CLOCK, TRG_HEALTH, TRG_BATTERY, TRG_WEATHER,
+               TRG_UTILITY } Trigger;
 
 static Trigger block_trigger(QuadBlock b) {
   switch (b) {
@@ -362,7 +370,9 @@ static Trigger block_trigger(QuadBlock b) {
     case BLK_TZ:
     case BLK_TZ_ABBR:
     case BLK_TZ_BIG:
-    case BLK_TZ_BIG_ABBR: return TRG_CLOCK;
+    case BLK_TZ_BIG_ABBR:
+    case BLK_TZ_NONE:
+    case BLK_TZ_BIG_NONE: return TRG_CLOCK;
     case BLK_STEPS:
     case BLK_STEPS_FULL:
     case BLK_KM:
@@ -391,7 +401,12 @@ static Trigger block_trigger(QuadBlock b) {
     case BLK_UV_COLOR:
     case BLK_UV_BIG_COLOR:
     case BLK_AQI_COLOR:
-    case BLK_AQI_BIG_COLOR: return TRG_WEATHER;
+    case BLK_AQI_BIG_COLOR:
+    case BLK_SUNRISE:
+    case BLK_SUNSET:
+    case BLK_SUNRISE_BIG:
+    case BLK_SUNSET_BIG: return TRG_WEATHER;
+    case BLK_UTILITY:  return TRG_UTILITY;
     default:           return TRG_DATE;   // dow / day / month / year / *_day
   }
 }
@@ -428,6 +443,9 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
     // is about to change again is the most expensive thing this face could do.
     // The cost is that a step count can be up to a minute stale.
     mark_blocks(TRG_HEALTH);
+    // Quiet time has no service event of its own, so the utility block picks it
+    // up on the minute tick (bluetooth and charging come in as events).
+    mark_blocks(TRG_UTILITY);
   } else {
     for (int i = 0; i < POS_COUNT; i++)
       if (s_blocks[i] == BLK_CLOCK) layer_mark_dirty(s_layer[i]);
@@ -439,7 +457,12 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
   }
 }
 
-static void battery_handler(BatteryChargeState state) { mark_blocks(TRG_BATTERY); }
+static void battery_handler(BatteryChargeState state) {
+  mark_blocks(TRG_BATTERY);
+  mark_blocks(TRG_UTILITY);   // the charging icon
+}
+
+static void connection_handler(bool connected) { mark_blocks(TRG_UTILITY); }
 
 // Timeline Quick View (or any system overlay) resized the drawable area:
 // re-layout so the blocks recentre in the space that's left, and again once
@@ -466,13 +489,24 @@ static void apply_tick_interval(void) {
 // (There is no health subscription: those blocks refresh on the minute tick,
 // see tick_handler.)
 static bool s_battery_subscribed;
+static bool s_connection_subscribed;
 
 static void apply_services(void) {
-  bool want_battery = blocks_need(TRG_BATTERY);
-  if (want_battery == s_battery_subscribed) { return; }
-  want_battery ? battery_state_service_subscribe(battery_handler)
-               : battery_state_service_unsubscribe();
-  s_battery_subscribed = want_battery;
+  // The utility block's charging icon rides the same battery event.
+  bool want_battery = blocks_need(TRG_BATTERY) || blocks_need(TRG_UTILITY);
+  if (want_battery != s_battery_subscribed) {
+    want_battery ? battery_state_service_subscribe(battery_handler)
+                 : battery_state_service_unsubscribe();
+    s_battery_subscribed = want_battery;
+  }
+  // Bluetooth status: only the utility block wants it.
+  bool want_conn = blocks_need(TRG_UTILITY);
+  if (want_conn != s_connection_subscribed) {
+    want_conn ? connection_service_subscribe((ConnectionHandlers){
+                    .pebble_app_connection_handler = connection_handler })
+              : connection_service_unsubscribe();
+    s_connection_subscribed = want_conn;
+  }
 }
 
 // The six-block middles are full column blocks on rect screens, so they take
@@ -484,9 +518,9 @@ static bool block_valid_mid(int v) {
 
 // Everything that differs per position: the persist keys its block and panel
 // color are cached under, the block shown on first run, and which block set the
-// slot accepts. Indexed by BlockPos. (The AppMessage keys can't join it — the
-// SDK's MESSAGE_KEY_* are runtime symbols, not compile-time constants — so
-// inbox_received_handler carries them in its own arrays.)
+// slot accepts. Indexed by BlockPos, which is also the order the config blob
+// carries the blocks and the panel colors in, so settings_apply walks both with
+// the same index.
 static const struct {
   PersistKey block_pk, panel_pk;
   QuadBlock  def;
@@ -524,6 +558,8 @@ static void settings_load(void) {
     persist_read_data(PK_TZ_OFFSETS, s_tz_offsets, sizeof s_tz_offsets);
   if (persist_exists(PK_TZ_ABBRS))
     persist_read_data(PK_TZ_ABBRS, s_tz_abbrs, sizeof s_tz_abbrs);
+  if (persist_exists(PK_TEXTS))
+    persist_read_data(PK_TEXTS, s_texts, sizeof s_texts);
 
   s_layout = persist_exists(PK_LAYOUT) ? persist_read_int(PK_LAYOUT) : LAYOUT_CLASSIC;
   if (s_layout != LAYOUT_SIX) s_layout = LAYOUT_CLASSIC;
@@ -544,127 +580,151 @@ static void settings_load(void) {
   }
 }
 
-static void apply_bool(DictionaryIterator *iter, uint32_t msg_key,
-                       PersistKey pk, bool *out) {
-  Tuple *t = dict_find(iter, msg_key);
-  if (!t) return;
-  *out = t->value->int32 != 0;
-  persist_write_bool(pk, *out);
-}
+// The packed config blob, byte for byte (packConfig in src/pkjs/modules/pack.js
+// writes it). Offsets, not a struct: the wire is little-endian and unpadded,
+// which no struct layout can be relied on to be.
+//   0        version
+//   1        flags, in the CfgFlag order below
+//   2        language
+//   3..      the seven block ids, in BlockPos order
+//   ..       face, panel and weekend colors, then the seven panel overrides,
+//            three bytes each
+//   ..       the seven second time zones (see apply_tz)
+//   ..       the seven free-text strings, NUL padded (see apply_texts)
+#define CFG_FLAGS  1
+#define CFG_LANG   2
+#define CFG_BLOCKS 3
+#define CFG_COLORS (CFG_BLOCKS + POS_COUNT)
+#define CFG_ZONES  (CFG_COLORS + 3 * (3 + POS_COUNT))
+#define CFG_TEXTS  (CFG_ZONES + POS_COUNT * WIRE_ZONE_LEN)
+#define CFG_LEN    (CFG_TEXTS + POS_COUNT * WIRE_TEXT_LEN)
 
-static void apply_block(DictionaryIterator *iter, uint32_t msg_key,
-                        PersistKey pk, QuadBlock *out, bool (*valid)(int)) {
-  Tuple *t = dict_find(iter, msg_key);
-  if (!t) return;
-  int v = t->value->int32;
-  if (!valid(v)) return;
-  *out = (QuadBlock)v;
-  persist_write_int(pk, v);
-}
+typedef enum {
+  F_LAYOUT, F_UNITS, F_YEAR_TOP, F_SECONDS, F_FLIP, F_SEAM
+} CfgFlag;
 
-static void apply_color(DictionaryIterator *iter, uint32_t msg_key,
-                        PersistKey pk, GColor *out) {
-  Tuple *t = dict_find(iter, msg_key);
-  if (!t) return;
-  int hex = t->value->int32;
-  *out = GColorFromHEX(hex);
+// A colour, three bytes on the wire, cached as the hex int the persist layer
+// has always held (so an update reads back what the old build wrote).
+static GColor wire_color(const uint8_t *p, PersistKey pk) {
+  int hex = (p[0] << 16) | (p[1] << 8) | p[2];
   persist_write_int(pk, hex);
+  return GColorFromHEX(hex);
 }
 
-// Each position's second time zone, if this message carries them: the phone
-// sends both arrays whole, keyed MESSAGE_KEY_TZ_* + BlockPos. Sets *changed
-// when a value actually moved; returns true when the keys were present at all.
+static bool wire_flag(uint8_t flags, CfgFlag bit, PersistKey pk) {
+  bool v = (flags >> bit) & 1;
+  persist_write_bool(pk, v);
+  return v;
+}
+
+// Each position's second time zone out of a blob's zone body: an int16 offset
+// (minutes east of UTC, DST already in it) and a NUL-padded abbreviation, per
+// slot. True when a value actually moved.
 //
 // The phone re-sends these every half hour so a DST change lands on its own,
 // and almost every one of those is identical to what is already here. Writing
 // them back would be a flash write and a repaint every 30 minutes for nothing,
 // so an unchanged push is dropped on the floor.
-static bool apply_tz(DictionaryIterator *iter, bool *changed) {
-  bool present = false;
-  for (int i = 0; i < POS_COUNT; i++) {
-    Tuple *off = dict_find(iter, MESSAGE_KEY_TZ_OFFSET + i);
-    if (off) {
-      present = true;
-      if (s_tz_offsets[i] != off->value->int32) {
-        s_tz_offsets[i] = off->value->int32;
-        *changed = true;
-      }
-    }
-    Tuple *abbr = dict_find(iter, MESSAGE_KEY_TZ_ABBR + i);
-    if (abbr) {
-      present = true;
-      if (strncmp(s_tz_abbrs[i], abbr->value->cstring, TZ_ABBR_LEN) != 0) {
-        strncpy(s_tz_abbrs[i], abbr->value->cstring, TZ_ABBR_LEN - 1);
-        s_tz_abbrs[i][TZ_ABBR_LEN - 1] = '\0';
-        *changed = true;
-      }
+static bool apply_tz(const uint8_t *p) {
+  bool changed = false;
+  for (int i = 0; i < POS_COUNT; i++, p += WIRE_ZONE_LEN) {
+    int off = wire_int16(p);
+    if (s_tz_offsets[i] != off) { s_tz_offsets[i] = off; changed = true; }
+
+    char abbr[WIRE_ABBR_LEN + 1];
+    memcpy(abbr, p + 2, WIRE_ABBR_LEN);
+    abbr[WIRE_ABBR_LEN] = '\0';   // the wire pads with NULs, but never trust it
+    if (strncmp(s_tz_abbrs[i], abbr, TZ_ABBR_LEN) != 0) {
+      strncpy(s_tz_abbrs[i], abbr, TZ_ABBR_LEN);
+      s_tz_abbrs[i][TZ_ABBR_LEN - 1] = '\0';
+      changed = true;
     }
   }
-  if (*changed) {
+  if (changed) {
     persist_write_data(PK_TZ_OFFSETS, s_tz_offsets, sizeof s_tz_offsets);
     persist_write_data(PK_TZ_ABBRS, s_tz_abbrs, sizeof s_tz_abbrs);
   }
-  return present;
+  return changed;
 }
 
-// Both Clay config saves and weather pushes arrive on this inbox.
+// Each position's free text out of the config blob: WIRE_TEXT_LEN bytes per
+// slot, NUL padded. Only sent with a config save, so unlike the zones there is
+// nothing to gain from checking whether it moved.
+static void apply_texts(const uint8_t *p) {
+  for (int i = 0; i < POS_COUNT; i++, p += WIRE_TEXT_LEN) {
+    memcpy(s_texts[i], p, TEXT_LEN);
+    s_texts[i][TEXT_LEN - 1] = '\0';   // the wire pads with NULs, but never trust it
+  }
+  persist_write_data(PK_TEXTS, s_texts, sizeof s_texts);
+}
+
+// A whole face out of one blob. Every field is cached to the same persist key
+// it always was, so this is only a new way in — the stored settings, and an
+// update's worth of them, are untouched.
+static void settings_apply(const uint8_t *p) {
+  uint8_t flags = p[CFG_FLAGS];
+  s_layout = (flags >> F_LAYOUT) & 1 ? LAYOUT_SIX : LAYOUT_CLASSIC;
+  persist_write_int(PK_LAYOUT, s_layout);
+  weather_set_units((flags >> F_UNITS) & 1);
+  s_year_top     = wire_flag(flags, F_YEAR_TOP, PK_YEAR_TOP);
+  s_show_seconds = wire_flag(flags, F_SECONDS,  PK_SHOW_SECONDS);
+  s_flip_enabled = wire_flag(flags, F_FLIP,     PK_FLIP_ANIM);
+  s_seam_enabled = wire_flag(flags, F_SEAM,     PK_DRAW_SEAM);
+
+  int lang = p[CFG_LANG];
+  if (lang < LANG_COUNT) { s_lang = lang; persist_write_int(PK_LANG, lang); }
+
+  // A block id the running build doesn't know (an older watch, a newer phone)
+  // leaves that slot on what it was showing.
+  for (int i = 0; i < POS_COUNT; i++) {
+    int v = p[CFG_BLOCKS + i];
+    if (!POS_CFG[i].valid(v)) continue;
+    s_blocks[i] = (QuadBlock)v;
+    persist_write_int(POS_CFG[i].block_pk, v);
+  }
+
+  const uint8_t *c = p + CFG_COLORS;
+  s_face_bg    = wire_color(c,     PK_FACE_COLOR);
+  s_panel_bg   = wire_color(c + 3, PK_PANEL_COLOR);
+  s_weekend_bg = wire_color(c + 6, PK_WEEKEND_COLOR);
+  s_text_fg    = contrast_color(s_panel_bg);
+  // The per-position overrides, in BlockPos order (the config page seeds them
+  // from PANEL_COLOR, so they come after it).
+  for (int i = 0; i < POS_COUNT; i++)
+    s_panel_colors[i] = wire_color(c + 9 + 3 * i, POS_CFG[i].panel_pk);
+
+  apply_tz(p + CFG_ZONES);
+  apply_texts(p + CFG_TEXTS);
+}
+
+// Three kinds of message land here, one packed blob each: a weather push, a
+// zone refresh, and a config save. A blob of an unknown version, or one shorter
+// than its layout, is dropped whole rather than read with the wrong offsets.
 static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   if (weather_handle_message(iter)) {
     mark_blocks(TRG_WEATHER);   // repaint only the weather blocks
-    return;   // a weather push carries no config keys
-  }
-
-  // The phone also refreshes the second zones on its own (DST), with no config
-  // keys alongside it: take them and repaint the clocks, nothing else — and
-  // only when something moved. A config save always carries LAYOUT, so it is
-  // the marker for the full path.
-  bool tz_changed = false;
-  if (apply_tz(iter, &tz_changed) && !dict_find(iter, MESSAGE_KEY_LAYOUT)) {
-    if (tz_changed) mark_blocks(TRG_CLOCK);
     return;
   }
 
-  apply_bool(iter, MESSAGE_KEY_YEAR_TOP, PK_YEAR_TOP, &s_year_top);
-
-  Tuple *lang_t = dict_find(iter, MESSAGE_KEY_LANG);
-  if (lang_t) {
-    int v = lang_t->value->int32;
-    if (v >= 0 && v < LANG_COUNT) { s_lang = v; persist_write_int(PK_LANG, v); }
+  // The phone refreshes the second zones on its own (DST), with no config
+  // alongside: take them and repaint the clocks, nothing else.
+  // (The blob is read through a pointer rather than indexed off the tuple: the
+  // SDK declares the payload as a zero-length array, which gcc warns about
+  // subscripting.)
+  Tuple *tz = dict_find(iter, MESSAGE_KEY_TZ);
+  if (tz) {
+    const uint8_t *p = tz->value->data;
+    if (tz->length >= 1 + POS_COUNT * WIRE_ZONE_LEN && p[0] == WIRE_VERSION &&
+        apply_tz(p + 1))
+      mark_blocks(TRG_CLOCK);
+    return;
   }
 
-  Tuple *layout_t = dict_find(iter, MESSAGE_KEY_LAYOUT);
-  if (layout_t) {
-    s_layout = layout_t->value->int32 == LAYOUT_SIX ? LAYOUT_SIX : LAYOUT_CLASSIC;
-    persist_write_int(PK_LAYOUT, s_layout);
-  }
-
-  apply_color(iter, MESSAGE_KEY_FACE_COLOR,    PK_FACE_COLOR,    &s_face_bg);
-  apply_color(iter, MESSAGE_KEY_PANEL_COLOR,   PK_PANEL_COLOR,   &s_panel_bg);
-  apply_color(iter, MESSAGE_KEY_WEEKEND_COLOR, PK_WEEKEND_COLOR, &s_weekend_bg);
-  s_text_fg = contrast_color(s_panel_bg);
-
-  // Each position's block and its panel color override, in BlockPos order (the
-  // config page seeds the overrides from PANEL_COLOR, so they come after it).
-  const uint32_t block_msg[POS_COUNT] = {
-    MESSAGE_KEY_BLOCK_TOP_LEFT, MESSAGE_KEY_BLOCK_TOP_RIGHT,
-    MESSAGE_KEY_BLOCK_BOTTOM_LEFT, MESSAGE_KEY_BLOCK_BOTTOM_RIGHT,
-    MESSAGE_KEY_BLOCK_BAND, MESSAGE_KEY_BLOCK_MID_LEFT, MESSAGE_KEY_BLOCK_MID_RIGHT };
-  const uint32_t panel_msg[POS_COUNT] = {
-    MESSAGE_KEY_PANEL_TL_COLOR, MESSAGE_KEY_PANEL_TR_COLOR,
-    MESSAGE_KEY_PANEL_BL_COLOR, MESSAGE_KEY_PANEL_BR_COLOR,
-    MESSAGE_KEY_PANEL_BAND_COLOR, MESSAGE_KEY_PANEL_ML_COLOR,
-    MESSAGE_KEY_PANEL_MR_COLOR };
-  for (int i = 0; i < POS_COUNT; i++) {
-    apply_block(iter, block_msg[i], POS_CFG[i].block_pk, &s_blocks[i], POS_CFG[i].valid);
-    apply_color(iter, panel_msg[i], POS_CFG[i].panel_pk, &s_panel_colors[i]);
-  }
-
-  apply_bool(iter, MESSAGE_KEY_SHOW_SECONDS, PK_SHOW_SECONDS, &s_show_seconds);
-  apply_bool(iter, MESSAGE_KEY_FLIP_ANIM, PK_FLIP_ANIM, &s_flip_enabled);
-  apply_bool(iter, MESSAGE_KEY_DRAW_SEAM, PK_DRAW_SEAM, &s_seam_enabled);
-
-  Tuple *units_t = dict_find(iter, MESSAGE_KEY_UNITS);
-  if (units_t) weather_set_units(units_t->value->int32 != 0);
+  Tuple *cfg = dict_find(iter, MESSAGE_KEY_CONFIG);
+  if (!cfg) return;
+  const uint8_t *cfg_p = cfg->value->data;
+  if (cfg->length < CFG_LEN || cfg_p[0] != WIRE_VERSION) return;
+  settings_apply(cfg_p);
 
   // Layout, block kinds, seconds and clock placement may all have changed.
   window_set_background_color(s_window, s_face_bg);
@@ -706,6 +766,7 @@ static void prv_window_load(Window *window) {
 static void prv_window_unload(Window *window) {
   if (s_flip_timer) { app_timer_cancel(s_flip_timer); s_flip_timer = NULL; }
   if (s_battery_subscribed) { battery_state_service_unsubscribe(); s_battery_subscribed = false; }
+  if (s_connection_subscribed) { connection_service_unsubscribe(); s_connection_subscribed = false; }
 #if !PBL_PLATFORM_APLITE
   unobstructed_area_service_unsubscribe();
 #endif
@@ -729,10 +790,11 @@ static void prv_init(void) {
   apply_tick_interval();
 
   app_message_register_inbox_received(inbox_received_handler);
-  // We only receive (Clay config ~18 small keys, or a 6-int weather push) and
-  // never send, so a right-sized inbox frees heap that the vector font needs
-  // (critical on aplite's ~12KB heap). Outbox is minimal.
-  app_message_open(1024, 64);
+  // We only receive, and every message is now a single packed blob — the
+  // largest is the config one at CFG_LEN bytes — so the inbox is a fraction of
+  // what a key-per-setting message needed. The buffer comes out of the app
+  // heap, which is what makes this worth doing on aplite's ~12KB.
+  app_message_open(256, 64);
 }
 
 static void prv_deinit(void) {

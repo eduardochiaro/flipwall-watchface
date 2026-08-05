@@ -18,23 +18,21 @@ static inline bool persist_read_bool(uint32_t k)          { (void)k; return fals
 static inline int persist_write_int(uint32_t k, int32_t v)  { (void)k; (void)v; return 0; }
 static inline int persist_write_bool(uint32_t k, bool v)    { (void)k; (void)v; return 0; }
 
-typedef struct { int32_t int32; } TupleValue;
-typedef struct { TupleValue *value; } Tuple;
+// The message is a packed blob (see src/pkjs/modules/pack.js); the tests call
+// the blob parser directly, so the dictionary side only needs to link.
+typedef struct { int32_t int32; const uint8_t *data; } TupleValue;
+typedef struct { TupleValue *value; uint16_t length; } Tuple;
 typedef struct DictionaryIterator DictionaryIterator;
 static inline Tuple *dict_find(DictionaryIterator *i, uint32_t k) {
   (void)i; (void)k; return NULL;
 }
 
-#define MESSAGE_KEY_WEATHER_TEMPERATURE   0
-#define MESSAGE_KEY_WEATHER_CODE          1
-#define MESSAGE_KEY_WEATHER_HUMIDITY      2
-#define MESSAGE_KEY_WEATHER_MIN_TEMP      3
-#define MESSAGE_KEY_WEATHER_MAX_TEMP      4
-#define MESSAGE_KEY_WEATHER_PRECIPITATION 5
-#define MESSAGE_KEY_WEATHER_UV            6
-#define MESSAGE_KEY_WEATHER_WIND_SPEED    7
-#define MESSAGE_KEY_WEATHER_WIND_DIR      8
-#define MESSAGE_KEY_WEATHER_AQI           9
+#define MESSAGE_KEY_WEATHER 1
+
+// The watch's 12/24h setting. A plain variable here so a test can check both
+// sides of a formatter that reads it (weather_sun_str).
+static bool s_host_24h = true;
+static inline bool clock_is_24h_style(void) { return s_host_24h; }
 
 // Resource ids are opaque handles on the watch; distinct values are all the
 // code->icon test needs.

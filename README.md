@@ -49,7 +49,7 @@ A digital watchface for Pebble smartwatches based on flip clock design.
 
 Configure via the Pebble app settings page. Settings, colors, presets and share codes come first; the face itself sits at the bottom, as a live preview that doubles as the editor. **Tap a block on the preview** and a palette opens right under it holding every block that slot can take, big and small, each drawn as a miniature of itself. Tap one to place it, or tap the face again to close.
 
-**Selected Block**, below the palette, holds what that one block can be tuned to: its panel color, a **Time zone** picker for the second-time-zone blocks (each block picks its own, so a face can show several zones at once), and — for the blocks that have a choice — a select for the detail that separates two otherwise identical blocks:
+**Selected Block**, below the palette, holds what that one block can be tuned to: its panel color, a **Time zone** picker for the second-time-zone blocks (each block picks its own, so a face can show several zones at once), a **Text** box for the Text block (again one per slot), and — for the blocks that have a choice — a select for the detail that separates two otherwise identical blocks:
 
 | Block | Choice |
 |---|---|
@@ -58,7 +58,7 @@ Configure via the Pebble app settings page. Settings, colors, presets and share 
 | Temperature (small) | Weather icon shown or hidden |
 | Calendar (big) | Second line reads the weekday or the month |
 | AM/PM (small) | Side by side or stacked diagonally |
-| Second time zone (big or small) | Labelled with the zone's offset (`+9`) or its abbreviation (`JST`) |
+| Second time zone (big or small) | Labelled with the zone's offset (`+9`), its abbreviation (`JST`), or nothing at all |
 | UV index, Air quality (big or small) | Band color off, or the panel painted in the reading's own band color |
 
 Those variations are listed once in the palette and swapped from the select, so the palette stays a list of *what* a block shows rather than every spelling of it.
@@ -76,36 +76,47 @@ Both faces are two columns. Blocks come in two sizes — **big** (fills a square
 - **Classic (5 blocks)** — a banner sized to its text, above or below the two columns.
 - **Columns (6 blocks)** — no banner. Each column gets a third block in its middle, so it runs one big block plus two small ones, with the big one in any of the three slots. Round screens can't take a full-height column, so there the two middles lift out into small strips above and below the grid, which keeps the circular shape — and, being strips, those two are always small.
 
-- **Banner block** — banner content, classic layout only: Year, Digital clock, Second time zone, .beat time, Month + Day, Weekday + Day, Steps (short or every digit), Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, or Wind direction.
+- **Banner block** — banner content, classic layout only: Year, Digital clock, Second time zone, .beat time, Month + Day, Weekday + Day, Steps (short or every digit), Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, Wind direction, Sunrise, Sunset, or Text.
 - **Banner at top** — banner above the columns (on) or below them (off). Classic layout only.
 - **Left / Right column middle block** — 6-block layout only. Same choices as the top and bottom blocks below, big or small — so a column can carry its big block in the middle. On round screens these two leave their columns and become the strips above and below the grid, so there they are limited to the banner block list, and every block in the column shifts: the left column is drawn strip / top / bottom and the right column top / bottom / strip. The palette names each slot the way the watch draws it, so a strip is called one.
 - **Top / Middle / Bottom block of each column** — fill each slot with:
   - **Date/time:** Day of week, Day of month, Calendar (weekday over day), Calendar + Month (month over day), Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Second time zone (big or small), Month, Year, Month + Day, Weekday + Day, .beat time (big or small)
-  - **Activity:** Steps (short `8.2K` or every digit `8234`), Distance (small or big), Battery (small or big), Heart rate (small or big)
-  - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Max/Min temp (small or big), Humidity (small or big), Precipitation, UV index (small or big, plain or `- color`), Air quality (small or big, plain or `- color`), Wind speed (small or big), Wind direction (small or big)
+  - **Activity:** Steps (short `8.2K` or every digit `8234`), Distance (small or big), Battery (small or big), Heart rate (small or big), Utility (small)
+  - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Max/Min temp (small or big), Humidity (small or big), Precipitation, UV index (small or big, plain or `- color`), Air quality (small or big, plain or `- color`), Wind speed (small or big), Wind direction (small or big), Sunrise (small or big), Sunset (small or big)
+  - **Other:** Text (small)
 
-  The palette groups them by size first (the column rule pairs one big with one small, so that is the choice that matters) and then by content — Time, Date, Activity, Weather — in that order.
+  The palette groups them by size first (the column rule pairs one big with one small, so that is the choice that matters) and then by content — Time, Date, Activity, Weather, Other — in that order.
 
-  Big two-line blocks stack a caption over a large value: Calendar, Calendar + Month, Humidity (`Hum` / `47%`), Battery (`Batt` / `82%`), Heart rate (number / `BPM`), Distance (number / `KM`·`M`·`MI`), UV index (`UV Index` / `7`), Wind speed (number / `KM/H`·`MPH`), Air quality (number / `AQI`). Max/Min temp (big) stacks the max over the min, with the min drawn in the accent color like the big digital clock. Captions (`Hum`, `Batt`) are translated with the language setting; `UV Index` is not, it reads the same everywhere.
+  Big two-line blocks stack a caption over a large value: Calendar, Calendar + Month, Humidity (`Hum` / `47%`), Battery (`Batt` / `82%`), Heart rate (number / `BPM`), Distance (number / `KM`·`M`·`MI`), UV index (`UV Index` / `7`), Wind speed (number / `KM/H`·`MPH`), Air quality (number / `AQI`), Sunrise and Sunset (the time / `Sunrise`·`Sunset`). Max/Min temp (big) stacks the max over the min, with the min drawn in the accent color like the big digital clock. Captions (`Hum`, `Batt`) are translated with the language setting; `UV Index`, `Sunrise` and `Sunset` are not, they read the same everywhere.
 
   Wind direction draws an arrow rotated to the reported bearing (where the wind blows from) over the 16-point compass word (`WNW`). The small/banner variants of UV index and wind direction pair their icon with the value; wind speed shows its unit inline (`12km/h`), and air quality labels itself (`AQI 42`).
 
+  Sunrise and Sunset pair their own icon with the time, mirrored — the sunrise icon sits to the left of the time, the sunset icon to the right — so the two read as a pair when they sit side by side. Each always shows the *next* one: after this morning's sunrise has been, the block already reads tomorrow's.
+
+  Utility is three watch-status icons in a row: quiet time, charging and Bluetooth. An active one is drawn in the text color, an inactive one ghosted in the panel's accent shade, so the block reads as three states at a glance rather than three labels.
+
+  Text draws whatever is typed into that slot's **Text** box, up to 15 characters, shrunk to fit the block. Every slot has its own box, so a face can carry several different labels. The font covers letters, digits and `. - / % : @`; anything else draws blank. Like the time zones, the text is not part of a shared face code — an imported face keeps whatever this watch is already set to.
+
   .beat time is Swatch Internet Time: the day cut into 1000 beats counted from midnight in Biel (UTC+1), with no timezones and no DST, so it reads the same number everywhere. The small block shows `@642`, with the `@` in the panel's accent shade (the same dim colour the icons and the inactive AM/PM use); the big one stacks the count over a `.beat` caption. It advances every 86.4 seconds, repainted on the minute tick.
 
-  Second time zone shows another zone's clock next to its label: the small block draws `10:09 JST` with the label in the panel's accent shade, the big one stacks the clock over the label as its caption. The label is the zone's abbreviation or its offset from UTC (`+9`, `+5:30`), whichever the variation select is on. Each block carries its own **Time zone**, picked under Selected Block, so a face can run two or three zones side by side.
+  Second time zone shows another zone's clock next to its label: the small block draws `10:09 JST` with the label in the panel's accent shade, the big one stacks the clock over the label as its caption. The label is the zone's abbreviation, its offset from UTC (`+9`, `+5:30`), or nothing — whichever the variation select is on; with no label the block is just the other zone's clock. Each block carries its own **Time zone**, picked under Selected Block, so a face can run two or three zones side by side.
 
   The watch holds no time-zone data. The phone resolves each block's zone to its current UTC offset and abbreviation and pushes both — on a settings save and with every weather refresh — so a DST change lands on its own, and a watch out of contact with the phone keeps the last offsets it was given. A shared face code doesn't carry the zones (they are names, not bytes): an imported face keeps whichever zones this watch is already set to.
 
   Hours and Minutes are shown as standalone two-digit blocks (leading zero kept). AM/PM highlights the active half in the text color and dims the other, like the weekday block.
 
 ### Weather
-Weather blocks (icon, temperature, humidity, precipitation, max/min, UV index, wind speed, wind direction, air quality) pull current conditions from Open-Meteo using the phone's location. The icon maps WMO weather codes to condition glyphs, and ships in two sizes: a large icon for the big weather block and a small one for the banner and the **Temperature + icon** block.
+Weather blocks (icon, temperature, humidity, precipitation, max/min, UV index, wind speed, wind direction, air quality, sunrise, sunset) pull current conditions from Open-Meteo using the phone's location. The icon maps WMO weather codes to condition glyphs, and ships in two sizes: a large icon for the big weather block and a small one for the banner and the **Temperature + icon** block.
 
 UV index and air quality come from Open-Meteo's air-quality endpoint (a second request, made only when one of those blocks is placed, and merged into the same push to the watch). Both are current values. The AQI scale follows the **Units** setting: metric sends the European AQI (~0–100), imperial the US AQI (~0–500).
 
 The `- color` variants of UV index and Air quality draw exactly like their plain counterparts, but the panel takes the reading's own band color instead of the configured panel color (the text flips to black or white for contrast). UV follows the WHO bands — green, yellow, orange, red, purple at 0/3/6/8/11. AQI runs green → yellow → orange → red → purple → maroon, banded on whichever scale was fetched (20/40/60/80/100 European, 50/100/150/200/300 US). Before the first reading, and on the black-and-white watches, they fall back to the configured panel color.
 
+Sunrise and sunset come from the daily forecast, two days of it, because the point is the *next* event: past this morning's sunrise the interesting one is tomorrow's. The phone picks which day and sends the watch a time of day, nothing else, so the block never has to work out what it is looking at. Both are shown in the watch's own 12/24-hour style; a polar day or night, where the event doesn't happen at all, reads `--`.
+
 Only the fields the current layout actually needs are requested, and a layout with no weather block skips the fetch (and the GPS fix) entirely. The phone always sends metric; the watch converts to °F, inches and mph on screen, so switching **Units** repaints immediately from the cached reading instead of waiting for the next fetch.
+
+Readings are refreshed every 30 minutes, cached to the watch's own storage (so a reboot shows real data straight away rather than `--`), and pushed as one packed blob rather than a message key per value. The face repaints only the blocks a change actually touches — a weather push wakes the weather blocks, the minute tick the clocks — which is what keeps a screen full of live data off the battery.
 
 ### Share settings
 The **Share Settings** section shows a code for the current face — every block, colour and toggle packed into one 66-character string:
@@ -127,6 +138,17 @@ The alphabet is [Crockford base32](https://www.crockford.com/base32.html) — di
 - **Weekend / accent** — day-of-week panel color on weekends, also used for the inactive AM/PM label.
 
 Text color is automatic: black on light backgrounds, white on dark ones. On the big digital clock (minutes) and the big Max/Min temp (min), the secondary value is drawn in an auto-derived accent shade of the text color (lighter on dark panels, darker on light ones).
+
+## Development
+
+| Command | What it does |
+|---|---|
+| `npm run build` | Clean build of the `.pbw` for all seven platforms |
+| `npm test` | Host tests — the C formatters and wire parser compiled against a stub SDK, plus the config page, share codes, packing and weather fetch under Node. No SDK or emulator needed |
+| `npm run emulator` | Build and install into the Pebble emulator (`npm run phone` for a real watch) |
+| `npm run config` | Open the config page against the emulator |
+| `npm run release` | Release build into `dist/<version>/` — the same bundle with the JS source map dropped and every entry deflated, roughly half the size over Bluetooth |
+| `npm run font` | Rebuild the vector font (`resources/fonts/mono.ffont`) from the TTF |
 
 ## Support
 For issues, questions, or suggestions, please open an issue on GitHub.
