@@ -1,6 +1,6 @@
 {
   "name": "wall-flip",
-  "author": "Eduardo Chiaro",
+  "author": "EC apps",
   "version": "3.3.0",
   "keywords": [
     "pebble-watchface",
@@ -10,7 +10,8 @@
   ],
   "private": true,
   "scripts": {
-    "build": "pebble clean && pebble build && ./scripts/pack-pbw.sh",
+    "build": "pebble clean && pebble build",
+    "release": "./scripts/release.sh",
     "test": "./test/run.sh",
     "emulator": "npm run build && pebble install --emulator ",
     "e": "npm run build && pebble install --emulator",
@@ -43,43 +44,9 @@
       "configurable"
     ],
     "messageKeys": [
-      "YEAR_TOP",
-      "BLOCK_BAND",
-      "BLOCK_TOP_LEFT",
-      "BLOCK_TOP_RIGHT",
-      "BLOCK_BOTTOM_LEFT",
-      "BLOCK_BOTTOM_RIGHT",
-      "FACE_COLOR",
-      "PANEL_COLOR",
-      "WEEKEND_COLOR",
-      "SHOW_SECONDS",
-      "LANG",
-      "UNITS",
-      "WEATHER_TEMPERATURE",
-      "WEATHER_CODE",
-      "WEATHER_HUMIDITY",
-      "WEATHER_PRECIPITATION",
-      "WEATHER_MIN_TEMP",
-      "WEATHER_MAX_TEMP",
-      "WEATHER_UV",
-      "WEATHER_WIND_SPEED",
-      "WEATHER_WIND_DIR",
-      "WEATHER_AQI",
-      "FLIP_ANIM",
-      "DRAW_SEAM",
-      "PANEL_BAND_COLOR",
-      "PANEL_TL_COLOR",
-      "PANEL_TR_COLOR",
-      "PANEL_BL_COLOR",
-      "PANEL_BR_COLOR",
-      "LAYOUT",
-      "BLOCK_MID_LEFT",
-      "BLOCK_MID_RIGHT",
-      "PANEL_ML_COLOR",
-      "PANEL_MR_COLOR",
-      "TZ_ZONE[7]",
-      "TZ_OFFSET[7]",
-      "TZ_ABBR[7]"
+      "CONFIG",
+      "WEATHER",
+      "TZ"
     ],
     "resources": {
       "media": [
@@ -193,6 +160,31 @@
           "type": "raw",
           "name": "ICON_WIND_DIRECTION_N",
           "file": "weather/wind_direction_n.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_SUNRISE",
+          "file": "weather/sunrise.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_SUNSET",
+          "file": "weather/sunset.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_BLUETOOTH",
+          "file": "icons/bluetooth.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_CHARGING",
+          "file": "icons/charging.pdc"
+        },
+        {
+          "type": "raw",
+          "name": "ICON_QUIET",
+          "file": "icons/quiet.pdc"
         },
         {
           "type": "raw",

@@ -318,7 +318,7 @@ PLATFORMS.forEach(function(platform) {
     // color picker shows until a block is selected. "Banner at top" is the one
     // block setting still on the page, and only under the classic layout.
     Object.keys(clay.items).forEach(function(key) {
-      if (/^BLOCK_|^PANEL_[TBM]|^PANEL_BAND|^TZ_ZONE/.test(key)) {
+      if (/^BLOCK_|^PANEL_[TBM]|^PANEL_BAND|^TZ_ZONE|^TEXT\[/.test(key)) {
         assert.ok(clay.items[key].hidden, platform + '/' + layout + ': ' + key +
           ' should be hidden until its block is tapped');
       }
@@ -518,6 +518,66 @@ PLATFORMS.forEach(function(platform) {
   document.tap('data-block', '2');   // analog clock: no zone to pick
   assert.ok(clay.items['TZ_ZONE[0]'].hidden,
     'the zone picker stayed out after the block stopped being a clock');
+  checks++;
+})();
+
+// --- Unlabelled second time zone -------------------------------------------
+// 55/56 are the third member of the zone-label variation: the same clock with
+// no label at all, so nothing is drawn in the accent colour beside it.
+(function zoneNoLabel() {
+  global.document = makeDocument();
+  var clay = makeClay('basalt');
+  clayCustomFn.call(clay);
+  clay.build();
+  clay.getItemByMessageKey('TZ_ZONE[0]').set('Asia/Tokyo');
+  clay.getItemByMessageKey('BLOCK_TOP_LEFT').set(51);
+  assert.ok(clay.vals['#PREVIEW'].indexOf('>JST<') > -1,
+    'the abbreviation variant lost its label');
+
+  document.tap('data-slot', 'BLOCK_TOP_LEFT');
+  assert.strictEqual(variation(clay).label, 'Zone label', 'no zone-label select');
+  chooseVariation(clay, 55);
+  assert.strictEqual(clay.vals.BLOCK_TOP_LEFT, 55, 'the None variant did not apply');
+  var html = clay.vals['#PREVIEW'];
+  assert.ok(html.indexOf('>JST<') < 0, 'the None variant still draws a label');
+  assert.ok(/>\d\d:\d\d</.test(html), 'the None variant lost its clock');
+  // It is still a zone block, so the picker stays out; and it is still small.
+  assert.ok(!clay.items['TZ_ZONE[0]'].hidden,
+    'the zone picker went away for the unlabelled variant');
+  assert.ok(!isBig(55) && isBig(56), 'the None variants have the wrong sizes');
+  checks++;
+})();
+
+// --- Text block -------------------------------------------------------------
+// 57 draws whatever the wearer typed for that slot, so the string follows the
+// block: its input only comes out for a text block, and each slot has its own.
+(function textBlock() {
+  global.document = makeDocument();
+  var clay = makeClay('basalt');
+  clayCustomFn.call(clay);
+  clay.build();
+  clay.getItemByMessageKey('LAYOUT').set(1);
+  clay.getItemByMessageKey('BLOCK_MID_LEFT').set(57);
+  clay.getItemByMessageKey('TEXT[5]').set('Hello');       // BlockPos order
+  clay.getItemByMessageKey('BLOCK_MID_RIGHT').set(57);
+  clay.getItemByMessageKey('TEXT[6]').set('World');
+
+  var html = clay.vals['#PREVIEW'];
+  assert.ok(html.indexOf('>Hello<') > -1 && html.indexOf('>World<') > -1,
+    'two text blocks did not draw their own strings');
+  assert.ok(!isBig(57), 'the text block should be small');
+
+  document.tap('data-slot', 'BLOCK_MID_LEFT');
+  assert.ok(!clay.items['TEXT[5]'].hidden,
+    'the text input stayed hidden for a text block');
+  assert.ok(clay.items['TEXT[6]'].hidden,
+    'another block\'s text input came out with it');
+  assert.ok(clay.items['TZ_ZONE[5]'].hidden,
+    'the zone picker came out for a text block');
+
+  document.tap('data-block', '16');   // digital clock: nothing to type
+  assert.ok(clay.items['TEXT[5]'].hidden,
+    'the text input stayed out after the block stopped being text');
   checks++;
 })();
 

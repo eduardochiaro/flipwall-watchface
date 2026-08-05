@@ -67,6 +67,33 @@ ok(JSON.stringify(requestedFields(face({ BLOCK_TOP_LEFT: 43 }))) ===
    JSON.stringify(requestedFields(face({ BLOCK_TOP_LEFT: 39 }))),
    'Air quality - color asks for different fields than plain AQI');
 
+// The sun blocks show the *next* event, so the phone picks the day: a sunrise
+// that has already been is skipped for tomorrow's, and the watch is sent only
+// the minute of the day.
+var sunFields = requestedFields(face({ BLOCK_TOP_LEFT: 58 }));
+ok(sunFields.daily.indexOf('sunrise') > -1, 'the sunrise block asks for no sunrise');
+ok(weather.buildUrl(1, 2, sunFields).indexOf('forecast_days=2') > -1,
+   'a sun block fetches only today, so it has nothing to show after the event');
+
+function sunMsg(times) {
+  return weather.buildMessage({ current: { temperature_2m: 20 },
+                                daily: { sunrise: times } });
+}
+var today = new Date();
+function stamp(dayOffset, h, m) {
+  var d = new Date(today.getFullYear(), today.getMonth(),
+                   today.getDate() + dayOffset, h, m);
+  function p(n) { return (n < 10 ? '0' : '') + n; }
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+         'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+}
+ok(sunMsg([stamp(0, 0, 1), stamp(1, 6, 12)]).WEATHER_SUNRISE === 6 * 60 + 12,
+   'a sunrise that has already been is still sent');
+ok(sunMsg([stamp(0, 23, 59), stamp(1, 6, 12)]).WEATHER_SUNRISE === 23 * 60 + 59,
+   "today's event is dropped before it has happened");
+ok(sunMsg([null, null]).WEATHER_SUNRISE === undefined,
+   'a polar day (no sunrise at all) sends a bogus time');
+
 // Nothing saved on this phone (fresh install from the store): the watch keeps
 // its own blocks, so fetch everything rather than assume there is no weather.
 var fresh = requestedFields({});

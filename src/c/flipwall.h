@@ -81,6 +81,22 @@ typedef enum {
   BLK_TZ_ABBR,      // "10:09 PST" (small / banner)
   BLK_TZ_BIG,       // the time over a "+1" caption (big)
   BLK_TZ_BIG_ABBR,  // the time over a "PST" caption (big)
+  // Three watch-status icons in a row: quiet time, charging, bluetooth. Each is
+  // lit in the text colour when its status is on, ghosted in the panel's own
+  // accent when off (see draw_utility in blocks.c).
+  BLK_UTILITY,      // status icons (small)
+  // The same second-zone clock with no label at all, just the time.
+  BLK_TZ_NONE,      // "10:09" (small / banner)
+  BLK_TZ_BIG_NONE,  // "10:09" (big)
+  // A fixed string the wearer types on the config page, one per slot (TEXT[n]),
+  // so a face can carry several different labels.
+  BLK_TEXT,         // free text (small / banner)
+  // Sunrise / sunset. The phone sends the *next* one of each (past 11am the
+  // sunrise block already reads tomorrow's), so the watch only formats it.
+  BLK_SUNRISE,      // sunrise icon + time (small / banner)
+  BLK_SUNSET,       // time + sunset icon, mirrored (small / banner)
+  BLK_SUNRISE_BIG,  // the time over a "Sunrise" caption (big)
+  BLK_SUNSET_BIG,   // the time over a "Sunset" caption (big)
   BLK_COUNT,      // sentinel: how many block kinds there are
 } QuadBlock;
 
@@ -140,4 +156,8 @@ extern int    s_lang;
 #define TZ_MAX_OFFSET (14 * 60)   // the furthest any real zone is from UTC
 extern int         s_tz_offset;
 extern const char *s_tz_abbr;
+// The free text of the block being drawn, pointed at that block's entry the same
+// way. 15 characters plus the terminator, which is what the config page allows.
+#define TEXT_LEN 16
+extern const char *s_text;
 extern struct tm s_now;
