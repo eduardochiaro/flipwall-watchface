@@ -26,7 +26,7 @@ static const uint64_t BIG_SET =
     BLKBIT(BLK_UV_BIG_COLOR) | BLKBIT(BLK_WIND_BIG) | BLKBIT(BLK_WIND_DIR_BIG) |
     BLKBIT(BLK_AQI_BIG) | BLKBIT(BLK_AQI_BIG_COLOR) | BLKBIT(BLK_BEAT_BIG) |
     BLKBIT(BLK_TZ_BIG) | BLKBIT(BLK_TZ_BIG_ABBR) | BLKBIT(BLK_TZ_BIG_NONE) |
-    BLKBIT(BLK_SUNRISE_BIG) | BLKBIT(BLK_SUNSET_BIG);
+    BLKBIT(BLK_SUNRISE_BIG) | BLKBIT(BLK_SUNSET_BIG) | BLKBIT(BLK_SUN_BIG);
 
 // What the banner can hold: the short blocks that draw as one centred string
 // (or an icon + value), so the panel can hug their text.
@@ -39,7 +39,7 @@ static const uint64_t BAND_SET =
     BLKBIT(BLK_UV_COLOR) | BLKBIT(BLK_WIND) | BLKBIT(BLK_WIND_DIR) |
     BLKBIT(BLK_AQI) | BLKBIT(BLK_AQI_COLOR) | BLKBIT(BLK_BEAT) |
     BLKBIT(BLK_TZ) | BLKBIT(BLK_TZ_ABBR) | BLKBIT(BLK_TZ_NONE) |
-    BLKBIT(BLK_TEXT) | BLKBIT(BLK_SUNRISE) | BLKBIT(BLK_SUNSET);
+    BLKBIT(BLK_TEXT) | BLKBIT(BLK_SUNRISE) | BLKBIT(BLK_SUNSET) | BLKBIT(BLK_SUN);
 
 // Every block kind is legal in the 2x2 grid; the banner takes a subset.
 bool block_valid_grid(int v) { return v >= BLK_DOW && v < BLK_COUNT; }
@@ -47,13 +47,20 @@ bool block_valid_band(int v) { return block_valid_grid(v) && (BAND_SET >> v & 1)
 bool block_is_short(QuadBlock b) { return !(BIG_SET >> b & 1); }
 
 // A "- colour" variant draws exactly like the block it mirrors; only the panel
-// colour differs (see block_panel_color).
+// colour differs (see block_panel_color). The auto sun blocks draw as whichever
+// of sunrise / sunset comes next.
+static bool sun_is_set(void) {
+  return weather_sun_next_is_set(s_now.tm_hour * 60 + s_now.tm_min);
+}
+
 static QuadBlock base_block(QuadBlock b) {
   switch (b) {
     case BLK_UV_COLOR:      return BLK_UV;
     case BLK_UV_BIG_COLOR:  return BLK_UV_BIG;
     case BLK_AQI_COLOR:     return BLK_AQI;
     case BLK_AQI_BIG_COLOR: return BLK_AQI_BIG;
+    case BLK_SUN:     return sun_is_set() ? BLK_SUNSET : BLK_SUNRISE;
+    case BLK_SUN_BIG: return sun_is_set() ? BLK_SUNSET_BIG : BLK_SUNRISE_BIG;
     default:                return b;
   }
 }
@@ -585,8 +592,18 @@ static void draw_caption_value(GContext *ctx, GRect r, const char *caption,
     big_r   = GRect(in.origin.x, in.origin.y, in.size.w, in.size.h - small_h);
     small_r = GRect(in.origin.x, in.origin.y + in.size.h - small_h, in.size.w, small_h);
   }
+  // A value too wide for the big cap (a clock, "07:45") gets shrunk to fit and
+  // no longer reaches the seam; centred in big_r it would hug the seam with
+  // empty space beyond. Centre it in its own half instead, across the seam from
+  // the caption.
+  int big_cap = r.size.h * 46 / 100;
+  if (text_width(ctx, value, big_cap) > big_r.size.w - 6) {
+    int half = r.size.h / 2;
+    big_r = GRect(big_r.origin.x, label_top ? r.origin.y + half : r.origin.y,
+                  big_r.size.w, half);
+  }
   draw_centered(ctx, small_r, caption, r.size.h * 19 / 100, caption_fg);   // small
-  draw_centered(ctx, big_r, value, r.size.h * 46 / 100, s_text_fg);        // big
+  draw_centered(ctx, big_r, value, big_cap, s_text_fg);                     // big
 }
 
 // Split a short block's value ("3.2km", "12km/h") into its numeric part and an
@@ -1154,6 +1171,10 @@ void draw_block_layer(GContext *ctx, Layer *layer) {
     draw_block(ctx, st->blk, r);
     return;
   }
+
+  // Repainted, but reading the same (a minute tick on a step count that hasn't
+  // moved, a weather push with nothing new): what's on screen is already right.
+  if (!st->anim && st->shown[0] && strcmp(now, st->shown) == 0) return;
 
   // Start a flip on a real change (shown[0] == 0 means first paint -> silent).
   if (s_flip_enabled && !st->anim && st->shown[0] && strcmp(now, st->shown) != 0) {

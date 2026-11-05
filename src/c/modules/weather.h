@@ -33,6 +33,9 @@ void weather_wind_dir_str(char *buf, size_t n); // "WNW" (16-point compass)
 // The phone picks which day it is (see buildMessage in weather.js) and sends
 // only the minute of the day, so this is pure formatting.
 void weather_sun_str(char *buf, size_t n, bool sunset);
+// For the auto sun blocks: true when sunset is the next event at `now_min`
+// (minutes since midnight), false when sunrise is.
+bool weather_sun_next_is_set(int now_min);
 // Rotation for the ICON_WIND_DIRECTION_N arrow: the icon points north at 0, and
 // the arrow ends up pointing where the wind blows *to* - the opposite of the
 // direction named by weather_wind_dir_str (which is the reported "from").

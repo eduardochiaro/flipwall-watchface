@@ -97,6 +97,11 @@ typedef enum {
   BLK_SUNSET,       // time + sunset icon, mirrored (small / banner)
   BLK_SUNRISE_BIG,  // the time over a "Sunrise" caption (big)
   BLK_SUNSET_BIG,   // the time over a "Sunset" caption (big)
+  // Auto: whichever of the two comes next, resolved at draw time (base_block).
+  BLK_SUN,          // next sunrise or sunset (small / banner)
+  BLK_SUN_BIG,      // next sunrise or sunset (big)
+  // ponytail: BLK_SUN_BIG is 63, the last bit of the uint64 block masks in
+  // blocks.c (BIG_SET / BAND_SET). The next block needs wider masks.
   BLK_COUNT,      // sentinel: how many block kinds there are
 } QuadBlock;
 
@@ -131,6 +136,7 @@ typedef struct {
   GColor    panel;             // this position's resolved panel colour
   uint8_t   pos;               // which BlockPos this layer is, for the zone tables
   bool      pill;              // draws as a text-hugging banner pill, not a block
+  bool      dirty;             // repaint on the next render (see block_dirty)
   uint8_t   anim;              // 0 = idle, else countdown FLIP_STEPS..1
   char      shown[16];         // text currently on screen (empty = first paint)
   char      old[16];           // pre-flip text, shown during the collapse half

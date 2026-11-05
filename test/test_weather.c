@@ -111,6 +111,19 @@ int main(void) {
   EQ(s_sunrise = 0,            sunrise_str, "--");      // polar day/night
   s_host_24h = true;
 
+  // Auto: whichever event is fewer minutes away, wrapping past midnight.
+  group("next sun event");
+  s_sunrise = 6 * 60 + 12; s_sunset = 20 * 60 + 45;
+  EQ_INT((void)0, weather_sun_next_is_set(14 * 60), true);    // afternoon: sunset
+  EQ_INT((void)0, weather_sun_next_is_set(22 * 60), false);   // night: sunrise
+  EQ_INT((void)0, weather_sun_next_is_set(3 * 60), false);   // small hours: sunrise
+  EQ_INT((void)0, weather_sun_next_is_set(20 * 60 + 45), true);    // the sunset minute itself
+  EQ_INT((void)0, weather_sun_next_is_set(20 * 60 + 46), false);   // stale sunset just gone: sunrise takes over
+  s_sunset = 0;
+  EQ_INT((void)0, weather_sun_next_is_set(14 * 60), false);   // no sunset (polar): sunrise
+  s_sunrise = 0; s_sunset = 20 * 60 + 45;
+  EQ_INT((void)0, weather_sun_next_is_set(3 * 60), true);    // no sunrise: sunset
+
   group("no reading yet");
   EQ(s_have = false, weather_temp_str,     "--");
   EQ((void)0,        weather_wind_str,     "--");

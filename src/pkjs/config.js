@@ -27,7 +27,10 @@
 //   54 = Utility, quiet-time / charging / bluetooth icons (small),
 //   55/56 = Second time zone, no label (small / banner, big),
 //   57 = Text, the string typed into TEXT[n] (small / banner),
-//   58/59 = Sunrise / Sunset (small / banner), 60/61 = Sunrise / Sunset (big).
+//   58/59 = Sunrise / Sunset (small / banner), 60/61 = Sunrise / Sunset (big),
+//   62/63 = Sunrise / sunset, auto: whichever comes next (small / banner, big).
+// The three sun kinds share one palette chip, the type picked in the Selected
+// Block section (VARIATIONS in preview.js); the chip is the auto entry.
 // The "- color" variants draw like their plain counterpart but paint the panel
 // with the index's own band color (see block_panel_color in blocks.c).
 // Each second-time-zone block carries its own zone (TZ_ZONE[n], one per slot in
@@ -75,6 +78,7 @@ var BIG_WEATHER = [
   { label: "Air quality - color (big)", value: 44 },
   { label: "Wind speed (big)", value: 36 },
   { label: "Wind direction (big)", value: 38 },
+  { label: "Sunrise / sunset (big)", value: 63 },
   { label: "Sunrise (big)", value: 60 },
   { label: "Sunset (big)", value: 61 }
 ];
@@ -121,6 +125,7 @@ var SMALL_WEATHER = [
   { label: "Air quality - color (small)", value: 43 },
   { label: "Wind speed (small)", value: 35 },
   { label: "Wind direction (small)", value: 37 },
+  { label: "Sunrise / sunset (small)", value: 62 },
   { label: "Sunrise (small)", value: 58 },
   { label: "Sunset (small)", value: 59 }
 ];
@@ -175,6 +180,7 @@ var BAND_OPTIONS = [
     { label: "Air quality - color", value: 43 },
     { label: "Wind speed", value: 35 },
     { label: "Wind direction", value: 37 },
+    { label: "Sunrise / sunset", value: 62 },
     { label: "Sunrise", value: 58 },
     { label: "Sunset", value: 59 }
   ] },

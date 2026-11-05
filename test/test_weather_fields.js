@@ -74,6 +74,11 @@ var sunFields = requestedFields(face({ BLOCK_TOP_LEFT: 58 }));
 ok(sunFields.daily.indexOf('sunrise') > -1, 'the sunrise block asks for no sunrise');
 ok(weather.buildUrl(1, 2, sunFields).indexOf('forecast_days=2') > -1,
    'a sun block fetches only today, so it has nothing to show after the event');
+[62, 63].forEach(function(id) {
+  var auto = requestedFields(face({ BLOCK_TOP_LEFT: id }));
+  ok(auto.daily.indexOf('sunrise') > -1 && auto.daily.indexOf('sunset') > -1,
+     'the auto sun block ' + id + ' does not ask for both events');
+});
 
 function sunMsg(times) {
   return weather.buildMessage({ current: { temperature_2m: 20 },

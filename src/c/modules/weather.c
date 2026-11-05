@@ -164,6 +164,18 @@ void weather_sun_str(char *buf, size_t n, bool sunset) {
   snprintf(buf, n, "%d:%02d", h12 ? h12 : 12, m % 60);
 }
 
+// The event fewer minutes away wins, counting on past midnight. A stale reading
+// still answers right: a sunset that has just gone by is ~24h away, so sunrise
+// takes over the minute after, without waiting for the next push. An event the
+// API had none of (polar day/night) loses to one it had.
+bool weather_sun_next_is_set(int now_min) {
+  bool rise = s_sunrise > 0 && s_sunrise < 24 * 60;
+  bool set  = s_sunset > 0 && s_sunset < 24 * 60;
+  if (rise != set) return set;
+  return (s_sunset - now_min + 24 * 60) % (24 * 60) <
+         (s_sunrise - now_min + 24 * 60) % (24 * 60);
+}
+
 int32_t weather_wind_angle(void) {
   // The reported bearing is where the wind blows *from*; the arrow shows where
   // it blows *to*, so it points 180 degrees the other way.

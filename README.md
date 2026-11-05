@@ -76,13 +76,13 @@ Both faces are two columns. Blocks come in two sizes — **big** (fills a square
 - **Classic (5 blocks)** — a banner sized to its text, above or below the two columns.
 - **Columns (6 blocks)** — no banner. Each column gets a third block in its middle, so it runs one big block plus two small ones, with the big one in any of the three slots. Round screens can't take a full-height column, so there the two middles lift out into small strips above and below the grid, which keeps the circular shape — and, being strips, those two are always small.
 
-- **Banner block** — banner content, classic layout only: Year, Digital clock, Second time zone, .beat time, Month + Day, Weekday + Day, Steps (short or every digit), Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, Wind direction, Sunrise, Sunset, or Text.
+- **Banner block** — banner content, classic layout only: Year, Digital clock, Second time zone, .beat time, Month + Day, Weekday + Day, Steps (short or every digit), Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, Wind direction, Sunrise / sunset (Auto, Sunrise or Sunset), or Text.
 - **Banner at top** — banner above the columns (on) or below them (off). Classic layout only.
 - **Left / Right column middle block** — 6-block layout only. Same choices as the top and bottom blocks below, big or small — so a column can carry its big block in the middle. On round screens these two leave their columns and become the strips above and below the grid, so there they are limited to the banner block list, and every block in the column shifts: the left column is drawn strip / top / bottom and the right column top / bottom / strip. The palette names each slot the way the watch draws it, so a strip is called one.
 - **Top / Middle / Bottom block of each column** — fill each slot with:
   - **Date/time:** Day of week, Day of month, Calendar (weekday over day), Calendar + Month (month over day), Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Second time zone (big or small), Month, Year, Month + Day, Weekday + Day, .beat time (big or small)
   - **Activity:** Steps (short `8.2K` or every digit `8234`), Distance (small or big), Battery (small or big), Heart rate (small or big), Utility (small)
-  - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Max/Min temp (small or big), Humidity (small or big), Precipitation, UV index (small or big, plain or `- color`), Air quality (small or big, plain or `- color`), Wind speed (small or big), Wind direction (small or big), Sunrise (small or big), Sunset (small or big)
+  - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Max/Min temp (small or big), Humidity (small or big), Precipitation, UV index (small or big, plain or `- color`), Air quality (small or big, plain or `- color`), Wind speed (small or big), Wind direction (small or big), Sunrise / sunset (small or big; type Auto, Sunrise or Sunset)
   - **Other:** Text (small)
 
   The palette groups them by size first (the column rule pairs one big with one small, so that is the choice that matters) and then by content — Time, Date, Activity, Weather, Other — in that order.
@@ -91,7 +91,7 @@ Both faces are two columns. Blocks come in two sizes — **big** (fills a square
 
   Wind direction draws an arrow rotated to the reported bearing (where the wind blows from) over the 16-point compass word (`WNW`). The small/banner variants of UV index and wind direction pair their icon with the value; wind speed shows its unit inline (`12km/h`), and air quality labels itself (`AQI 42`).
 
-  Sunrise and Sunset pair their own icon with the time, mirrored — the sunrise icon sits to the left of the time, the sunset icon to the right — so the two read as a pair when they sit side by side. Each always shows the *next* one: after this morning's sunrise has been, the block already reads tomorrow's.
+  Sunrise and Sunset pair their own icon with the time, mirrored — the sunrise icon sits to the left of the time, the sunset icon to the right — so the two read as a pair when they sit side by side. Each always shows the *next* one: after this morning's sunrise has been, the block already reads tomorrow's. The block's **Type** picks Sunrise, Sunset or **Auto**, which shows whichever of the two comes next and switches the minute the shown one goes by.
 
   Utility is three watch-status icons in a row: quiet time, charging and Bluetooth. An active one is drawn in the text color, an inactive one ghosted in the panel's accent shade, so the block reads as three states at a glance rather than three labels.
 

@@ -50,7 +50,9 @@ var BLOCK_FIELDS = {
   58: ['sunrise'],                                   // Sunrise (small)
   59: ['sunset'],                                    // Sunset (small)
   60: ['sunrise'],                                   // Sunrise (big)
-  61: ['sunset']                                     // Sunset (big)
+  61: ['sunset'],                                    // Sunset (big)
+  62: ['sunrise', 'sunset'],                         // Sunrise / sunset, auto (small)
+  63: ['sunrise', 'sunset']                          // Sunrise / sunset, auto (big)
 };
 
 // The daily=... fields of the forecast API; AIR fields come from the separate

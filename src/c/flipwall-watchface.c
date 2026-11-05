@@ -153,11 +153,34 @@ GPoint s_draw_origin;                 // abs origin of the block being drawn (fo
 //
 // Each block is its own Layer so it repaints in isolation: the clock every
 // minute (or second), the date blocks once a day, weather on a phone push,
-// battery/steps on their service events. Frames don't overlap, so marking one
-// block dirty skips every other block's (fctx) update_proc -- the point, for
-// battery. The face colour is the window background, shown in the gutters and
-// rounded corners, and never repainted.
+// battery/steps on their service events.
+//
+// PebbleOS has no per-layer dirty tracking: layer_mark_dirty() only schedules a
+// window render, and every render walks the whole tree, calling every visible
+// update_proc (and the window's own background fill, over everything). So the
+// isolation is ours to do: each layer carries a dirty flag (block_dirty) and
+// its update_proc returns without drawing when it's clear. That works because
+// the app framebuffer is kept between renders (the compositor copies it out to
+// the display; modals and Quick View draw over the copy, not into it), so a
+// block left alone still shows what it drew last. The window background is
+// clear for the same reason; the root paints the face colour itself, and only
+// on a full redraw (layout()).
 // ---------------------------------------------------------------------------
+
+static bool s_face_dirty;   // repaint the face colour (gutters) on the next render
+
+static void root_update(Layer *layer, GContext *ctx) {
+  if (!s_face_dirty) return;
+  s_face_dirty = false;
+  graphics_context_set_fill_color(ctx, s_face_bg);
+  graphics_fill_rect(ctx, layer_get_bounds(layer), 0, GCornerNone);
+}
+
+// Repaint block `i` on the next render. Use this, never a bare layer_mark_dirty.
+static void block_dirty(int i) {
+  ((BlockState *)layer_get_data(s_layer[i]))->dirty = true;
+  layer_mark_dirty(s_layer[i]);
+}
 
 // True when a position draws as a text-hugging pill rather than a full-width
 // block: the classic banner always, and the six-block middles on round screens,
@@ -170,6 +193,8 @@ static bool draws_as_pill(BlockPos pos) {
 // Everything the layer needs is in its own BlockState, tagged by layout().
 static void block_layer_update(Layer *layer, GContext *ctx) {
   BlockState *st = layer_get_data(layer);
+  if (!st->dirty) return;   // unchanged: the framebuffer still holds it
+  st->dirty = false;
   s_draw_origin = layer_get_frame(layer).origin;
   // Point the shared panel/text globals at this position's resolved color, so
   // the block draws (which read s_panel_bg / s_text_fg) pick up its override.
@@ -180,9 +205,13 @@ static void block_layer_update(Layer *layer, GContext *ctx) {
   s_tz_offset = s_tz_offsets[st->pos];
   s_tz_abbr   = s_tz_abbrs[st->pos];
   s_text      = s_texts[st->pos];
-  if (st->pill)
+  if (st->pill) {
+    // The pill hugs its text, so a narrower value leaves the old one's edges
+    // behind: clear the strip to the face colour first.
+    graphics_context_set_fill_color(ctx, s_face_bg);
+    graphics_fill_rect(ctx, layer_get_bounds(layer), 0, GCornerNone);
     draw_band(ctx, layer_get_bounds(layer), st->blk);
-  else
+  } else
     draw_block_layer(ctx, layer);   // flip-aware (see blocks.c)
 }
 
@@ -198,7 +227,11 @@ static void flip_tick(void *context) {
     BlockState *st = layer_get_data(s_layer[i]);
     if (st->anim) {
       st->anim--;
-      layer_mark_dirty(s_layer[i]);   // draws this flip frame
+      // The flip's last frame is the block at rest, value unchanged since the
+      // flip began, which draw_block_layer would skip as "nothing new": mark it
+      // a first paint instead (draws at rest, starts no flip).
+      if (!st->anim) st->shown[0] = '\0';
+      block_dirty(i);   // draws this flip frame
       if (st->anim) any = true;
     }
   }
@@ -344,8 +377,9 @@ static void layout(void) {
     st->pill = draws_as_pill((BlockPos)i);
     st->anim = 0;
     st->shown[0] = '\0';
-    layer_mark_dirty(s_layer[i]);
+    block_dirty(i);
   }
+  s_face_dirty = true;   // gutters may have moved, or the face colour changed
 }
 
 // What real-world change forces a given block to repaint.
@@ -405,7 +439,9 @@ static Trigger block_trigger(QuadBlock b) {
     case BLK_SUNRISE:
     case BLK_SUNSET:
     case BLK_SUNRISE_BIG:
-    case BLK_SUNSET_BIG: return TRG_WEATHER;
+    case BLK_SUNSET_BIG:
+    case BLK_SUN:
+    case BLK_SUN_BIG:    return TRG_WEATHER;
     case BLK_UTILITY:  return TRG_UTILITY;
     default:           return TRG_DATE;   // dow / day / month / year / *_day
   }
@@ -414,7 +450,7 @@ static Trigger block_trigger(QuadBlock b) {
 // Repaint only the placed blocks driven by `t`.
 static void mark_blocks(Trigger t) {
   for (int i = 0; i < POS_COUNT; i++)
-    if (block_trigger(s_blocks[i]) == t) layer_mark_dirty(s_layer[i]);
+    if (block_trigger(s_blocks[i]) == t) block_dirty(i);
 }
 
 // True when at least one placed block is driven by `t`.
@@ -448,8 +484,17 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
     mark_blocks(TRG_UTILITY);
   } else {
     for (int i = 0; i < POS_COUNT; i++)
-      if (s_blocks[i] == BLK_CLOCK) layer_mark_dirty(s_layer[i]);
+      if (s_blocks[i] == BLK_CLOCK) block_dirty(i);
     return;   // a second tick can't cross midnight on its own
+  }
+  // The auto sun blocks switch event the minute the shown one goes by, with no
+  // weather push to say so: repaint them only on that minute.
+  static int s_sun_set = -1;
+  int sun_set = weather_sun_next_is_set(s_now.tm_hour * 60 + s_now.tm_min);
+  if (sun_set != s_sun_set) {
+    s_sun_set = sun_set;
+    for (int i = 0; i < POS_COUNT; i++)
+      if (s_blocks[i] == BLK_SUN || s_blocks[i] == BLK_SUN_BIG) block_dirty(i);
   }
   if (s_now.tm_yday != s_prev_yday) {   // crossed midnight
     s_prev_yday = s_now.tm_yday;
@@ -727,7 +772,6 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
   settings_apply(cfg_p);
 
   // Layout, block kinds, seconds and clock placement may all have changed.
-  window_set_background_color(s_window, s_face_bg);
   apply_tick_interval();
   apply_services();   // a block that needs health / battery may have come or gone
   layout();   // reframes + retags + repaints every block
@@ -736,6 +780,7 @@ static void inbox_received_handler(DictionaryIterator *iter, void *context) {
 static void prv_window_load(Window *window) {
   Layer *root = window_get_root_layer(window);
   is_large_screen = (layer_get_bounds(root).size.w >= 200);
+  layer_set_update_proc(root, root_update);
 
   // aplite is too small for the vector font; it uses system fonts (see blocks.c).
 #if !PBL_PLATFORM_APLITE
@@ -781,7 +826,7 @@ static void prv_init(void) {
   weather_init();
 
   s_window = window_create();
-  window_set_background_color(s_window, s_face_bg);
+  window_set_background_color(s_window, GColorClear);   // root_update paints it
   window_set_window_handlers(s_window, (WindowHandlers) {
     .load = prv_window_load,
     .unload = prv_window_unload,

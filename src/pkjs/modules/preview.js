@@ -257,13 +257,44 @@ function clayCustomFn() {
       ';font-weight:bold;font-size:' + px(fpx) + ';line-height:1;">' + t + '</div>';
   }
 
+  // How wide `t` draws at `fpx` (device px), for the shrink-to-fit the watch
+  // does in draw_centered. Measured on a canvas in the config webview. The node
+  // test harness has no canvas, so there it adds up rough Arial Bold glyph
+  // widths instead; the icon stand-ins (☀ ↑ →) count as a full em, which is
+  // what the old flat 0.62em-per-character guess got wrong.
+  var measureCtx = null;
+  function textWidth(t, fpx) {
+    t = String(t).replace(/<[^>]*>/g, '');
+    if (measureCtx === null) {
+      var cv = typeof document !== 'undefined' && document.createElement &&
+               document.createElement('canvas');
+      measureCtx = (cv && cv.getContext && cv.getContext('2d')) || false;
+    }
+    if (measureCtx) {
+      measureCtx.font = 'bold ' + fpx + 'px Arial, Helvetica, sans-serif';
+      return measureCtx.measureText(t).width;
+    }
+    var em = 0;
+    for (var i = 0; i < t.length; i++) {
+      var ch = t.charAt(i);
+      em += /[0-9]/.test(ch) ? 0.56 : /[:.,\/ ]/.test(ch) ? 0.3
+          : /[A-Z%mw]/.test(ch) ? 0.75 : /[a-z°]/.test(ch) ? 0.58 : 1;
+    }
+    return em * fpx;
+  }
+
+  // `fpx`, shrunk so `t` fits in `avail` (draw_centered's one-pass shrink).
+  function fitPx(t, fpx, avail) {
+    var w = textWidth(t, fpx);
+    return w > avail && w > 0 ? Math.floor(fpx * avail / w) : fpx;
+  }
+
   // A caption or value band inside a big two-line block, padded off the side
   // borders. Mirrors draw_centered's one-pass shrink so a wide caption
   // ("UV Index") stays on one line inside the padding instead of wrapping.
   function cvBand(t, top, bandH, color, fpx, w) {
     var mx = Math.round(w * 0.10);
-    var tw = t.length * fpx * 0.62, avail = w - 2 * mx;
-    if (tw > avail) { fpx = Math.round(fpx * avail / tw); }
+    fpx = fitPx(t, fpx, w - 2 * mx);
     return '<div style="position:absolute;left:' + px(mx) + ';right:' +
       px(mx) + ';top:' + px(top) +
       ';height:' + px(bandH) + ';display:flex;align-items:center;' +
@@ -336,7 +367,12 @@ function clayCustomFn() {
   }
 
   // Render one grid block (by QuadBlock id) into the given rect.
+  // The auto sun blocks (62 / 63) draw as whichever event comes next. At the
+  // sample time, 10:09, that is the sunset (see weather_sun_next_is_set).
+  var SUN_AUTO = { 62: 59, 63: 61 };
+
   function block(v, x, y, w, h, c) {
+    v = SUN_AUTO[v] || v;
     var band = indexColor(v);
     if (band) {
       c = { panel: band, text: contrast(band), weekend: c.weekend,
@@ -446,9 +482,15 @@ function clayCustomFn() {
       var smallY, smallH = cvSmallH, bigY, bigH;
       if (labelTop) { smallY = cvM; bigY = cvM + cvSmallH; bigH = cvInH - cvSmallH; }
       else { bigY = cvM; bigH = cvInH - cvSmallH; smallY = cvM + bigH; }
+      // A value cvBand will shrink to fit (a clock) moves into its own half,
+      // across the seam from the caption, like draw_caption_value.
+      var bigPx = Math.round(h * 0.46);
+      if (textWidth(value, bigPx) > w - 2 * Math.round(w * 0.10)) {
+        bigH = Math.round(h / 2); bigY = labelTop ? h - bigH : 0;
+      }
       return panelDiv(x, y, w, h, c.panel,
         cvBand(caption, smallY, smallH, capColor, Math.round(h * 0.19), w) +
-        cvBand(value, bigY, bigH, c.text, Math.round(h * 0.46), w) + seam(w, h));
+        cvBand(value, bigY, bigH, c.text, bigPx, w) + seam(w, h));
     }
     if (v === 32) {  // max/min temp (big): max over min, min in accent
       var fontMM = Math.round(h * 0.34);
@@ -460,6 +502,7 @@ function clayCustomFn() {
     var txt = v === 1 ? SAMPLE.day
             : (v === 3 ? SAMPLE.month : valueText(v, c.tz, c.str));
     var font = (v === 1 || v === 12) ? Math.round(h * 0.6) : Math.round(h * 0.5);
+    font = fitPx(txt, font, w - 6);   // before the markup: measure the text only
     if (v === 45) { txt = beatMarkup(txt, c.text); }
     if (v === 47) { txt = nozeroMarkup(txt); }
     if (v === 50 || v === 51) { txt = tzMarkup(txt, c.text); }
@@ -468,6 +511,7 @@ function clayCustomFn() {
   }
 
   function bandBlock(v, x, y, w, h, c, idx) {
+    v = SUN_AUTO[v] || v;
     var band = indexColor(v);
     if (band) {
       c = { panel: band, text: contrast(band), weekend: c.weekend, tz: c.tz,
@@ -478,7 +522,10 @@ function clayCustomFn() {
     var font = Math.round(h * 0.62);
     // Width the panel to the text (mirrors draw_band sizing to content), so
     // longer strings like "Jun 26" don't wrap onto a second line.
-    var pw = Math.max(Math.round(h * 1.9), Math.round(txt.length * font * 0.62) + 12);
+    // A string wider than the whole banner shrinks to fit it, as on the watch.
+    font = fitPx(txt, font, w - 12);
+    var pw = Math.min(w, Math.max(Math.round(h * 1.9),
+                                  Math.round(textWidth(txt, font)) + 12));
     if (v === 45) { txt = beatMarkup(txt, c.text); }
     if (v === 47) { txt = nozeroMarkup(txt); }   // after the width, so the pill keeps it
     if (v === 50 || v === 51) { txt = tzMarkup(txt, c.text); }
@@ -851,7 +898,9 @@ function clayCustomFn() {
     { name: 'Band color', options: [[33, 'Off'], [41, 'On']] },
     { name: 'Band color', options: [[34, 'Off'], [42, 'On']] },
     { name: 'Band color', options: [[39, 'Off'], [43, 'On']] },
-    { name: 'Band color', options: [[40, 'Off'], [44, 'On']] }
+    { name: 'Band color', options: [[40, 'Off'], [44, 'On']] },
+    { name: 'Type', options: [[62, 'Auto'], [58, 'Sunrise'], [59, 'Sunset']] },
+    { name: 'Type', options: [[63, 'Auto'], [60, 'Sunrise'], [61, 'Sunset']] }
   ];
   var VARIATION_OF = {};
   VARIATIONS.forEach(function(group) {
