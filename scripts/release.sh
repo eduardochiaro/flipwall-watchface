@@ -16,6 +16,7 @@ cd "$(dirname "$0")/.."
 version=$(node -p "require('./package.json').version")
 name=$(node -p "require('./package.json').name")
 
+node scripts/inline-config.mjs
 pebble clean
 pebble build
 

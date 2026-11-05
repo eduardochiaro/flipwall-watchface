@@ -4,6 +4,7 @@ Versions follow `package.json`. Dates are the commit that bumped the version.
 
 ## 3.4.0 — unreleased
 
+- **New settings page:** Clay is gone; the page is custom, in the face's own look, with Face, Style and Presets tabs and a Save button that stays in view. Tap a block on the live preview to tune it and pick from a catalog of every block drawn as itself, filterable by type. Colors come from a honeycomb of the watch's 64 colors with a preview beside it. Presets show as real face thumbnails. Saved faces carry over as they are.
 - **Sunrise / sunset in one block:** the sunrise and sunset blocks share one palette entry, with a Type picker: Auto, Sunrise or Sunset. Auto shows whichever comes next and switches the minute the shown one goes by. Small, banner and big. Faces already using a sunrise or sunset block keep it.
 - **Fix:** in the big time zone and sunrise / sunset blocks, the time is centred above the seam instead of crowding it.
 - **Fix:** in the settings preview, long values (sunrise / sunset, wind direction, time zones) shrink to fit their block instead of spilling out of it.

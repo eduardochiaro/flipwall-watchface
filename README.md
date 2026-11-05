@@ -47,9 +47,15 @@ A digital watchface for Pebble smartwatches based on flip clock design.
 
 ## Configuration options
 
-Configure via the Pebble app settings page. Settings, colors, presets and share codes come first; the face itself sits at the bottom, as a live preview that doubles as the editor. **Tap a block on the preview** and a palette opens right under it holding every block that slot can take, big and small, each drawn as a miniature of itself. Tap one to place it, or tap the face again to close.
+Configure via the Pebble app settings page: a custom page (no Clay) with three tabs and a **Save to watch** button that stays at the bottom. Nothing changes on the watch until you save.
 
-**Selected Block**, below the palette, holds what that one block can be tuned to: its panel color, a **Time zone** picker for the second-time-zone blocks (each block picks its own, so a face can show several zones at once), a **Text** box for the Text block (again one per slot), and — for the blocks that have a choice — a select for the detail that separates two otherwise identical blocks:
+- **Face** — a live preview of your watch's face that doubles as the editor. **Tap a block** and the page shows what that block can be tuned to, then a catalog of every block the slot can take, big and short, each drawn as a miniature of itself and filterable by Time, Date, Activity, Weather and Other. Tap one to place it, or tap the face block again to close.
+- **Style** — layout (Classic or Columns), the face, panel and accent colors, the display switches, language and units, with a small live preview on top.
+- **Presets** — every preset drawn as a real face thumbnail, plus the share code.
+
+Colors are picked from a sheet with the watch's 64 colors laid out as a honeycomb, with a preview of the picked color beside it.
+
+What a block can be tuned to: its panel color, a **Time zone** picker for the second-time-zone blocks (each block picks its own, so a face can show several zones at once), a **Text** box for the Text block (again one per slot), and, for the blocks that have a choice, a picker for the detail that separates two otherwise identical blocks:
 
 | Block | Choice |
 |---|---|
@@ -60,8 +66,9 @@ Configure via the Pebble app settings page. Settings, colors, presets and share 
 | AM/PM (small) | Side by side or stacked diagonally |
 | Second time zone (big or small) | Labelled with the zone's offset (`+9`), its abbreviation (`JST`), or nothing at all |
 | UV index, Air quality (big or small) | Band color off, or the panel painted in the reading's own band color |
+| Sunrise / sunset (big or small) | Auto (whichever comes next), Sunrise or Sunset |
 
-Those variations are listed once in the palette and swapped from the select, so the palette stays a list of *what* a block shows rather than every spelling of it.
+Those variations are listed once in the catalog and swapped from the picker, so the catalog stays a list of *what* a block shows rather than every spelling of it.
 
 ### General
 - **Language** — translates month and weekday names. 10 Latin-script languages: English, Espanol, Portugues, Francais, Deutsch, Italiano, Nederlands, Polski, Turkce, Indonesia.
@@ -85,7 +92,7 @@ Both faces are two columns. Blocks come in two sizes — **big** (fills a square
   - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Max/Min temp (small or big), Humidity (small or big), Precipitation, UV index (small or big, plain or `- color`), Air quality (small or big, plain or `- color`), Wind speed (small or big), Wind direction (small or big), Sunrise / sunset (small or big; type Auto, Sunrise or Sunset)
   - **Other:** Text (small)
 
-  The palette groups them by size first (the column rule pairs one big with one small, so that is the choice that matters) and then by content — Time, Date, Activity, Weather, Other — in that order.
+  The catalog groups them by size first (the column rule pairs one big with one small, so that is the choice that matters) and then by content — Time, Date, Activity, Weather, Other — in that order.
 
   Big two-line blocks stack a caption over a large value: Calendar, Calendar + Month, Humidity (`Hum` / `47%`), Battery (`Batt` / `82%`), Heart rate (number / `BPM`), Distance (number / `KM`·`M`·`MI`), UV index (`UV Index` / `7`), Wind speed (number / `KM/H`·`MPH`), Air quality (number / `AQI`), Sunrise and Sunset (the time / `Sunrise`·`Sunset`). Max/Min temp (big) stacks the max over the min, with the min drawn in the accent color like the big digital clock. Captions (`Hum`, `Batt`) are translated with the language setting; `UV Index`, `Sunrise` and `Sunset` are not, they read the same everywhere.
 
@@ -127,14 +134,14 @@ The **Share Settings** section shows a code for the current face — every block
 
 Copy it to back a face up or pass it to someone else; paste one into the box and tap **Import** to load it, then **Save** to send it to the watch.
 
-The **Presets** buttons are the same thing: each preset is a stored code, applied the way a pasted one is — everything except **Language**, **Units**, **Show seconds** and **Flip animation**, which stay yours. So a new preset is made by building the face, copying its code and dropping it into the `PRESETS` list in `src/pkjs/modules/preview.js`.
+The **Presets** buttons are the same thing: each preset is a stored code, applied the way a pasted one is — everything except **Language**, **Units**, **Show seconds** and **Flip animation**, which stay yours. So a new preset is made by building the face, copying its code and dropping it into the `PRESETS` list in `src/pkjs/modules/code.js`.
 
 The alphabet is [Crockford base32](https://www.crockford.com/base32.html) — digits and uppercase letters only, with `I`, `L`, `O` and `U` left out so nothing gets misread as a digit. Case doesn't matter on the way in, `I`/`L` are read as `1` and `O` as `0`, and any spaces or dashes added for readability are ignored, so a code survives being retyped or wrapped by a chat app. Codes carry a version marker and a checksum, so one from a different version, or one that lost characters on the way, is refused instead of half-applied.
 
 ### Colors
 - **Face background** — color behind the panels.
 - **All panels** — master panel color; sets every block and the banner at once. Override any individual one afterward.
-- **Per-block panel colors** — each quadrant (Top/Bottom × Left/Right), the banner and the two column middles have their own color picker, shown under **Selected Block** while that block is tapped on the preview, so blocks can differ. Changing **All panels** (or applying a preset) refills them.
+- **Per-block panel colors** — each quadrant (Top/Bottom × Left/Right), the banner and the two column middles have their own color picker, shown with the block's options while it is tapped on the preview, so blocks can differ. Changing **All panels** (or applying a preset) refills them.
 - **Weekend / accent** — day-of-week panel color on weekends, also used for the inactive AM/PM label.
 
 Text color is automatic: black on light backgrounds, white on dark ones. On the big digital clock (minutes) and the big Max/Min temp (min), the secondary value is drawn in an auto-derived accent shade of the text color (lighter on dark panels, darker on light ones).
@@ -143,10 +150,11 @@ Text color is automatic: black on light backgrounds, white on dark ones. On the 
 
 | Command | What it does |
 |---|---|
-| `npm run build` | Clean build of the `.pbw` for all seven platforms |
-| `npm test` | Host tests — the C formatters and wire parser compiled against a stub SDK, plus the config page, share codes, packing and weather fetch under Node. No SDK or emulator needed |
+| `npm run build` | Inline the settings page (`src/pkjs/page/` into `src/pkjs/page.js`), then a clean build of the `.pbw` for all seven platforms |
+| `npm test` | Host tests — the C formatters and wire parser compiled against a stub SDK, plus the settings page's block catalog (checked against the C enum), share codes, face preview, packing and weather fetch under Node. No SDK or emulator needed |
 | `npm run emulator` | Build and install into the Pebble emulator (`npm run phone` for a real watch) |
-| `npm run config` | Open the config page against the emulator |
+| `npm run config` | Open the settings page against the emulator |
+| `npm run page` | Build the settings page into `build/config-dev.html`, to open in a browser |
 | `npm run release` | Release build into `dist/<version>/` — the same bundle with the JS source map dropped and every entry deflated, roughly half the size over Bluetooth |
 | `npm run font` | Rebuild the vector font (`resources/fonts/mono.ffont`) from the TTF |
 

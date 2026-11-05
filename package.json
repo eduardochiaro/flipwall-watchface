@@ -10,7 +10,8 @@
   ],
   "private": true,
   "scripts": {
-    "build": "pebble clean && pebble build",
+    "build": "node scripts/inline-config.mjs && pebble clean && pebble build",
+    "page": "node scripts/inline-config.mjs build/config-dev.html",
     "release": "./scripts/release.sh",
     "test": "./test/run.sh",
     "emulator": "npm run build && pebble install --emulator ",
@@ -203,7 +204,6 @@
     }
   },
   "dependencies": {
-    "@rebble/clay": "^1.0.10",
     "pebble-fctx": "^1.6.5"
   },
   "devDependencies": {

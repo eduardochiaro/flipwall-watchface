@@ -4,7 +4,7 @@
 var path = require('path');
 var assert = require('assert');
 var src = path.join(__dirname, '..', 'src', 'pkjs');
-var configDef = require(src + '/config');
+var catalog = require(src + '/modules/catalog');
 
 global.localStorage = { getItem: function() { return null; } };
 var weather = require(src + '/modules/weather');
@@ -28,25 +28,12 @@ function face(blocks) {
 // A face with no weather block anywhere skips the fetch (and the GPS fix).
 ok(requestedFields(face()) === null, 'a weather-free face still fetches');
 
-// Every weather block the config page offers has to pull its own field, in any
+// Every weather block the settings page offers has to pull its own field, in any
 // slot that can hold it — including the 6-block column middles, which are the
 // two slots the block list used to leave out.
 var slots = ['BLOCK_TOP_LEFT', 'BLOCK_BAND', 'BLOCK_MID_LEFT', 'BLOCK_MID_RIGHT'];
 function weatherIds() {
-  var ids = [];
-  (function walk(items) {
-    items.forEach(function(it) {
-      if (it.items) { return walk(it.items); }
-      if (!it.options || String(it.messageKey).indexOf('BLOCK_') !== 0) { return; }
-      it.options.forEach(function(group) {
-        if (String(group.label).indexOf('Weather') < 0) { return; }
-        group.value.forEach(function(o) {
-          if (ids.indexOf(o.value) < 0) { ids.push(o.value); }
-        });
-      });
-    });
-  })(configDef);
-  return ids;
+  return catalog.ORDER.filter(function(id) { return catalog.BLOCKS[id].cat === 'weather'; });
 }
 
 weatherIds().forEach(function(id) {

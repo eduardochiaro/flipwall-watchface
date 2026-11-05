@@ -1,6 +1,6 @@
 var pack = require('./pack');
 
-// Clay persists the saved settings to localStorage under 'clay-settings'.
+// index.js saves the settings to localStorage under 'clay-settings'.
 function settings() {
   try {
     return JSON.parse(localStorage.getItem('clay-settings')) || {};
