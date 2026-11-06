@@ -9,15 +9,17 @@ static uint16_t luminance(GColor c) {
 
 GColor get_closest_accent_color(GColor c) {
   uint8_t r = (uint8_t)(c.r * 85), g = (uint8_t)(c.g * 85), b = (uint8_t)(c.b * 85);
-  // Lighten dark colors, darken light ones.
-  if ((r * 30 + g * 59 + b * 11) / 100 < 128) {
-    r = (uint8_t)(r + (255 - r) * 0.3);
-    g = (uint8_t)(g + (255 - g) * 0.3);
-    b = (uint8_t)(b + (255 - b) * 0.3);
+  // Lighten dark colors 30% toward white, darken light ones 30% toward black.
+  // Integer math: a double here links ~1.4KB of soft-float code, and the code
+  // shares the 64KB with the heap fctx draws from (see fctx_open).
+  if (luminance(c) < 128) {
+    r = r + (255 - r) * 3 / 10;
+    g = g + (255 - g) * 3 / 10;
+    b = b + (255 - b) * 3 / 10;
   } else {
-    r = (uint8_t)(r * 0.7);
-    g = (uint8_t)(g * 0.7);
-    b = (uint8_t)(b * 0.7);
+    r = r * 7 / 10;
+    g = g * 7 / 10;
+    b = b * 7 / 10;
   }
   return GColorFromRGB(r, g, b);
 }

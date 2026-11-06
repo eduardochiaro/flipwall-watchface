@@ -383,8 +383,8 @@ static void layout(void) {
 }
 
 // What real-world change forces a given block to repaint.
-typedef enum { TRG_DATE, TRG_CLOCK, TRG_HEALTH, TRG_BATTERY, TRG_WEATHER,
-               TRG_UTILITY } Trigger;
+typedef enum { TRG_DATE, TRG_HOUR, TRG_CLOCK, TRG_HEALTH, TRG_BATTERY,
+               TRG_WEATHER, TRG_UTILITY } Trigger;
 
 static Trigger block_trigger(QuadBlock b) {
   switch (b) {
@@ -406,13 +406,29 @@ static Trigger block_trigger(QuadBlock b) {
     case BLK_TZ_BIG:
     case BLK_TZ_BIG_ABBR:
     case BLK_TZ_NONE:
-    case BLK_TZ_BIG_NONE: return TRG_CLOCK;
+    case BLK_TZ_BIG_NONE:
+    case BLK_DAY_PROG:     // a percent every ~14 minutes
+    case BLK_DAY_PROG_BIG: return TRG_CLOCK;
+    // A percent every ~100 minutes for the week, ~7 hours for the moon: the
+    // hour is soon enough.
+    case BLK_WEEK_PROG:
+    case BLK_WEEK_PROG_BIG:
+    case BLK_MOON:
+    case BLK_MOON_BIG:     return TRG_HOUR;
     case BLK_STEPS:
     case BLK_STEPS_FULL:
     case BLK_KM:
     case BLK_KM_BIG:
     case BLK_HR:
-    case BLK_HR_BIG:   return TRG_HEALTH;
+    case BLK_HR_BIG:
+    case BLK_CALORIES:
+    case BLK_CALORIES_BIG:
+    case BLK_CALORIES_ACT:
+    case BLK_CALORIES_ACT_BIG:
+    case BLK_ACTIVE:
+    case BLK_ACTIVE_BIG:
+    case BLK_SLEEP:
+    case BLK_SLEEP_BIG: return TRG_HEALTH;
     case BLK_BATTERY:
     case BLK_BATTERY_BIG: return TRG_BATTERY;
     case BLK_WEATHER:
@@ -443,7 +459,7 @@ static Trigger block_trigger(QuadBlock b) {
     case BLK_SUN:
     case BLK_SUN_BIG:    return TRG_WEATHER;
     case BLK_UTILITY:  return TRG_UTILITY;
-    default:           return TRG_DATE;   // dow / day / month / year / *_day
+    default:           return TRG_DATE;   // dow / day / month / year / week...
   }
 }
 
@@ -496,6 +512,7 @@ static void tick_handler(struct tm *tick_time, TimeUnits units_changed) {
     for (int i = 0; i < POS_COUNT; i++)
       if (s_blocks[i] == BLK_SUN || s_blocks[i] == BLK_SUN_BIG) block_dirty(i);
   }
+  if (s_now.tm_min == 0) mark_blocks(TRG_HOUR);
   if (s_now.tm_yday != s_prev_yday) {   // crossed midnight
     s_prev_yday = s_now.tm_yday;
     mark_blocks(TRG_DATE);

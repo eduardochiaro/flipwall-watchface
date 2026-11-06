@@ -11,40 +11,47 @@
 // Block-kind metadata
 // ---------------------------------------------------------------------------
 
-// Block-kind sets. Every id is under 64, so each set is one bit mask: shorter
-// than an or-chain per member, and a mistyped name is a compile error.
-#define BLKBIT(b) (1ULL << (b))
+// What each block kind is: big (square; anything else is a short half-height
+// one) and whether the banner can hold it (the short blocks that draw as one
+// centred string, or an icon + value, so the panel can hug their text). One
+// byte per kind; a mistyped name is a compile error, an unlisted kind is short
+// and grid-only.
+enum { BIG = 1, BAND = 2 };
+static const uint8_t KIND[BLK_COUNT] = {
+  [BLK_DAY] = BIG, [BLK_CLOCK] = BIG, [BLK_WEATHER] = BIG,
+  [BLK_TEMP_BIG] = BIG, [BLK_DIGITAL_BIG] = BIG, [BLK_DIGITAL_BIG_NOZERO] = BIG,
+  [BLK_HOURS_BIG] = BIG, [BLK_MINUTES_BIG] = BIG, [BLK_CALENDAR] = BIG,
+  [BLK_MONTH_CAL] = BIG, [BLK_HUMIDITY_BIG] = BIG, [BLK_BATTERY_BIG] = BIG,
+  [BLK_HR_BIG] = BIG, [BLK_KM_BIG] = BIG, [BLK_MINMAX_BIG] = BIG,
+  [BLK_UV_BIG] = BIG, [BLK_UV_BIG_COLOR] = BIG, [BLK_WIND_BIG] = BIG,
+  [BLK_WIND_DIR_BIG] = BIG, [BLK_AQI_BIG] = BIG, [BLK_AQI_BIG_COLOR] = BIG,
+  [BLK_BEAT_BIG] = BIG, [BLK_TZ_BIG] = BIG, [BLK_TZ_BIG_ABBR] = BIG,
+  [BLK_TZ_BIG_NONE] = BIG, [BLK_SUNRISE_BIG] = BIG, [BLK_SUNSET_BIG] = BIG,
+  [BLK_SUN_BIG] = BIG, [BLK_MOON_BIG] = BIG, [BLK_YEAR_PROG_BIG] = BIG,
+  [BLK_MONTH_PROG_BIG] = BIG, [BLK_WEEK_PROG_BIG] = BIG, [BLK_DAY_PROG_BIG] = BIG,
+  [BLK_WEEK_NUM_BIG] = BIG, [BLK_YEARDAY_BIG] = BIG, [BLK_CALORIES_BIG] = BIG,
+  [BLK_CALORIES_ACT_BIG] = BIG, [BLK_ACTIVE_BIG] = BIG, [BLK_SLEEP_BIG] = BIG,
 
-// "Big" (square) blocks; everything else is a short half-height one.
-static const uint64_t BIG_SET =
-    BLKBIT(BLK_DAY) | BLKBIT(BLK_CLOCK) | BLKBIT(BLK_WEATHER) |
-    BLKBIT(BLK_TEMP_BIG) | BLKBIT(BLK_DIGITAL_BIG) |
-    BLKBIT(BLK_DIGITAL_BIG_NOZERO) | BLKBIT(BLK_HOURS_BIG) |
-    BLKBIT(BLK_MINUTES_BIG) | BLKBIT(BLK_CALENDAR) | BLKBIT(BLK_MONTH_CAL) |
-    BLKBIT(BLK_HUMIDITY_BIG) | BLKBIT(BLK_BATTERY_BIG) | BLKBIT(BLK_HR_BIG) |
-    BLKBIT(BLK_KM_BIG) | BLKBIT(BLK_MINMAX_BIG) | BLKBIT(BLK_UV_BIG) |
-    BLKBIT(BLK_UV_BIG_COLOR) | BLKBIT(BLK_WIND_BIG) | BLKBIT(BLK_WIND_DIR_BIG) |
-    BLKBIT(BLK_AQI_BIG) | BLKBIT(BLK_AQI_BIG_COLOR) | BLKBIT(BLK_BEAT_BIG) |
-    BLKBIT(BLK_TZ_BIG) | BLKBIT(BLK_TZ_BIG_ABBR) | BLKBIT(BLK_TZ_BIG_NONE) |
-    BLKBIT(BLK_SUNRISE_BIG) | BLKBIT(BLK_SUNSET_BIG) | BLKBIT(BLK_SUN_BIG);
-
-// What the banner can hold: the short blocks that draw as one centred string
-// (or an icon + value), so the panel can hug their text.
-static const uint64_t BAND_SET =
-    BLKBIT(BLK_YEAR) | BLKBIT(BLK_STEPS) | BLKBIT(BLK_STEPS_FULL) | BLKBIT(BLK_KM) |
-    BLKBIT(BLK_BATTERY) | BLKBIT(BLK_MONTH_DAY) | BLKBIT(BLK_DOW_DAY) |
-    BLKBIT(BLK_TEMP) | BLKBIT(BLK_TEMP_ICON) | BLKBIT(BLK_HUMIDITY) |
-    BLKBIT(BLK_MINMAX) | BLKBIT(BLK_PRECIP) | BLKBIT(BLK_DIGITAL) |
-    BLKBIT(BLK_DIGITAL_NOZERO) | BLKBIT(BLK_HR) | BLKBIT(BLK_UV) |
-    BLKBIT(BLK_UV_COLOR) | BLKBIT(BLK_WIND) | BLKBIT(BLK_WIND_DIR) |
-    BLKBIT(BLK_AQI) | BLKBIT(BLK_AQI_COLOR) | BLKBIT(BLK_BEAT) |
-    BLKBIT(BLK_TZ) | BLKBIT(BLK_TZ_ABBR) | BLKBIT(BLK_TZ_NONE) |
-    BLKBIT(BLK_TEXT) | BLKBIT(BLK_SUNRISE) | BLKBIT(BLK_SUNSET) | BLKBIT(BLK_SUN);
+  [BLK_YEAR] = BAND, [BLK_STEPS] = BAND, [BLK_STEPS_FULL] = BAND, [BLK_KM] = BAND,
+  [BLK_BATTERY] = BAND, [BLK_MONTH_DAY] = BAND, [BLK_DOW_DAY] = BAND,
+  [BLK_TEMP] = BAND, [BLK_TEMP_ICON] = BAND, [BLK_HUMIDITY] = BAND,
+  [BLK_MINMAX] = BAND, [BLK_PRECIP] = BAND, [BLK_DIGITAL] = BAND,
+  [BLK_DIGITAL_NOZERO] = BAND, [BLK_HR] = BAND, [BLK_UV] = BAND,
+  [BLK_UV_COLOR] = BAND, [BLK_WIND] = BAND, [BLK_WIND_DIR] = BAND,
+  [BLK_AQI] = BAND, [BLK_AQI_COLOR] = BAND, [BLK_BEAT] = BAND,
+  [BLK_TZ] = BAND, [BLK_TZ_ABBR] = BAND, [BLK_TZ_NONE] = BAND,
+  [BLK_TEXT] = BAND, [BLK_SUNRISE] = BAND, [BLK_SUNSET] = BAND, [BLK_SUN] = BAND,
+  [BLK_MOON] = BAND, [BLK_YEAR_PROG] = BAND, [BLK_MONTH_PROG] = BAND,
+  [BLK_WEEK_PROG] = BAND, [BLK_DAY_PROG] = BAND, [BLK_WEEK_NUM] = BAND,
+  [BLK_YEARDAY] = BAND, [BLK_DATE_DM] = BAND, [BLK_DATE_MD] = BAND,
+  [BLK_CALORIES] = BAND, [BLK_CALORIES_ACT] = BAND, [BLK_ACTIVE] = BAND,
+  [BLK_SLEEP] = BAND,
+};
 
 // Every block kind is legal in the 2x2 grid; the banner takes a subset.
 bool block_valid_grid(int v) { return v >= BLK_DOW && v < BLK_COUNT; }
-bool block_valid_band(int v) { return block_valid_grid(v) && (BAND_SET >> v & 1); }
-bool block_is_short(QuadBlock b) { return !(BIG_SET >> b & 1); }
+bool block_valid_band(int v) { return block_valid_grid(v) && (KIND[v] & BAND); }
+bool block_is_short(QuadBlock b) { return !(KIND[b] & BIG); }
 
 // A "- colour" variant draws exactly like the block it mirrors; only the panel
 // colour differs (see block_panel_color). The auto sun blocks draw as whichever
@@ -172,11 +179,27 @@ static void text_corner(GContext *ctx, GRect r, const char *txt, int cap_h,
 
 #else  // fctx vector font
 
+// fctx draws into a scratch buffer the size of the screen that it takes from
+// the heap for each string: a byte per pixel on colour (24KB on basalt). The
+// code shares a colour watch's 64KB with that heap, and with the font and the
+// health service's own state in it too there's ~1KB to spare on basalt. When
+// the buffer doesn't fit fctx doesn't check: it draws through NULL and the app
+// dies. Skip the string instead.
+// ponytail: fctx_enable_aa(false) as a fallback would draw it jagged, but it
+// links fctx's black-and-white renderer, ~1.4KB: the margin it would rescue.
+// Watch basalt's free heap at the first draw when the code grows.
+static bool fctx_open(FContext *f, GContext *ctx) {
+  fctx_init_context(f, ctx);
+  if (f->flag_buffer) return true;
+  fctx_deinit_context(f);
+  return false;
+}
+
 static void fctx_text(GContext *ctx, GPoint anchor, const char *txt, int cap_h,
                       GColor color, GTextAlignment align, FTextAnchor vanchor) {
   if (!s_ffont) return;   // font failed to load -> draw nothing (no crash)
   FContext f;
-  fctx_init_context(&f, ctx);
+  if (!fctx_open(&f, ctx)) return;
   // fctx draws in absolute framebuffer coords; shift by the layer's origin.
   fctx_set_offset(&f, FPointI(anchor.x + s_draw_origin.x,
                               anchor.y + s_draw_origin.y));
@@ -200,7 +223,7 @@ static void text_in_rect(GContext *ctx, GRect r, const char *txt, int cap_h,
 static int text_width(GContext *ctx, const char *txt, int cap_h) {
   if (!s_ffont) return 0;
   FContext f;
-  fctx_init_context(&f, ctx);
+  if (!fctx_open(&f, ctx)) return 0;
   fctx_set_text_cap_height(&f, s_ffont, cap_h);
   int w = FIXED_TO_INT(fctx_string_width(&f, txt, s_ffont));
   fctx_deinit_context(&f);
@@ -299,6 +322,84 @@ static void tz_label_str(char *buf, size_t n, bool abbr) {
 static int beat_time(void) {
   return (int)(((time(NULL) + 3600) % 86400) * 1000 / 86400);
 }
+
+// Where the moon is in its cycle, as a TRIG angle: 0 new, half the circle full.
+// ponytail: the mean cycle, up to half a day off the real moon.
+#define SYNODIC  2551443    // seconds from one new moon to the next
+#define NEW_MOON 947182440  // one of them: 2000-01-06 18:14 UTC
+// 32-bit on purpose: 64-bit division links ~1KB of libgcc. In 39 s steps the
+// cycle is 65421 of them, and 65421 * TRIG_MAX_ANGLE still fits a uint32.
+static int32_t moon_phase(void) {
+  uint32_t step = (uint32_t)((time(NULL) - NEW_MOON) % SYNODIC) / 39;
+  return (int32_t)(step * TRIG_MAX_ANGLE / (SYNODIC / 39));
+}
+// How much of it is lit, 0..100.
+static int moon_lit(void) {
+  return (TRIG_MAX_RATIO - cos_lookup(moon_phase())) * 50 / TRIG_MAX_RATIO;
+}
+
+static int year_days(int y) {
+  return (y % 4 == 0 && (y % 100 != 0 || y % 400 == 0)) ? 366 : 365;
+}
+static int month_days(void) {
+  static const uint8_t DAYS[12] = { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31 };
+  return DAYS[s_now.tm_mon] + (s_now.tm_mon == 1 && year_days(s_now.tm_year + 1900) == 366);
+}
+// Days since Monday. ponytail: weeks start on Monday (ISO); a week-start
+// setting goes here if Sunday-first wearers ask.
+static int week_day(void) { return (s_now.tm_wday + 6) % 7; }
+
+// ISO 8601: a week belongs to the year its Thursday is in.
+static int iso_week(void) {
+  int y = s_now.tm_year + 1900;
+  int thu = s_now.tm_yday - week_day() + 3;
+  if (thu < 0) thu += year_days(y - 1);
+  else if (thu >= year_days(y)) thu -= year_days(y);
+  return thu / 7 + 1;
+}
+
+// How much of the year / month / week / day is gone, in %, and its name into
+// `name`: the year, the month, "Week", the weekday.
+static int progress(QuadBlock b, char *name, size_t n) {
+  int y = s_now.tm_year + 1900, mins = s_now.tm_hour * 60 + s_now.tm_min;
+  switch (b) {
+    case BLK_DAY_PROG: case BLK_DAY_PROG_BIG:
+      snprintf(name, n, "%s", wday_name());
+      return mins * 100 / (24 * 60);
+    case BLK_WEEK_PROG: case BLK_WEEK_PROG_BIG:
+      snprintf(name, n, "%s", week_label());
+      return (week_day() * 24 * 60 + mins) * 100 / (7 * 24 * 60);
+    case BLK_MONTH_PROG: case BLK_MONTH_PROG_BIG:
+      snprintf(name, n, "%s", month_name());
+      return (s_now.tm_mday - 1) * 100 / month_days();
+    default:
+      snprintf(name, n, "%d", y);
+      return s_now.tm_yday * 100 / year_days(y);
+  }
+}
+
+// Health readouts: "--" where there is no Health (aplite). Sleep is what was
+// slept since midnight, as the health service counts it.
+#if defined(PBL_HEALTH)
+static int health_today(HealthMetric m) { return (int)health_service_sum_today(m); }
+static void kcal_str(char *buf, size_t n, bool resting) {
+  int k = health_today(HealthMetricActiveKCalories);
+  if (resting) k += health_today(HealthMetricRestingKCalories);
+  snprintf(buf, n, "%d", k);
+}
+static void sleep_str(char *buf, size_t n) {
+  int m = health_today(HealthMetricSleepSeconds) / 60;
+  if (m > 0) snprintf(buf, n, "%dh%02d", m / 60, m % 60);
+  else       snprintf(buf, n, "--");
+}
+static void active_str(char *buf, size_t n, const char *unit) {
+  snprintf(buf, n, "%d%s", health_today(HealthMetricActiveSeconds) / 60, unit);
+}
+#else
+static void kcal_str(char *buf, size_t n, bool resting) { (void)resting; snprintf(buf, n, "--"); }
+static void sleep_str(char *buf, size_t n) { snprintf(buf, n, "--"); }
+static void active_str(char *buf, size_t n, const char *unit) { (void)unit; snprintf(buf, n, "--"); }
+#endif
 
 // Compact value text for the data blocks (year / steps / km / battery / weather).
 // Health metrics fall back to "--" on platforms without Health (e.g. aplite).
@@ -430,6 +531,43 @@ static void block_text(QuadBlock blk, char *buf, size_t n) {
 #endif
       break;
     }
+    case BLK_MOON:
+      snprintf(buf, n, "%d%%", moon_lit());
+      break;
+    case BLK_YEAR_PROG:
+    case BLK_MONTH_PROG:
+    case BLK_WEEK_PROG:
+    case BLK_DAY_PROG: {
+      char name[12];
+      int p = progress(b, name, sizeof name);
+      snprintf(buf, n, "%s %d%%", name, p);
+      break;
+    }
+    case BLK_WEEK_NUM:
+      snprintf(buf, n, "%s %d", week_label(), iso_week());
+      break;
+    case BLK_YEARDAY:
+      snprintf(buf, n, "%s %d", day_label(), s_now.tm_yday + 1);
+      break;
+    case BLK_DATE_DM:
+      snprintf(buf, n, "%d/%d", s_now.tm_mday, s_now.tm_mon + 1);
+      break;
+    case BLK_DATE_MD:
+      snprintf(buf, n, "%d/%d", s_now.tm_mon + 1, s_now.tm_mday);
+      break;
+    case BLK_CALORIES:
+    case BLK_CALORIES_ACT: {
+      char v[8];
+      kcal_str(v, sizeof v, b == BLK_CALORIES);
+      snprintf(buf, n, "%s%s", v, v[0] == '-' ? "" : "kcal");
+      break;
+    }
+    case BLK_ACTIVE:
+      active_str(buf, n, "min");
+      break;
+    case BLK_SLEEP:
+      sleep_str(buf, n);
+      break;
     default:
       buf[0] = '\0';
       break;
@@ -626,7 +764,7 @@ static void split_num_unit(const char *src, char *num, size_t nn,
 // below (HR / UV / distance / wind / AQI / .beat). Only the strings and the
 // caption colour vary, so they share one body.
 static void draw_caption_block(GContext *ctx, GRect r, QuadBlock blk) {
-  char val[16], num[8], unit[8], zone[10];
+  char val[16], num[8], unit[8], zone[12];
   const char *caption = "", *value = val;
   GColor caption_fg = s_text_fg;
   bool label_top = false;
@@ -686,6 +824,40 @@ static void draw_caption_block(GContext *ctx, GRect r, QuadBlock blk) {
       block_text(blk, val, sizeof(val));
       caption = blk == BLK_SUNSET_BIG ? "Sunset" : "Sunrise";
       caption_fg = get_closest_accent_color(s_text_fg);
+      break;
+    // Progress: the year / month / "Week" / weekday over how much of it is gone.
+    case BLK_YEAR_PROG_BIG:
+    case BLK_MONTH_PROG_BIG:
+    case BLK_WEEK_PROG_BIG:
+    case BLK_DAY_PROG_BIG:
+      snprintf(val, sizeof(val), "%d%%", progress(blk, zone, sizeof(zone)));
+      caption = zone;
+      label_top = true;
+      break;
+    case BLK_WEEK_NUM_BIG:
+      snprintf(val, sizeof(val), "%d", iso_week());
+      caption = week_label();
+      label_top = true;
+      break;
+    case BLK_YEARDAY_BIG:
+      snprintf(val, sizeof(val), "%d", s_now.tm_yday + 1);
+      caption = day_label();
+      label_top = true;
+      break;
+    case BLK_CALORIES_BIG:
+    case BLK_CALORIES_ACT_BIG:   // number over its unit, like the heart rate
+      kcal_str(val, sizeof(val), blk == BLK_CALORIES_BIG);
+      caption = "KCAL";
+      break;
+    case BLK_ACTIVE_BIG:
+      active_str(val, sizeof(val), "m");
+      caption = active_label();
+      label_top = true;
+      break;
+    case BLK_SLEEP_BIG:
+      sleep_str(val, sizeof(val));
+      caption = sleep_label();
+      label_top = true;
       break;
     // Number over its unit, both taken from the short block's own formatting
     // (same rounding / imperial handling).
@@ -825,8 +997,43 @@ static void draw_clock(GContext *ctx, GRect r) {
 // TRIG_MAX_ANGLE value; 0 = upright) about the icon's centre. PDC has no scale or
 // rotate API, so the icon is recreated each redraw and its points transformed.
 // Shared by the weather icon block, the HR block and the wind arrow.
+// The moon as it looks tonight, fitted in `box` like an icon: the disc in the
+// icon fill, the lit part in the stroke colour, ringed in it. The lit part is the
+// limb down one side in 15-degree chords, then back up the terminator (the same
+// half ellipse squeezed by cos(phase), past the middle once the moon is gibbous).
+// ponytail: as seen from the northern hemisphere; mirror `dir` for the southern.
+#define ICON_MOON 0xFFFFFFFFu   // a resource id no pdc has: draw_pdc_in draws this
+static void draw_moon(GContext *ctx, GRect box, GColor lit, GColor dark) {
+  int side = box.size.w < box.size.h ? box.size.w : box.size.h;
+  int r = side / 2 - 1;
+  if (r < 2) return;
+  GPoint c = GPoint(box.origin.x + box.size.w / 2, box.origin.y + box.size.h / 2);
+  graphics_context_set_fill_color(ctx, dark);
+  graphics_fill_circle(ctx, c, r);
+
+  enum { N = 12 };
+  GPoint pts[2 * N];
+  int32_t phase = moon_phase();
+  int dir = phase < TRIG_MAX_ANGLE / 2 ? 1 : -1;   // waxing: lit on the right
+  int32_t k = cos_lookup(phase);
+  for (int i = 0; i < 2 * N; i++) {
+    int32_t a = (i <= N ? i : 2 * N - i) * (TRIG_MAX_ANGLE / 2) / N;
+    int32_t w = r * sin_lookup(a) / TRIG_MAX_RATIO;
+    if (i > N) w = w * k / TRIG_MAX_RATIO;
+    pts[i] = GPoint(c.x + dir * w, c.y - r * cos_lookup(a) / TRIG_MAX_RATIO);
+  }
+  GPath path = { .num_points = 2 * N, .points = pts };
+  graphics_context_set_fill_color(ctx, lit);
+  gpath_draw_filled(ctx, &path);
+
+  graphics_context_set_stroke_color(ctx, lit);
+  graphics_context_set_stroke_width(ctx, 1);
+  graphics_draw_circle(ctx, c, r);
+}
+
 static void draw_pdc_in(GContext *ctx, uint32_t res_id, GRect box,
                         GColor stroke, GColor fill, int32_t angle) {
+  if (res_id == ICON_MOON) { draw_moon(ctx, box, stroke, fill); return; }
   GDrawCommandImage *img = gdraw_command_image_create_with_resource(res_id);
   if (!img) return;
   GSize native = gdraw_command_image_get_bounds_size(img);
@@ -935,21 +1142,40 @@ static void draw_utility(GContext *ctx, GRect r) {
   draw_seam(ctx, r);
 }
 
-// Big wind direction: the arrow (rotated to the wind's bearing) over the compass
-// word. Same 12% margin / 19%-cap caption as draw_caption_value, but the big
-// line is an icon instead of text.
-static void draw_wind_dir_big(GContext *ctx, GRect r) {
+// A big icon over a caption: the wind arrow (rotated to the wind's bearing)
+// over the compass word, the moon over how much of it is lit. Same 12% margin /
+// 19%-cap caption as draw_caption_value, but the big line is an icon.
+static void draw_icon_caption(GContext *ctx, GRect r, uint32_t res_id,
+                              int32_t angle, const char *caption) {
   draw_panel(ctx, r, s_panel_bg);
-  char dir[8];
-  weather_wind_dir_str(dir, sizeof(dir));
   int m    = r.size.h * 12 / 100;
   int band = r.size.h * 30 / 100;         // bottom caption band
   GRect ibox = GRect(r.origin.x, r.origin.y + m, r.size.w,
                      r.size.h - m - band);
-  draw_pdc_in(ctx, RESOURCE_ID_ICON_WIND_DIRECTION_N, ibox, s_text_fg,
-              get_closest_accent_color(s_panel_bg), weather_wind_angle());
+  draw_pdc_in(ctx, res_id, ibox, s_text_fg, get_closest_accent_color(s_panel_bg),
+              angle);
   GRect cr = GRect(r.origin.x, r.origin.y + r.size.h - band, r.size.w, band - m);
-  draw_centered(ctx, cr, dir, r.size.h * 19 / 100, s_text_fg);
+  draw_centered(ctx, cr, caption, r.size.h * 19 / 100, s_text_fg);
+  draw_seam(ctx, r);
+}
+
+// The week as seven bars from Monday: the days gone and today lit in the text
+// colour, today standing taller, the rest ghosted in the panel's accent (the
+// utility block's off state).
+static void draw_week_strip(GContext *ctx, GRect r) {
+  draw_panel(ctx, r, s_panel_bg);
+  int today = week_day();
+  GColor ghost = get_closest_accent_color(s_panel_bg);
+  const int gap = 3;
+  int cell = (r.size.w - 12 - 6 * gap) / 7;
+  if (cell < 2) cell = 2;
+  int x = r.origin.x + (r.size.w - (7 * cell + 6 * gap)) / 2;
+  for (int i = 0; i < 7; i++, x += cell + gap) {
+    int h = r.size.h * (i == today ? 60 : 34) / 100;
+    graphics_context_set_fill_color(ctx, i <= today ? s_text_fg : ghost);
+    graphics_fill_rect(ctx, GRect(x, r.origin.y + (r.size.h - h) / 2, cell, h),
+                       cell > 4 ? 2 : 0, GCornersAll);
+  }
   draw_seam(ctx, r);
 }
 
@@ -981,6 +1207,7 @@ void draw_band(GContext *ctx, GRect band, QuadBlock band_blk) {
                     : blk == BLK_TEMP_ICON ? weather_icon_resource_small()
                     : blk == BLK_SUNRISE   ? RESOURCE_ID_ICON_SUNRISE
                     : blk == BLK_SUNSET    ? RESOURCE_ID_ICON_SUNSET
+                    : blk == BLK_MOON      ? ICON_MOON
                     : 0;
   // Only the wind arrow turns; every other banner icon is drawn upright.
   int32_t icon_angle = blk == BLK_WIND_DIR ? weather_wind_angle() : 0;
@@ -1045,9 +1272,26 @@ void draw_block(GContext *ctx, QuadBlock blk, GRect r) {
     case BLK_UV_BIG:    case BLK_WIND_BIG:  case BLK_AQI_BIG:
     case BLK_BEAT_BIG:  case BLK_TZ_BIG:    case BLK_TZ_BIG_ABBR:
     case BLK_SUNRISE_BIG: case BLK_SUNSET_BIG:
+    case BLK_YEAR_PROG_BIG: case BLK_MONTH_PROG_BIG: case BLK_WEEK_PROG_BIG:
+    case BLK_DAY_PROG_BIG: case BLK_WEEK_NUM_BIG: case BLK_YEARDAY_BIG:
+    case BLK_CALORIES_BIG: case BLK_CALORIES_ACT_BIG: case BLK_ACTIVE_BIG:
+    case BLK_SLEEP_BIG:
       draw_caption_block(ctx, r, base_block(blk)); break;
     case BLK_MINMAX_BIG: draw_minmax_big(ctx, r); break;
-    case BLK_WIND_DIR_BIG: draw_wind_dir_big(ctx, r); break;
+    case BLK_WIND_DIR_BIG: {
+      char d[8]; weather_wind_dir_str(d, sizeof d);
+      draw_icon_caption(ctx, r, RESOURCE_ID_ICON_WIND_DIRECTION_N,
+                        weather_wind_angle(), d); break;
+    }
+    case BLK_MOON_BIG: {
+      char p[8]; block_text(BLK_MOON, p, sizeof p);
+      draw_icon_caption(ctx, r, ICON_MOON, 0, p); break;
+    }
+    case BLK_MOON: {
+      char p[8]; block_text(BLK_MOON, p, sizeof p);
+      draw_icon_value(ctx, r, ICON_MOON, p, 0, false); break;
+    }
+    case BLK_WEEK_STRIP: draw_week_strip(ctx, r); break;
     case BLK_BEAT:     draw_beat(ctx, r);     break;
     case BLK_TZ:
     case BLK_TZ_ABBR:  draw_tz(ctx, r, base_block(blk)); break;
@@ -1119,6 +1363,10 @@ static bool block_centered_text(QuadBlock b, char *buf, size_t n) {
     // The unlabelled zone clocks and the free-text block draw as one plain
     // centred string too (draw_value_block, via draw_block's default arm).
     case BLK_TZ_NONE: case BLK_TZ_BIG_NONE: case BLK_TEXT:
+    // So do the date and health readouts.
+    case BLK_YEAR_PROG: case BLK_MONTH_PROG: case BLK_WEEK_PROG: case BLK_DAY_PROG:
+    case BLK_WEEK_NUM: case BLK_YEARDAY: case BLK_DATE_DM: case BLK_DATE_MD:
+    case BLK_CALORIES: case BLK_CALORIES_ACT: case BLK_ACTIVE: case BLK_SLEEP:
       block_text(b, buf, n); return true;
     // BLK_HR draws its own icon+number (draw_hr), so it isn't a flippable
     // single-string block -> fall through to draw_block.

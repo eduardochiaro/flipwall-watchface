@@ -32,6 +32,11 @@ def build(ctx):
     cached_env = ctx.env
     for platform in ctx.env.TARGET_PLATFORMS:
         ctx.env = ctx.all_envs[platform]
+        # Link-time optimisation: ~600B less code. On the 64KB colour watches the
+        # code shares RAM with the heap, and fctx needs a 24KB buffer from that
+        # heap to draw each string (see fctx_open in src/c/modules/blocks.c).
+        ctx.env.append_value('CFLAGS', ['-flto'])
+        ctx.env.append_value('LINKFLAGS', ['-flto'])
         ctx.set_group(ctx.env.PLATFORM_NAME)
         app_elf = '{}/pebble-app.elf'.format(ctx.env.BUILD_DIR)
         ctx.pbl_build(source=ctx.path.ant_glob('src/c/**/*.c'), target=app_elf, bin_type='app')

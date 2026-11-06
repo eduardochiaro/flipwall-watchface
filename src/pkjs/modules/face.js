@@ -36,6 +36,12 @@ var SAMPLE = { dow: 'Sun', day: '26', month: 'Jun', year: '2020',
                wind: '12km/h', windNum: '12', windUnit: 'KM/H',
                windDir: 'WNW', windDeg: 292, aqi: '34', beat: '642',
                sunrise: '06:12', sunset: '20:45',
+               // The date and health blocks, worked out for the sample day and
+               // time (day 178 of 2020, ISO week 26, a Sunday: the week's last).
+               moon: '64%', yearPct: '48%', monthPct: '83%', weekPct: '91%',
+               dayPct: '42%', weekNum: '26', yearDay: '178', weekDay: 6,
+               kcal: '1840', kcalActive: '620', active: '48', sleep: '7h32',
+               weekLabel: 'Week', dayLabel: 'Day', activeLabel: 'Active', sleepLabel: 'Sleep',
                tzTime: '10:09', tzAbbr: 'UTC', tzOff: '+0',
                // Utility statuses: connected, not charging, quiet time off —
                // so the preview shows both the lit and the ghosted state.
@@ -62,6 +68,20 @@ var HUM3_LABELS = [
 var BATT_LABELS = [
   'Batt','Bat','Bat','Batt','Batt','Batt','Batt','Bat','Pil','Bat'  // index = lang
 ];
+// Captions of the date and health blocks — must match WEEK / DAY / ACTIVE /
+// SLEEP in the C source (lang.c).
+var WEEK_LABELS = ['Week','Sem','Sem','Sem','KW','Sett','Week','Tydz','Hafta','Mgg'];
+var DAY_LABELS = ['Day','Dia','Dia','Jour','Tag','Gior','Dag','Dzien','Gun','Hari'];
+var ACTIVE_LABELS = ['Active','Activo','Ativo','Actif','Aktiv','Attivo','Actief','Aktyw','Aktif','Aktif'];
+var SLEEP_LABELS = ['Sleep','Sueno','Sono','Somm','Schlaf','Sonno','Slaap','Sen','Uyku','Tidur'];
+
+// The progress blocks, short (66..72) and big (67..73): [name, percent].
+function progressOf(v) {
+  return v <= 67 ? [SAMPLE.year, SAMPLE.yearPct]
+       : v <= 69 ? [SAMPLE.month, SAMPLE.monthPct]
+       : v <= 71 ? [SAMPLE.weekLabel, SAMPLE.weekPct]
+       :           [SAMPLE.dow, SAMPLE.dayPct];
+}
 
 // Block ids match the QuadBlock enum; a short block is any that isn't big
 // (the sizes come from the config page's own option groups, see BIG above).
@@ -112,6 +132,16 @@ function valueText(v, tz, str) {
   if (v === 51) { return tz.time + ' ' + tz.abbr; }
   if (v === 55 || v === 56) { return tz.time; }   // no label, just the clock
   if (v === 57) { return str || ''; }
+  if (v === 64) { return '◑' + SAMPLE.moon; }   // glyph stand-in for the drawn moon
+  if (v === 66 || v === 68 || v === 70 || v === 72) { return progressOf(v).join(' '); }
+  if (v === 75) { return SAMPLE.weekLabel + ' ' + SAMPLE.weekNum; }
+  if (v === 77) { return SAMPLE.dayLabel + ' ' + SAMPLE.yearDay; }
+  if (v === 79) { return SAMPLE.day + '/6'; }
+  if (v === 80) { return '6/' + SAMPLE.day; }
+  if (v === 81) { return SAMPLE.kcal + 'kcal'; }
+  if (v === 83) { return SAMPLE.kcalActive + 'kcal'; }
+  if (v === 85) { return SAMPLE.active + 'min'; }
+  if (v === 87) { return SAMPLE.sleep; }
   return SAMPLE.year;
 }
 
@@ -399,6 +429,19 @@ function block(v, x, y, w, h, c) {
     }
     return panelDiv(x, y, w, h, c.panel, uInner + seam(w, h));
   }
+  if (v === 74) {  // week strip: seven bars from Monday, lit up to today
+    // Mirrors draw_week_strip in the C source.
+    var gap = 3, cell = Math.max(2, Math.floor((w - 12 - 6 * gap) / 7));
+    var x0 = Math.floor((w - (7 * cell + 6 * gap)) / 2), bars = '';
+    for (var d = 0; d < 7; d++) {
+      var bh = Math.round(h * (d === SAMPLE.weekDay ? 0.6 : 0.34));
+      bars += '<div style="position:absolute;left:' + px(x0 + d * (cell + gap)) +
+        ';top:' + px(Math.round((h - bh) / 2)) + ';width:' + px(cell) + ';height:' +
+        px(bh) + ';border-radius:' + px(cell > 4 ? 2 : 0) + ';background:' +
+        (d <= SAMPLE.weekDay ? c.text : accent(c.panel)) + ';"></div>';
+    }
+    return panelDiv(x, y, w, h, c.panel, bars + seam(w, h));
+  }
   if (v === 0) {  // day of week
     var bg = SAMPLE.weekend ? c.weekend : c.panel;
     var fg = SAMPLE.weekend ? contrast(c.weekend) : c.text;
@@ -423,7 +466,9 @@ function block(v, x, y, w, h, c) {
   // Mirrors draw_caption_value in the C source (same 12%/38% proportions).
   if (v === 26 || v === 27 || v === 28 || v === 29 || v === 30 || v === 31 ||
       v === 34 || v === 36 || v === 38 || v === 40 || v === 46 ||
-      v === 52 || v === 53 || v === 60 || v === 61) {
+      v === 52 || v === 53 || v === 60 || v === 61 || v === 65 ||
+      (v >= 67 && v <= 73 && v % 2) || v === 76 || v === 78 || v === 82 ||
+      v === 84 || v === 86 || v === 88) {
     var cvM = Math.round(h * 0.12), cvInH = h - 2 * cvM;
     var cvSmallH = Math.round(cvInH * 0.38);
     var caption, value, capColor = c.text, labelTop;
@@ -454,6 +499,15 @@ function block(v, x, y, w, h, c) {
       value = v === 61 ? SAMPLE.sunset : SAMPLE.sunrise;
       labelTop = false; capColor = accent(c.text);
     }
+    // Progress: the year / month / week / weekday over how much of it is gone.
+    else if (v >= 67 && v <= 73) { caption = progressOf(v)[0]; value = progressOf(v)[1]; labelTop = true; }
+    else if (v === 76) { caption = SAMPLE.weekLabel; value = SAMPLE.weekNum; labelTop = true; }
+    else if (v === 78) { caption = SAMPLE.dayLabel; value = SAMPLE.yearDay; labelTop = true; }
+    else if (v === 82 || v === 84) { caption = 'KCAL'; value = v === 82 ? SAMPLE.kcal : SAMPLE.kcalActive; labelTop = false; }
+    else if (v === 86) { caption = SAMPLE.activeLabel; value = SAMPLE.active + 'm'; labelTop = true; }
+    else if (v === 88) { caption = SAMPLE.sleepLabel; value = SAMPLE.sleep; labelTop = true; }
+    // The moon over how much of it is lit (the watch draws the disc).
+    else if (v === 65) { caption = SAMPLE.moon; value = '◑'; labelTop = false; }
     // Wind direction: the arrow takes the big line, the compass word captions it.
     else if (v === 38) { caption = SAMPLE.windDir; value = windArrow(SAMPLE.windDeg); labelTop = false; }
     else { caption = SAMPLE.distUnit; value = SAMPLE.distNum; labelTop = false; }
@@ -548,6 +602,10 @@ function build(cfg) {
   SAMPLE.humLabel = HUM_LABELS[lang];
   SAMPLE.humLabel3 = HUM3_LABELS[lang];
   SAMPLE.battLabel = BATT_LABELS[lang];
+  SAMPLE.weekLabel = WEEK_LABELS[lang];
+  SAMPLE.dayLabel = DAY_LABELS[lang];
+  SAMPLE.activeLabel = ACTIVE_LABELS[lang];
+  SAMPLE.sleepLabel = SLEEP_LABELS[lang];
   if (cfg.units) {  // imperial
     SAMPLE.temp = '72°'; SAMPLE.minmax = '75/54°'; SAMPLE.precip = '0.1in';
     SAMPLE.dist = '2.0mi'; SAMPLE.wind = '7mph';

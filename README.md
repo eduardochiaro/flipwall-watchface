@@ -67,11 +67,14 @@ What a block can be tuned to: its panel color, a **Time zone** picker for the se
 | Second time zone (big or small) | Labelled with the zone's offset (`+9`), its abbreviation (`JST`), or nothing at all |
 | UV index, Air quality (big or small) | Band color off, or the panel painted in the reading's own band color |
 | Sunrise / sunset (big or small) | Auto (whichever comes next), Sunrise or Sunset |
+| Progress (big or small) | Year, Month, Week or Day |
+| Numeric date (small) | Day first (`5/11`) or month first (`11/5`) |
+| Calories (big or small) | Total (active + resting) or active only |
 
 Those variations are listed once in the catalog and swapped from the picker, so the catalog stays a list of *what* a block shows rather than every spelling of it.
 
 ### General
-- **Language** — translates month and weekday names. 10 Latin-script languages: English, Espanol, Portugues, Francais, Deutsch, Italiano, Nederlands, Polski, Turkce, Indonesia.
+- **Language** — translates month and weekday names, and the Week, Day, Active and Sleep captions. 10 Latin-script languages: English, Espanol, Portugues, Francais, Deutsch, Italiano, Nederlands, Polski, Turkce, Indonesia.
 - **Units** — Metric (°C, mm) or Imperial (°F, in). Applies to the weather blocks.
 - **Show seconds hand** — adds a seconds hand to the analog clock block (off by default to save battery).
 - **Flip animation** — blocks flip like a split-flap when their value changes (on by default).
@@ -83,14 +86,14 @@ Both faces are two columns. Blocks come in two sizes — **big** (fills a square
 - **Classic (5 blocks)** — a banner sized to its text, above or below the two columns.
 - **Columns (6 blocks)** — no banner. Each column gets a third block in its middle, so it runs one big block plus two small ones, with the big one in any of the three slots. Round screens can't take a full-height column, so there the two middles lift out into small strips above and below the grid, which keeps the circular shape — and, being strips, those two are always small.
 
-- **Banner block** — banner content, classic layout only: Year, Digital clock, Second time zone, .beat time, Month + Day, Weekday + Day, Steps (short or every digit), Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, Wind direction, Sunrise / sunset (Auto, Sunrise or Sunset), or Text.
+- **Banner block** — banner content, classic layout only: Year, Digital clock, Second time zone, .beat time, Month + Day, Weekday + Day, Steps (short or every digit), Distance, Battery, Heart rate, Temperature, Temperature + icon, Max/Min temp, Humidity, Precipitation, UV index (plain or `- color`), Air quality (plain or `- color`), Wind speed, Wind direction, Sunrise / sunset (Auto, Sunrise or Sunset), Progress, Week number, Day of year, Numeric date, Calories, Active minutes, Sleep, Moon phase, or Text.
 - **Banner at top** — banner above the columns (on) or below them (off). Classic layout only.
 - **Left / Right column middle block** — 6-block layout only. Same choices as the top and bottom blocks below, big or small — so a column can carry its big block in the middle. On round screens these two leave their columns and become the strips above and below the grid, so there they are limited to the banner block list, and every block in the column shifts: the left column is drawn strip / top / bottom and the right column top / bottom / strip. The palette names each slot the way the watch draws it, so a strip is called one.
 - **Top / Middle / Bottom block of each column** — fill each slot with:
-  - **Date/time:** Day of week, Day of month, Calendar (weekday over day), Calendar + Month (month over day), Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Second time zone (big or small), Month, Year, Month + Day, Weekday + Day, .beat time (big or small)
-  - **Activity:** Steps (short `8.2K` or every digit `8234`), Distance (small or big), Battery (small or big), Heart rate (small or big), Utility (small)
+  - **Date/time:** Day of week, Day of month, Calendar (weekday over day), Calendar + Month (month over day), Analog clock, Digital clock (big or small), Hours (big or small), Minutes (big or small), AM/PM (side-by-side or stacked diagonal), Second time zone (big or small), Month, Year, Month + Day, Weekday + Day, .beat time (big or small), Progress (big or small; year, month, week or day), Week strip (small), Week number (big or small), Day of year (big or small), Numeric date (small)
+  - **Activity:** Steps (short `8.2K` or every digit `8234`), Distance (small or big), Battery (small or big), Heart rate (small or big), Calories (small or big; total or active only), Active minutes (small or big), Sleep (small or big), Utility (small)
   - **Weather:** Weather icon, Temperature (big or small), Temperature + icon, Max/Min temp (small or big), Humidity (small or big), Precipitation, UV index (small or big, plain or `- color`), Air quality (small or big, plain or `- color`), Wind speed (small or big), Wind direction (small or big), Sunrise / sunset (small or big; type Auto, Sunrise or Sunset)
-  - **Other:** Text (small)
+  - **Other:** Moon phase (small or big), Text (small)
 
   The catalog groups them by size first (the column rule pairs one big with one small, so that is the choice that matters) and then by content — Time, Date, Activity, Weather, Other — in that order.
 
@@ -109,6 +112,10 @@ Both faces are two columns. Blocks come in two sizes — **big** (fills a square
   Second time zone shows another zone's clock next to its label: the small block draws `10:09 JST` with the label in the panel's accent shade, the big one stacks the clock over the label as its caption. The label is the zone's abbreviation, its offset from UTC (`+9`, `+5:30`), or nothing — whichever the variation select is on; with no label the block is just the other zone's clock. Each block carries its own **Time zone**, picked under Selected Block, so a face can run two or three zones side by side.
 
   The watch holds no time-zone data. The phone resolves each block's zone to its current UTC offset and abbreviation and pushes both — on a settings save and with every weather refresh — so a DST change lands on its own, and a watch out of contact with the phone keeps the last offsets it was given. A shared face code doesn't carry the zones (they are names, not bytes): an imported face keeps whichever zones this watch is already set to.
+
+  Progress shows how much of the year, month, week or day is gone, named by the year (`2026 84%`), the month, `Week` or the weekday. Weeks start on Monday, for the progress, the Week strip and the ISO week number. The Week strip is the week as seven bars, lit up to today, with today standing taller.
+
+  Moon phase draws the moon as it looks tonight (northern hemisphere) and how much of it is lit; it is worked out on the watch, no phone needed. Calories, Active minutes and Sleep come from Pebble Health and read `--` on watches without it; Sleep is what was slept since midnight.
 
   Hours and Minutes are shown as standalone two-digit blocks (leading zero kept). AM/PM highlights the active half in the text color and dims the other, like the weekday block.
 

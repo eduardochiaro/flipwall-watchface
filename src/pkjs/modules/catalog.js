@@ -4,7 +4,7 @@
 // each fact is written down once.
 //
 // Block ids are the QuadBlock enum in src/c/flipwall.h; test/test_page.js
-// checks this list against the C enum and its BIG_SET / BAND_SET masks.
+// checks this list against the C enum and its KIND table (big / banner).
 
 // [id, label, size, category, fits the banner]. Listed in palette order:
 // big before short, then time, date, activity, weather, other.
@@ -21,9 +21,19 @@ var LIST = [
   [1, 'Day of month', 'big', 'date'],
   [26, 'Calendar', 'big', 'date'],
   [29, 'Calendar + Month', 'big', 'date'],
+  [67, 'Progress', 'big', 'date'],
+  [69, 'Progress, month', 'big', 'date'],
+  [71, 'Progress, week', 'big', 'date'],
+  [73, 'Progress, day', 'big', 'date'],
+  [76, 'Week number', 'big', 'date'],
+  [78, 'Day of year', 'big', 'date'],
   [28, 'Battery', 'big', 'activity'],
   [31, 'Distance', 'big', 'activity'],
   [30, 'Heart rate', 'big', 'activity'],
+  [82, 'Calories', 'big', 'activity'],
+  [84, 'Calories, active', 'big', 'activity'],
+  [86, 'Active minutes', 'big', 'activity'],
+  [88, 'Sleep', 'big', 'activity'],
   [8, 'Weather icon', 'big', 'weather'],
   [12, 'Temperature', 'big', 'weather'],
   [32, 'Max/Min temp', 'big', 'weather'],
@@ -37,6 +47,7 @@ var LIST = [
   [63, 'Sunrise / sunset', 'big', 'weather'],
   [60, 'Sunrise', 'big', 'weather'],
   [61, 'Sunset', 'big', 'weather'],
+  [65, 'Moon phase', 'big', 'other'],
   [16, 'Digital clock', 'short', 'time', 1],
   [47, 'Digital clock, no leading zero', 'short', 'time', 1],
   [18, 'Hours', 'short', 'time'],
@@ -52,11 +63,24 @@ var LIST = [
   [7, 'Year', 'short', 'date', 1],
   [9, 'Month + Day', 'short', 'date', 1],
   [10, 'Weekday + Day', 'short', 'date', 1],
+  [79, 'Numeric date', 'short', 'date', 1],
+  [80, 'Numeric date, month first', 'short', 'date', 1],
+  [66, 'Progress', 'short', 'date', 1],
+  [68, 'Progress, month', 'short', 'date', 1],
+  [70, 'Progress, week', 'short', 'date', 1],
+  [72, 'Progress, day', 'short', 'date', 1],
+  [74, 'Week strip', 'short', 'date'],
+  [75, 'Week number', 'short', 'date', 1],
+  [77, 'Day of year', 'short', 'date', 1],
   [4, 'Steps', 'short', 'activity', 1],
   [49, 'Steps, full count', 'short', 'activity', 1],
   [5, 'Distance', 'short', 'activity', 1],
   [6, 'Battery', 'short', 'activity', 1],
   [24, 'Heart rate', 'short', 'activity', 1],
+  [81, 'Calories', 'short', 'activity', 1],
+  [83, 'Calories, active', 'short', 'activity', 1],
+  [85, 'Active minutes', 'short', 'activity', 1],
+  [87, 'Sleep', 'short', 'activity', 1],
   [54, 'Utility', 'short', 'activity'],
   [11, 'Temperature', 'short', 'weather', 1],
   [25, 'Temperature + icon', 'short', 'weather', 1],
@@ -72,6 +96,7 @@ var LIST = [
   [62, 'Sunrise / sunset', 'short', 'weather', 1],
   [58, 'Sunrise', 'short', 'weather', 1],
   [59, 'Sunset', 'short', 'weather', 1],
+  [64, 'Moon phase', 'short', 'other', 1],
   [57, 'Text', 'short', 'other', 1]
 ];
 
@@ -104,7 +129,12 @@ var VARIATIONS = [
   { name: 'Band color', options: [[39, 'Off'], [43, 'On']] },
   { name: 'Band color', options: [[40, 'Off'], [44, 'On']] },
   { name: 'Type', options: [[62, 'Auto'], [58, 'Sunrise'], [59, 'Sunset']] },
-  { name: 'Type', options: [[63, 'Auto'], [60, 'Sunrise'], [61, 'Sunset']] }
+  { name: 'Type', options: [[63, 'Auto'], [60, 'Sunrise'], [61, 'Sunset']] },
+  { name: 'Period', options: [[66, 'Year'], [68, 'Month'], [70, 'Week'], [72, 'Day']] },
+  { name: 'Period', options: [[67, 'Year'], [69, 'Month'], [71, 'Week'], [73, 'Day']] },
+  { name: 'Order', options: [[79, 'Day first'], [80, 'Month first']] },
+  { name: 'Counts', options: [[81, 'Total'], [83, 'Active only']] },
+  { name: 'Counts', options: [[82, 'Total'], [84, 'Active only']] }
 ];
 var VARIATION_OF = {};
 VARIATIONS.forEach(function(g) {

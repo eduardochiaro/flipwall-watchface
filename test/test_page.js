@@ -16,8 +16,8 @@ var checks = 0;
 function ok(cond, what) { assert.ok(cond, what); checks++; }
 
 // --- The catalog is the C enum ----------------------------------------------
-// QuadBlock in flipwall.h numbers the blocks; BIG_SET / BAND_SET in blocks.c
-// say which are big and which fit the banner. The page must agree on all three,
+// QuadBlock in flipwall.h numbers the blocks; the KIND table in blocks.c says
+// which are big and which fit the banner. The page must agree on all three,
 // or it offers a block the watch draws differently, or one it refuses.
 var header = fs.readFileSync(path.join(root, 'src/c/flipwall.h'), 'utf8');
 var enumBody = /typedef enum \{([\s\S]*?)\} QuadBlock;/.exec(header)[1];
@@ -29,14 +29,16 @@ ok(names.length === catalog.ORDER.length, 'the C enum has ' + names.length + ' b
 names.forEach(function(n, i) { ok(catalog.BLOCKS[i], n + ' (' + i + ') is missing from the catalog'); });
 
 var blocksC = fs.readFileSync(path.join(root, 'src/c/modules/blocks.c'), 'utf8');
-function maskIds(name) {
-  var body = new RegExp('static const uint64_t ' + name + ' =([\\s\\S]*?);').exec(blocksC)[1];
-  return (body.match(/BLKBIT\((BLK_[A-Z0-9_]+)\)/g) || []).map(function(m) { return idOf[m.slice(7, -1)]; });
+var kindBody = /static const uint8_t KIND\[BLK_COUNT\] = \{([\s\S]*?)\};/.exec(blocksC)[1];
+function kindIds(flag) {
+  var re = new RegExp('\\[(BLK_[A-Z0-9_]+)\\] = ' + flag + '\\b', 'g'), out = [], m;
+  while ((m = re.exec(kindBody))) { ok(m[1] in idOf, m[1] + ' in KIND is not a block'); out.push(idOf[m[1]]); }
+  return out;
 }
-var big = maskIds('BIG_SET'), band = maskIds('BAND_SET');
+var big = kindIds('BIG'), band = kindIds('BAND');
 catalog.ORDER.forEach(function(id) {
-  ok(catalog.isBig(id) === (big.indexOf(id) > -1), 'block ' + id + ' size differs from BIG_SET');
-  ok(catalog.fitsBand(id) === (band.indexOf(id) > -1), 'block ' + id + ' banner fit differs from BAND_SET');
+  ok(catalog.isBig(id) === (big.indexOf(id) > -1), 'block ' + id + ' size differs from KIND');
+  ok(catalog.fitsBand(id) === (band.indexOf(id) > -1), 'block ' + id + ' banner fit differs from KIND');
 });
 
 // Every variation member is a real block of one size, so a tile never swaps size.
@@ -112,6 +114,19 @@ ok(typeof code.decode(code.PRESETS[0].code.slice(0, -1) + '0') === 'string', 'a 
 catalog.ORDER.forEach(function(id) {
   var html = face.swatch(id, { panel: '#000000', face: '#FF5500', weekend: '#FF0000', box: 48, scale: 1 });
   ok(html.indexOf('undefined') < 0 && html.indexOf('NaN') < 0, 'block ' + id + ' does not draw cleanly');
+});
+
+// The captions the preview draws are the watch's own, in every language.
+var langC = fs.readFileSync(path.join(root, 'src/c/modules/lang.c'), 'utf8');
+[['WEEK', 76], ['DAY', 78], ['ACTIVE', 86], ['SLEEP', 88]].forEach(function(t) {
+  var words = new RegExp(t[0] + '\\[LANG_COUNT\\](?:\\[\\d+\\])? = \\{([^}]*)\\}').exec(langC)[1].match(/"[^"]*"/g);
+  ok(words.length === catalog.LANGS.length, t[0] + ' in lang.c does not have every language');
+  words.forEach(function(w, lang) {
+    face.build({ platform: 'basalt', lang: lang, blocks: [0, 1, 2, 3], band: 7, face: '#FF5500',
+      weekend: '#FF0000', panels: Array(7).fill('#000000') });
+    var html = face.swatch(t[1], { panel: '#000000', face: '#FF5500', weekend: '#FF0000', box: 48, scale: 1 });
+    ok(html.indexOf('>' + w.slice(1, -1) + '<') > -1, t[0] + ' differs from lang.c in language ' + lang);
+  });
 });
 
 // --- The inlined page --------------------------------------------------------------

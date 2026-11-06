@@ -144,7 +144,7 @@ void weather_wind_str(char *buf, size_t n) {
 // 16-point compass: each sector is 22.5 degrees wide and centred on its name, so
 // N covers 348.75..11.25. The x100/2250 keeps the half-sector offset in ints.
 void weather_wind_dir_str(char *buf, size_t n) {
-  static const char *const DIRS[16] = {
+  static const char DIRS[16][4] = {   // char arrays: no pointers in .data
     "N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
     "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"
   };

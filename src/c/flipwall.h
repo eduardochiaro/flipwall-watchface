@@ -100,8 +100,37 @@ typedef enum {
   // Auto: whichever of the two comes next, resolved at draw time (base_block).
   BLK_SUN,          // next sunrise or sunset (small / banner)
   BLK_SUN_BIG,      // next sunrise or sunset (big)
-  // ponytail: BLK_SUN_BIG is 63, the last bit of the uint64 block masks in
-  // blocks.c (BIG_SET / BAND_SET). The next block needs wider masks.
+  // The moon as it looks tonight (drawn, not an icon) and how much of it is lit.
+  BLK_MOON,         // moon + "64%" (small / banner)
+  BLK_MOON_BIG,     // the moon over "64%" (big)
+  // How much of the year / month / week / day is gone, named by the year, the
+  // month, a localised "Week" and the weekday: "2026 85%".
+  BLK_YEAR_PROG,      // (small / banner)
+  BLK_YEAR_PROG_BIG,  // the name over "85%" (big)
+  BLK_MONTH_PROG,
+  BLK_MONTH_PROG_BIG,
+  BLK_WEEK_PROG,
+  BLK_WEEK_PROG_BIG,
+  BLK_DAY_PROG,
+  BLK_DAY_PROG_BIG,
+  // The week's seven days from Monday, lit up to today (small).
+  BLK_WEEK_STRIP,
+  BLK_WEEK_NUM,       // ISO week number, "Week 45" (small / banner)
+  BLK_WEEK_NUM_BIG,   // "Week" over "45" (big)
+  BLK_YEARDAY,        // day of the year, "Day 309" (small / banner)
+  BLK_YEARDAY_BIG,    // "Day" over "309" (big)
+  BLK_DATE_DM,        // "5/11" (small / banner)
+  BLK_DATE_MD,        // "11/5" (small / banner)
+  // Health: burned today (active + resting, or active alone), active minutes
+  // today, and sleep since midnight.
+  BLK_CALORIES,           // "1840kcal" (small / banner)
+  BLK_CALORIES_BIG,       // the number over "KCAL" (big)
+  BLK_CALORIES_ACT,       // active only (small / banner)
+  BLK_CALORIES_ACT_BIG,   // active only (big)
+  BLK_ACTIVE,             // "48min" (small / banner)
+  BLK_ACTIVE_BIG,         // "Active" over "48m" (big)
+  BLK_SLEEP,              // "7h32" (small / banner)
+  BLK_SLEEP_BIG,          // "Sleep" over "7h32" (big)
   BLK_COUNT,      // sentinel: how many block kinds there are
 } QuadBlock;
 
@@ -112,6 +141,10 @@ const char *wday_name(void);      // localised %a for s_now / s_lang
 const char *humidity_label(void); // localised 2-letter humidity prefix ("Hu")
 const char *humidity_label3(void);// localised 3-letter humidity caption ("Hum")
 const char *battery_label(void);  // localised battery caption ("Batt")
+const char *week_label(void);     // localised "Week"
+const char *day_label(void);      // localised "Day" (of the year)
+const char *active_label(void);   // localised "Active" (minutes)
+const char *sleep_label(void);    // localised "Sleep"
 
 // --- Colours ---------------------------------------------------------------
 GColor get_closest_accent_color(GColor c);   // lighten dark / darken light
