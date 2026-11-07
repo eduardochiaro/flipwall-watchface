@@ -2,6 +2,10 @@
 
 Versions follow `package.json`. Dates are the commit that bumped the version.
 
+## 3.5.0 — 2026-11-07
+
+- **Fonts:** pick the face's typeface on the Style tab: Lekton (as before), Bricolage Grotesque, TeX Gyre Adventor, Nunito, Tektur, Aldrich, Quantico, Oxanium or Squada One. Digits are all one width in every font, so the time doesn't shift as it ticks. Shared codes carry the font; older codes and the presets read as Lekton, and applying a preset keeps your font. Not on Pebble Classic/Steel.
+
 ## 3.4.0 — 2026-11-07
 
 - **New settings page:** Clay is gone; the page is custom, in the face's own look, with Face, Style and Presets tabs and a Save button that stays in view. Tap a block on the live preview to tune it and pick from a catalog of every block drawn as itself, filterable by type. Colors come from a honeycomb of the watch's 64 colors with a preview beside it. Presets show as real face thumbnails. Saved faces carry over as they are.

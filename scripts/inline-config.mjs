@@ -20,7 +20,8 @@ const modules = 'var __modules = {};\n' +
     `${read(`src/pkjs/modules/${name}.js`)}\nreturn module.exports;\n})();`).join('\n');
 
 const html = read('src/pkjs/page/config.html');
-const tags = { modules: '<script src="modules.js"></script>', app: '<script src="app.js"></script>' };
+const tags = { modules: '<script src="modules.js"></script>', app: '<script src="app.js"></script>',
+  fonts: '<link rel="stylesheet" href="fonts.css">' };
 for (const t of Object.values(tags)) {
   if (!html.includes(t)) { throw new Error(`config.html lost its ${t}`); }
 }
@@ -30,7 +31,9 @@ for (const [name, text] of [['modules', modules], ['app', app]]) {
 }
 // Through functions: the sources may hold "$" sequences a string replacement reads.
 const page = html.replace(tags.modules, () => `<script>\n${modules}\n</script>`)
-  .replace(tags.app, () => `<script>\n${app}\n</script>`);
+  .replace(tags.app, () => `<script>\n${app}\n</script>`)
+  // The watch fonts Google Fonts doesn't have, written by scripts/fonts.py.
+  .replace(tags.fonts, () => `<style>\n${read('src/pkjs/page/fonts.css')}</style>`);
 
 writeFileSync(new URL('../src/pkjs/page.js', import.meta.url),
   '// Generated from src/pkjs/page/ by scripts/inline-config.mjs. Do not edit.\n' +

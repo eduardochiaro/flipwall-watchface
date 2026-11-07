@@ -4,14 +4,16 @@
 // range), and the whole thing base32'd:
 //
 //   0        version
-//   1        language
+//   1        language (low nibble) and font (high nibble)
 //   2        flag bits, in CODE_FLAGS order
 //   3..9     the seven block ids, in CODE_BLOCKS order
 //   10..39   ten colors, three bytes each, in CODE_COLORS order
 //   40       checksum
 //
 // The layout is the format. Only ever append to it, and bump CODE_VERSION when
-// you do, so old codes are refused rather than silently misread.
+// you do, so old codes are refused rather than silently misread. (The font went
+// into the language byte's spare nibble instead: every code made before it, the
+// presets included, reads as font 0, Lekton, which is what those faces wore.)
 //
 // The second time zones and the free text are not in a code: neither is a byte,
 // and a shared face is about the look. An imported face keeps this watch's own.
@@ -25,7 +27,7 @@ var CODE_COLORS = ['FACE_COLOR', 'PANEL_COLOR', 'WEEKEND_COLOR',
   'PANEL_TL_COLOR', 'PANEL_ML_COLOR', 'PANEL_BL_COLOR',
   'PANEL_TR_COLOR', 'PANEL_MR_COLOR', 'PANEL_BR_COLOR', 'PANEL_BAND_COLOR'];
 var CODE_BOOLS = ['YEAR_TOP', 'SHOW_SECONDS', 'FLIP_ANIM', 'DRAW_SEAM'];
-var CODE_KEYS = CODE_FLAGS.concat(['LANG'], CODE_BLOCKS, CODE_COLORS);
+var CODE_KEYS = CODE_FLAGS.concat(['LANG', 'FONT'], CODE_BLOCKS, CODE_COLORS);
 var CODE_BYTES = 3 + CODE_BLOCKS.length + 3 * CODE_COLORS.length + 1;
 var CODE_CHARS = Math.ceil(CODE_BYTES * 8 / 5);
 
@@ -62,7 +64,7 @@ function byteOf(v) { return typeof v === 'boolean' ? (v ? 1 : 0) : (parseInt(v, 
 function encode(s) {
   var flags = 0;
   CODE_FLAGS.forEach(function(key, bit) { if (byteOf(s[key])) { flags |= 1 << bit; } });
-  var bytes = [CODE_VERSION, byteOf(s.LANG) & 255, flags];
+  var bytes = [CODE_VERSION, (byteOf(s.LANG) & 15) | ((byteOf(s.FONT) & 15) << 4), flags];
   CODE_BLOCKS.forEach(function(key) { bytes.push(byteOf(s[key]) & 255); });
   CODE_COLORS.forEach(function(key) {
     var c = byteOf(s[key]);
@@ -87,7 +89,8 @@ function decode(text) {
 
   // Every field is clamped to its own range, so a code that passes the checksum
   // but holds nonsense still can't wedge the page.
-  var values = { LANG: Math.min(bytes[1], catalog.LANGS.length - 1) };
+  var values = { LANG: Math.min(bytes[1] & 15, catalog.LANGS.length - 1),
+                 FONT: Math.min(bytes[1] >> 4, catalog.FONTS.length - 1) };
   CODE_FLAGS.forEach(function(key, bit) {
     var on = !!(bytes[2] & (1 << bit));
     values[key] = CODE_BOOLS.indexOf(key) > -1 ? on : (on ? 1 : 0);
@@ -128,7 +131,7 @@ var PRESETS = [
 ];
 
 // A preset is about the look, so applying one keeps these settings of the wearer's.
-var PRESET_SKIP = ['LANG', 'UNITS', 'SHOW_SECONDS', 'FLIP_ANIM'];
+var PRESET_SKIP = ['LANG', 'FONT', 'UNITS', 'SHOW_SECONDS', 'FLIP_ANIM'];
 
 module.exports = { encode: encode, decode: decode, apply: apply,
   PRESETS: PRESETS, PRESET_SKIP: PRESET_SKIP, CODE_CHARS: CODE_CHARS };

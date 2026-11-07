@@ -15,7 +15,7 @@
 // you do. The matching readers are settings_apply / apply_tz in
 // src/c/flipwall-watchface.c and weather_apply_blob in src/c/modules/weather.c.
 // ---------------------------------------------------------------------------
-var VERSION = 3;
+var VERSION = 4;
 
 var TZ_SLOTS = 7;      // BlockPos order: TL, TR, BL, BR, banner, mid L, mid R
 var ABBR_LEN = 5;      // abbreviations run to 4 chars ("AEDT"), NUL padded
@@ -49,11 +49,11 @@ var DEFAULTS = {
   BLOCK_BOTTOM_LEFT: 2, BLOCK_BOTTOM_RIGHT: 3,  // Clock, Month
   BLOCK_BAND: 7,                                // Year
   BLOCK_MID_LEFT: 16, BLOCK_MID_RIGHT: 4,       // Digital clock, Steps
-  LANG: 0
+  LANG: 0, FONT: 0
 };
 
 var CONFIG_LEN =
-  3 + BLOCK_KEYS.length + 3 * COLOR_KEYS.length + TZ_BODY + TEXT_BODY;     // 201
+  3 + BLOCK_KEYS.length + 3 * COLOR_KEYS.length + TZ_BODY + TEXT_BODY + 1; // 202
 var TZ_LEN = 1 + TZ_BODY;                                                  // 50
 var WEATHER_LEN = 3 + 2 * WEATHER_FIELDS.length;                           // 27
 
@@ -115,6 +115,7 @@ function pushTexts(out, settings) {
 //   10..39   ten colors, three bytes each, in COLOR_KEYS order
 //   40..88   the seven zones (see pushZones)
 //   89..200  the seven free-text strings (see pushTexts)
+//   201      font, an index into FONTS in catalog.js
 function packConfig(settings, zones) {
   var flags = 0;
   FLAGS.forEach(function(key, bit) {
@@ -125,6 +126,7 @@ function packConfig(settings, zones) {
   COLOR_KEYS.forEach(function(key) { pushColor(out, num(settings, key)); });
   pushZones(out, zones);
   pushTexts(out, settings);
+  out.push(num(settings, 'FONT') & 255);
   return out;
 }
 

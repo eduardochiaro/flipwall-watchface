@@ -88,13 +88,32 @@ code.PRESETS.forEach(function(p) {
   ok(typeof v !== 'string', p.name + ': ' + v);
   ok(code.encode(code.apply(catalog.normalize({}), v)) === p.code, p.name + ' does not round-trip');
 });
-var mine = catalog.normalize({ LANG: 3, UNITS: 1, BLOCK_BAND: 62, PANEL_BR_COLOR: 0x00AAFF });
+code.PRESETS.forEach(function(p) {
+  ok(code.decode(p.code).FONT === 0, p.name + ' does not read as the default font');
+});
+var mine = catalog.normalize({ LANG: 9, FONT: 8, UNITS: 1, BLOCK_BAND: 62, PANEL_BR_COLOR: 0x00AAFF });
 var back = code.apply(catalog.normalize({}), code.decode(code.encode(mine)));
-['LANG', 'UNITS', 'BLOCK_BAND', 'PANEL_BR_COLOR', 'FACE_COLOR'].forEach(function(k) {
+['LANG', 'FONT', 'UNITS', 'BLOCK_BAND', 'PANEL_BR_COLOR', 'FACE_COLOR'].forEach(function(k) {
   ok(back[k] === mine[k], k + ' is lost in a share code');
 });
 var kept = code.apply(mine, code.decode(code.PRESETS[0].code), code.PRESET_SKIP);
-ok(kept.LANG === 3 && kept.UNITS === 1, 'a preset overwrites the wearer\'s language or units');
+ok(kept.LANG === 9 && kept.FONT === 8 && kept.UNITS === 1, 'a preset overwrites the wearer\'s language, font or units');
+
+// --- Fonts: one list, in one order, in four places ----------------------------------
+// The index is the wire value, so catalog.js, scripts/fonts.py, package.json
+// and FONT_RES on the watch have to agree on it.
+var pyIds = fs.readFileSync(path.join(root, 'scripts', 'fonts.py'), 'utf8')
+  .split('FONTS = [')[1].split('\n]')[0].match(/^\s*\("(\w+)"/gm).map(function(l) { return l.match(/"(\w+)"/)[1]; });
+var resIds = require(path.join(root, 'package.json')).pebble.resources.media
+  .filter(function(m) { return /^FONT_/.test(m.name); }).map(function(m) { return m.name; });
+var cIds = /FONT_RES\[\] = \{([^}]*)\}/.exec(fs.readFileSync(path.join(root, 'src', 'c', 'flipwall-watchface.c'), 'utf8'))[1]
+  .match(/RESOURCE_ID_(\w+)/g).map(function(r) { return r.replace('RESOURCE_ID_', ''); });
+var want = pyIds.map(function(id) { return 'FONT_' + id.toUpperCase(); });
+ok(want.length === catalog.FONTS.length, 'catalog.js FONTS and scripts/fonts.py differ in length');
+ok(want.join() === resIds.join(), 'package.json font resources are not in fonts.py order');
+ok(want.join() === cIds.join(), 'FONT_RES is not in fonts.py order');
+ok(catalog.FONTS.length <= 16, 'a font index no longer fits the share code nibble');
+ok(catalog.normalize({ FONT: 40 }).FONT === 0, 'an unknown font is not reset to the default');
 ok(typeof code.decode('ABC') === 'string', 'a short code is accepted');
 ok(typeof code.decode(code.PRESETS[0].code.slice(0, -1) + '0') === 'string', 'a corrupted code is accepted');
 

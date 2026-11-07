@@ -1,7 +1,7 @@
 {
   "name": "wall-flip",
   "author": "EC apps",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "keywords": [
     "pebble-watchface",
     "flip",
@@ -21,7 +21,7 @@
     "config": "pebble emu-app-config --emulator",
     "c": "pebble emu-app-config --emulator",
     "logs": "pebble logs",
-    "font": "node scripts/gen-svg-font.js resources/fonts/Lekton-Bold.ttf resources/fonts/mono.svg mono \" %-./0123456789:@ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz°\" && fctx-compiler resources/fonts/mono.svg && mv resources/mono.ffont resources/fonts/mono.ffont"
+    "font": "python3 scripts/fonts.py"
   },
   "pebble": {
     "displayName": "Wall Flip",
@@ -189,8 +189,112 @@
         },
         {
           "type": "raw",
-          "name": "FONT_MONO",
-          "file": "fonts/mono.ffont",
+          "name": "FONT_LEKTON",
+          "file": "fonts/lekton.ffont",
+          "targetPlatforms": [
+            "basalt",
+            "chalk",
+            "diorite",
+            "emery",
+            "flint",
+            "gabbro"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "FONT_BRICOLAGE",
+          "file": "fonts/bricolage.ffont",
+          "targetPlatforms": [
+            "basalt",
+            "chalk",
+            "diorite",
+            "emery",
+            "flint",
+            "gabbro"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "FONT_ADVENTOR",
+          "file": "fonts/adventor.ffont",
+          "targetPlatforms": [
+            "basalt",
+            "chalk",
+            "diorite",
+            "emery",
+            "flint",
+            "gabbro"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "FONT_NUNITO",
+          "file": "fonts/nunito.ffont",
+          "targetPlatforms": [
+            "basalt",
+            "chalk",
+            "diorite",
+            "emery",
+            "flint",
+            "gabbro"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "FONT_TEKTUR",
+          "file": "fonts/tektur.ffont",
+          "targetPlatforms": [
+            "basalt",
+            "chalk",
+            "diorite",
+            "emery",
+            "flint",
+            "gabbro"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "FONT_ALDRICH",
+          "file": "fonts/aldrich.ffont",
+          "targetPlatforms": [
+            "basalt",
+            "chalk",
+            "diorite",
+            "emery",
+            "flint",
+            "gabbro"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "FONT_QUANTICO",
+          "file": "fonts/quantico.ffont",
+          "targetPlatforms": [
+            "basalt",
+            "chalk",
+            "diorite",
+            "emery",
+            "flint",
+            "gabbro"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "FONT_OXANIUM",
+          "file": "fonts/oxanium.ffont",
+          "targetPlatforms": [
+            "basalt",
+            "chalk",
+            "diorite",
+            "emery",
+            "flint",
+            "gabbro"
+          ]
+        },
+        {
+          "type": "raw",
+          "name": "FONT_SQUADAONE",
+          "file": "fonts/squadaone.ffont",
           "targetPlatforms": [
             "basalt",
             "chalk",
@@ -207,7 +311,6 @@
     "pebble-fctx": "^1.6.5"
   },
   "devDependencies": {
-    "opentype.js": "^2.0.0",
     "pebble-fctx-compiler": "^1.2.2"
   }
 }

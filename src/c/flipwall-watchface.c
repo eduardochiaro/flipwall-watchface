@@ -83,9 +83,27 @@ bool is_large_screen = false;   // Pebble Time / Time 2 / Round screens
 
 struct tm s_now;
 
-// One scalable Montserrat Bold vector font (fctx); every block sizes it by
-// cap height, so there are no per-screen font tiers to load.
+// The vector font (fctx) the wearer picked; every block sizes it by cap height,
+// so there are no per-screen font tiers to load. One at a time: fctx holds the
+// whole .ffont in the heap, and basalt has no room for a second.
 FFont *s_ffont;
+#if !PBL_PLATFORM_APLITE
+// In FONTS order (scripts/fonts.py, catalog.js): the config page sends the
+// index. aplite draws with system fonts and carries none of them.
+static const uint32_t FONT_RES[] = {
+  RESOURCE_ID_FONT_LEKTON, RESOURCE_ID_FONT_BRICOLAGE, RESOURCE_ID_FONT_ADVENTOR,
+  RESOURCE_ID_FONT_NUNITO, RESOURCE_ID_FONT_TEKTUR, RESOURCE_ID_FONT_ALDRICH,
+  RESOURCE_ID_FONT_QUANTICO, RESOURCE_ID_FONT_OXANIUM, RESOURCE_ID_FONT_SQUADAONE,
+};
+#define FONT_COUNT ((int)ARRAY_LENGTH(FONT_RES))
+static int s_font;   // index into FONT_RES
+
+static void load_font(void) {
+  // The old font goes first, so the two are never in the heap together.
+  if (s_ffont) ffont_destroy(s_ffont);
+  s_ffont = ffont_create_from_resource(FONT_RES[s_font]);
+}
+#endif
 
 // Persistent-storage keys (independent of the AppMessage message keys).
 typedef enum {
@@ -122,6 +140,7 @@ typedef enum {
   PK_TZ_ABBRS,
   // The per-position free text, cached as one blob like the zones above.
   PK_TEXTS,
+  PK_FONT,
 } PersistKey;
 
 #if defined(PBL_PLATFORM_EMERY)
@@ -613,6 +632,10 @@ static void settings_load(void) {
 
   s_lang = persist_exists(PK_LANG) ? persist_read_int(PK_LANG) : 0;
   if (s_lang < 0 || s_lang >= LANG_COUNT) s_lang = 0;
+#if !PBL_PLATFORM_APLITE
+  s_font = persist_exists(PK_FONT) ? persist_read_int(PK_FONT) : 0;
+  if (s_font < 0 || s_font >= FONT_COUNT) s_font = 0;
+#endif
 
   // Zones: UTC everywhere until the phone says otherwise.
   for (int i = 0; i < POS_COUNT; i++) strcpy(s_tz_abbrs[i], "UTC");
@@ -653,13 +676,15 @@ static void settings_load(void) {
 //            three bytes each
 //   ..       the seven second time zones (see apply_tz)
 //   ..       the seven free-text strings, NUL padded (see apply_texts)
+//   ..       the font, an index into FONT_RES
 #define CFG_FLAGS  1
 #define CFG_LANG   2
 #define CFG_BLOCKS 3
 #define CFG_COLORS (CFG_BLOCKS + POS_COUNT)
 #define CFG_ZONES  (CFG_COLORS + 3 * (3 + POS_COUNT))
 #define CFG_TEXTS  (CFG_ZONES + POS_COUNT * WIRE_ZONE_LEN)
-#define CFG_LEN    (CFG_TEXTS + POS_COUNT * WIRE_TEXT_LEN)
+#define CFG_FONT   (CFG_TEXTS + POS_COUNT * WIRE_TEXT_LEN)
+#define CFG_LEN    (CFG_FONT + 1)
 
 typedef enum {
   F_LAYOUT, F_UNITS, F_YEAR_TOP, F_SECONDS, F_FLIP, F_SEAM
@@ -757,6 +782,15 @@ static void settings_apply(const uint8_t *p) {
 
   apply_tz(p + CFG_ZONES);
   apply_texts(p + CFG_TEXTS);
+
+#if !PBL_PLATFORM_APLITE
+  int font = p[CFG_FONT];
+  if (font < FONT_COUNT && font != s_font) {
+    s_font = font;
+    persist_write_int(PK_FONT, font);
+    load_font();
+  }
+#endif
 }
 
 // Three kinds of message land here, one packed blob each: a weather push, a
@@ -801,7 +835,7 @@ static void prv_window_load(Window *window) {
 
   // aplite is too small for the vector font; it uses system fonts (see blocks.c).
 #if !PBL_PLATFORM_APLITE
-  s_ffont = ffont_create_from_resource(RESOURCE_ID_FONT_MONO);
+  load_font();
 #endif
 
   time_t now = time(NULL);

@@ -9,7 +9,7 @@
 // Every blob opens with this version byte. A blob that doesn't carry it is
 // dropped whole, so a future format change leaves the face on its last good
 // settings instead of reading a new layout with old offsets.
-#define WIRE_VERSION 3
+#define WIRE_VERSION 4
 
 // The second zones a blob carries: an int16 offset (minutes east of UTC, DST
 // already applied) and a NUL-padded abbreviation, per block position.

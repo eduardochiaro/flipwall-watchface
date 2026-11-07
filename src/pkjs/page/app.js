@@ -41,9 +41,12 @@
     return { delta: info.offset + new Date().getTimezoneOffset(), abbr: info.abbr, offset: info.offset };
   }
 
+  // aplite draws with the system fonts, so it previews the default.
+  function fontCss(s) { return catalog.FONTS[platform === 'aplite' ? 0 : s.FONT].css; }
+
   function faceCfg(s, opts) {
     return {
-      platform: platform, sel: opts.sel || null, overlays: opts.overlays, width: opts.width,
+      platform: platform, font: fontCss(s), sel: opts.sel || null, overlays: opts.overlays, width: opts.width,
       layout: s.LAYOUT, yearTop: s.YEAR_TOP, lang: s.LANG, units: s.UNITS,
       tz: catalog.SLOTS.map(function (x, i) { return zoneSample(s, i); }),
       texts: catalog.SLOTS.map(function (x, i) { return s['TEXT[' + i + ']']; }),
@@ -61,7 +64,7 @@
     return face.swatch(v, {
       panel: hex(opts.panel !== undefined ? opts.panel : S[catalog.PANEL_KEYS[i]]),
       weekend: hex(opts.weekend !== undefined ? opts.weekend : S.WEEKEND_COLOR),
-      face: hex(S.FACE_COLOR), showSeconds: S.SHOW_SECONDS,
+      face: hex(S.FACE_COLOR), showSeconds: S.SHOW_SECONDS, font: fontCss(S),
       tz: zoneSample(S, i), str: S['TEXT[' + i + ']'], box: 48, scale: opts.scale
     });
   }
@@ -205,6 +208,9 @@
         '" aria-labelledby="lbl-' + t[0] + '"><i></i></button></div>';
     }).join('');
 
+    $('font').innerHTML = catalog.FONTS.map(function (f, i) {
+      return '<option value="' + i + '"' + (S.FONT === i ? ' selected' : '') + '>' + f.name + '</option>';
+    }).join('');
     $('lang').innerHTML = catalog.LANGS.map(function (name, i) {
       return '<option value="' + i + '"' + (S.LANG === i ? ' selected' : '') + '>' + name + '</option>';
     }).join('');
@@ -380,6 +386,7 @@
   document.addEventListener('change', function (e) {
     var t = e.target;
     if (t.id === 'lang') { S.LANG = parseInt(t.value, 10); drawAll(); }
+    if (t.id === 'font') { S.FONT = parseInt(t.value, 10); drawAll(); }
     if (t.getAttribute('data-zone') !== null) { S['TZ_ZONE[' + t.getAttribute('data-zone') + ']'] = t.value; drawAll(); }
   });
 
@@ -434,6 +441,7 @@
   });
 
   $('watch').textContent = (WATCHES[platform] || 'Pebble') + ' · v' + VERSION;
+  $('font-block').hidden = platform === 'aplite';
   if (round) {
     $('face-bezel').className = 'bezel round';
     $('style-bezel').className = 'bezel small round';

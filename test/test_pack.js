@@ -16,10 +16,11 @@ var CFG_ZONES = CFG_COLORS + 3 * (3 + POS_COUNT);        // 40
 var ZONE_LEN = 7;                                        // int16 + 5-byte abbr
 var CFG_TEXTS = CFG_ZONES + POS_COUNT * ZONE_LEN;        // 89
 var TEXT_LEN = 16;                                       // 15 chars, NUL padded
+var CFG_FONT = CFG_TEXTS + POS_COUNT * TEXT_LEN;         // 201
 
 var SETTINGS = {
   LAYOUT: 1, UNITS: 0, YEAR_TOP: true, SHOW_SECONDS: false,
-  FLIP_ANIM: true, DRAW_SEAM: false, LANG: 3,
+  FLIP_ANIM: true, DRAW_SEAM: false, LANG: 3, FONT: 5,
   BLOCK_TOP_LEFT: 0, BLOCK_TOP_RIGHT: 54, BLOCK_BOTTOM_LEFT: 2,
   BLOCK_BOTTOM_RIGHT: 3, BLOCK_BAND: 7, BLOCK_MID_LEFT: 16, BLOCK_MID_RIGHT: 4,
   FACE_COLOR: 0xFF5500, PANEL_COLOR: 0x000000, WEEKEND_COLOR: 0xFF0000,
@@ -43,7 +44,7 @@ var ZONES = [
 (function configLayout() {
   var b = pack.packConfig(SETTINGS, ZONES);
   assert.strictEqual(b.length, pack.CONFIG_LEN, 'config blob changed length');
-  assert.strictEqual(b.length, 201, 'config blob is not 201 bytes');
+  assert.strictEqual(b.length, 202, 'config blob is not 202 bytes');
   assert.strictEqual(b[0], pack.VERSION, 'no version byte');
 
   // Flags, low bit first: LAYOUT, UNITS, YEAR_TOP, SHOW_SECONDS, FLIP, SEAM.
@@ -83,6 +84,9 @@ var ZONES = [
     'caf', 'a non-ASCII character was not dropped');
   assert.deepStrictEqual(text(6), new Array(TEXT_LEN).fill(0),
     'a slot with no text is not all NULs');
+
+  assert.strictEqual(b[CFG_FONT], 5, 'font byte moved');
+  assert.strictEqual(b.length, CFG_FONT + 1, 'the font byte is not the last one');
 
   assert.ok(b.every(function(v) { return v >= 0 && v <= 255; }),
     'a byte fell outside 0..255');

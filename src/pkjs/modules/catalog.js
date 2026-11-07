@@ -162,10 +162,25 @@ var PANEL_KEYS = SLOTS.map(function(s) { return s.panel; });
 var LANGS = ['English', 'Español', 'Português', 'Français', 'Deutsch',
   'Italiano', 'Nederlands', 'Polski', 'Türkçe', 'Indonesia'];
 
+// The watch's vector fonts, in FONTS order in scripts/fonts.py (the index is
+// what's sent). `css` is the family the preview draws with: Google Fonts, or the
+// copy fonts.py inlines into the page. aplite has system fonts only.
+var FONTS = [
+  { name: 'Lekton', css: 'Lekton' },
+  { name: 'Bricolage Grotesque', css: 'Bricolage Grotesque' },
+  { name: 'TeX Gyre Adventor', css: 'TeX Gyre Adventor' },
+  { name: 'Nunito', css: 'Nunito' },
+  { name: 'Tektur', css: 'Tektur' },
+  { name: 'Aldrich', css: 'Aldrich' },
+  { name: 'Quantico', css: 'Quantico' },
+  { name: 'Oxanium', css: 'Oxanium' },
+  { name: 'Squada One', css: 'Squada One' }
+];
+
 // Every setting the watch is sent, with the value a fresh install starts on.
 // Colors are 0xRRGGBB ints; a slot's panel color starts on PANEL_COLOR.
 var DEFAULTS = {
-  LAYOUT: 0, LANG: 0, UNITS: 0,
+  LAYOUT: 0, LANG: 0, FONT: 0, UNITS: 0,
   SHOW_SECONDS: false, FLIP_ANIM: true, DRAW_SEAM: true, YEAR_TOP: true,
   FACE_COLOR: 0xFF5500, PANEL_COLOR: 0x000000, WEEKEND_COLOR: 0xFF0000,
   BLOCK_TOP_LEFT: 0, BLOCK_TOP_RIGHT: 1, BLOCK_BOTTOM_LEFT: 2,
@@ -197,7 +212,8 @@ function normalize(saved) {
     return isNaN(n) || n < 0 || n > max ? DEFAULTS[key] : n;
   }
   var s = {
-    LAYOUT: int('LAYOUT', 1), LANG: int('LANG', LANGS.length - 1), UNITS: int('UNITS', 1)
+    LAYOUT: int('LAYOUT', 1), LANG: int('LANG', LANGS.length - 1), UNITS: int('UNITS', 1),
+    FONT: int('FONT', FONTS.length - 1)
   };
   BOOLS.forEach(function(key) {
     var v = raw(key);
@@ -283,7 +299,7 @@ module.exports = {
   BLOCKS: BLOCKS, ORDER: ORDER, MAX_BLOCK: MAX_BLOCK, CATEGORIES: CATEGORIES,
   VARIATIONS: VARIATIONS, VARIATION_OF: VARIATION_OF,
   TZ_BLOCKS: TZ_BLOCKS, TEXT_BLOCKS: TEXT_BLOCKS,
-  SLOTS: SLOTS, SLOT_KEYS: SLOT_KEYS, PANEL_KEYS: PANEL_KEYS, LANGS: LANGS,
+  SLOTS: SLOTS, SLOT_KEYS: SLOT_KEYS, PANEL_KEYS: PANEL_KEYS, LANGS: LANGS, FONTS: FONTS,
   DEFAULTS: DEFAULTS, isBig: isBig, fitsBand: fitsBand, normalize: normalize,
   isRoundPlatform: isRoundPlatform, liveSlots: liveSlots, slotAllows: slotAllows,
   reconcile: reconcile, settle: settle

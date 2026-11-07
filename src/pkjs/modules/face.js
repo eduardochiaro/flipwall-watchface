@@ -15,6 +15,10 @@ var SPECS = {
   gabbro:  { w: 260, h: 260, round: true,  side: 30, gutter: 3 }
 };
 var SCALE = 1.4;                 // device px -> preview px (200px wide face)
+// The CSS family of the watch font being previewed (catalog.FONTS[n].css). No
+// synthesized bold: the watch draws a regular-only font as it is.
+var FONT = 'Lekton';
+function fontStack() { return "'" + FONT + "',ui-monospace,Menlo,monospace"; }
 var W = 144, H = 168;            // screen, set per render
 var SIDE = 0, ROUND = false;     // side inset / circular face
 var MARGIN = 3, GUTTER = 3;
@@ -279,7 +283,7 @@ function textWidth(t, fpx) {
     measureCtx = (cv && cv.getContext && cv.getContext('2d')) || false;
   }
   if (measureCtx) {
-    measureCtx.font = 'bold ' + fpx + 'px Lekton, ui-monospace, Menlo, monospace';
+    measureCtx.font = 'bold ' + fpx + 'px ' + fontStack();
     return measureCtx.measureText(t).width;
   }
   var em = 0;
@@ -594,6 +598,7 @@ function build(cfg) {
   W = spec.w; H = spec.h; SIDE = spec.side; ROUND = spec.round;
   GUTTER = spec.gutter;
   SCALE = (cfg.width || 200) / W;      // the face previews `width` px wide
+  FONT = cfg.font || 'Lekton';
   drawSeam = cfg.drawSeam !== false;   // gate the seam line on the config toggle
   imperial = !!cfg.units;              // picks the AQI scale for the color ramp
   var lang = cfg.lang || 0;
@@ -649,7 +654,7 @@ function build(cfg) {
   var html = '<div style="position:relative;width:' + px(W) + ';height:' +
     px(H) + ';margin:0 auto;background:' + cfg.face + ';border-radius:' +
     (ROUND ? '50%' : px(6)) +
-    ';overflow:hidden;font-family:Lekton,ui-monospace,Menlo,monospace;">';
+    ';overflow:hidden;font-family:' + fontStack() + ';font-synthesis:none;font-variant-numeric:tabular-nums;">';
 
   // The 2x2 grid: each column pairs a square block with a short one.
   function grid(areaY) {
@@ -740,15 +745,16 @@ function build(cfg) {
 // uses, so a chip is exactly what the watch will draw. The box takes the
 // block's own shape — square for a big one, half height for a small one — so
 // a chip is never mostly empty.
-// o: { panel, weekend, face, showSeconds, tz, str, box, scale }; `tz` and
+// o: { panel, weekend, face, showSeconds, font, tz, str, box, scale }; `tz` and
 // `str` are the selected slot's own zone and text, so a time-zone or text
 // chip previews what it would place.
 function swatch(v, o) {
   SCALE = o.scale;
+  FONT = o.font || 'Lekton';
   var h = isShort(v) ? Math.round(o.box / 2) : o.box;
   var c = { panel: o.panel, text: contrast(o.panel), weekend: o.weekend,
             showSeconds: o.showSeconds, tz: tzText(o.tz), str: o.str };
-  return '<div style="position:relative;margin:0 auto;font-family:Lekton,ui-monospace,Menlo,monospace;width:' + px(o.box) +
+  return '<div style="position:relative;margin:0 auto;font-family:' + fontStack() + ';font-synthesis:none;font-variant-numeric:tabular-nums;width:' + px(o.box) +
     ';height:' + px(h) + ';background:' + o.face + ';border-radius:' + px(4) +
     ';overflow:hidden;">' + block(v, 0, 0, o.box, h, c) + '</div>';
 }

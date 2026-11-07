@@ -50,7 +50,7 @@ A digital watchface for Pebble smartwatches based on flip clock design.
 Configure via the Pebble app settings page: a custom page (no Clay) with three tabs and a **Save to watch** button that stays at the bottom. Nothing changes on the watch until you save.
 
 - **Face** — a live preview of your watch's face that doubles as the editor. **Tap a block** and the page shows what that block can be tuned to, then a catalog of every block the slot can take, big and short, each drawn as a miniature of itself and filterable by Time, Date, Activity, Weather and Other. Tap one to place it, or tap the face block again to close.
-- **Style** — layout (Classic or Columns), the face, panel and accent colors, the display switches, language and units, with a small live preview on top.
+- **Style** — layout (Classic or Columns), the face, panel and accent colors, the font, the display switches, language and units, with a small live preview on top.
 - **Presets** — every preset drawn as a real face thumbnail, plus the share code.
 
 Colors are picked from a sheet with the watch's 64 colors laid out as a honeycomb, with a preview of the picked color beside it.
@@ -74,6 +74,7 @@ What a block can be tuned to: its panel color, a **Time zone** picker for the se
 Those variations are listed once in the catalog and swapped from the picker, so the catalog stays a list of *what* a block shows rather than every spelling of it.
 
 ### General
+- **Font** — the typeface every block draws in: Lekton (the default), Bricolage Grotesque, TeX Gyre Adventor, Nunito, Tektur, Aldrich, Quantico, Oxanium or Squada One. The preview draws in it too. Not on Pebble Classic/Steel, which uses the built-in system fonts.
 - **Language** — translates month and weekday names, and the Week, Day, Active and Sleep captions. 10 Latin-script languages: English, Espanol, Portugues, Francais, Deutsch, Italiano, Nederlands, Polski, Turkce, Indonesia.
 - **Units** — Metric (°C, mm) or Imperial (°F, in). Applies to the weather blocks.
 - **Show seconds hand** — adds a seconds hand to the analog clock block (off by default to save battery).
@@ -141,7 +142,7 @@ The **Share Settings** section shows a code for the current face — every block
 
 Copy it to back a face up or pass it to someone else; paste one into the box and tap **Import** to load it, then **Save** to send it to the watch.
 
-The **Presets** buttons are the same thing: each preset is a stored code, applied the way a pasted one is — everything except **Language**, **Units**, **Show seconds** and **Flip animation**, which stay yours. So a new preset is made by building the face, copying its code and dropping it into the `PRESETS` list in `src/pkjs/modules/code.js`.
+The **Presets** buttons are the same thing: each preset is a stored code, applied the way a pasted one is — everything except **Font**, **Language**, **Units**, **Show seconds** and **Flip animation**, which stay yours. So a new preset is made by building the face, copying its code and dropping it into the `PRESETS` list in `src/pkjs/modules/code.js`.
 
 The alphabet is [Crockford base32](https://www.crockford.com/base32.html) — digits and uppercase letters only, with `I`, `L`, `O` and `U` left out so nothing gets misread as a digit. Case doesn't matter on the way in, `I`/`L` are read as `1` and `O` as `0`, and any spaces or dashes added for readability are ignored, so a code survives being retyped or wrapped by a chat app. Codes carry a version marker and a checksum, so one from a different version, or one that lost characters on the way, is refused instead of half-applied.
 
@@ -163,7 +164,7 @@ Text color is automatic: black on light backgrounds, white on dark ones. On the 
 | `npm run config` | Open the settings page against the emulator |
 | `npm run page` | Build the settings page into `build/config-dev.html`, to open in a browser |
 | `npm run release` | Release build into `dist/<version>/` — the same bundle with the JS source map dropped and every entry deflated, roughly half the size over Bluetooth |
-| `npm run font` | Rebuild the vector font (`resources/fonts/mono.ffont`) from the TTF |
+| `npm run font` | Rebuild the vector fonts (`resources/fonts/*.ffont`) and the page's inlined preview font, from the list in `scripts/fonts.py`. Needs Python with fontTools (`pip install fonttools`) |
 
 ## Support
 For issues, questions, or suggestions, please open an issue on GitHub.

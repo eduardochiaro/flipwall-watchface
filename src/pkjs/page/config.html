@@ -5,7 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>Wall Flip</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=Lekton:wght@700&display=swap">
+<!-- The page's own two, then the watch fonts the preview draws with, at the weight the watch carries (catalog.js FONTS). A browser only downloads the ones in use. -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700&family=Lekton:wght@700&family=Bricolage+Grotesque:wght@700&family=Nunito:wght@700&family=Tektur:wght@800&family=Aldrich&family=Quantico:wght@700&family=Oxanium:wght@700&family=Squada+One&display=swap">
+<link rel="stylesheet" href="fonts.css">
 <style>
 	:root {
 		color-scheme: dark;
@@ -156,6 +158,15 @@
 			<h2>Layout</h2>
 			<div class="layouts" id="layouts" role="group" aria-label="Layout"></div>
 		</div>
+		<div class="block stack" id="font-block">
+			<h2>Font</h2>
+			<div class="card options">
+				<label class="field">
+					<span class="label">Typeface</span>
+					<select id="font"></select>
+				</label>
+			</div>
+		</div>
 		<div class="block stack">
 			<h2>Colors</h2>
 			<div class="card" id="colors"></div>
@@ -185,7 +196,7 @@
 		<div class="stack">
 			<div>
 				<h2>Start from a preset</h2>
-				<p class="note" style="font-size:14px;margin-top:4px">Fills in the blocks, colors and layout. Your language, units, seconds hand and flip animation stay as they are.</p>
+				<p class="note" style="font-size:14px;margin-top:4px">Fills in the blocks, colors and layout. Your font, language, units, seconds hand and flip animation stay as they are.</p>
 			</div>
 			<div class="presets" id="preset-list"></div>
 			<p class="msg" id="preset-msg" role="status"></p>
