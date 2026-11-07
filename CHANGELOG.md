@@ -5,6 +5,7 @@ Versions follow `package.json`. Dates are the commit that bumped the version.
 ## 3.5.0 — 2026-11-07
 
 - **Fonts:** pick the face's typeface on the Style tab: Lekton (as before), Bricolage Grotesque, TeX Gyre Adventor, Nunito, Tektur, Aldrich, Quantico, Oxanium or Squada One. Digits are all one width in every font, so the time doesn't shift as it ticks. Shared codes carry the font; older codes and the presets read as Lekton, and applying a preset keeps your font. Not on Pebble Classic/Steel.
+- **Settings page:** the face preview now sits above the tabs on every tab and stays in view as you scroll; once you scroll down it moves to the left with the tabs stacked beside it, to leave more room. The Face tab lists the blocks on your face, so you can pick one from the list as well as on the preview. The Save bar is smaller. The fonts show in the preview on the phone too, not only in a browser, and tapping the share code box no longer zooms the page on iPhone.
 
 ## 3.4.0 — 2026-11-07
 
