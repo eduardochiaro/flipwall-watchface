@@ -32,7 +32,7 @@ for (const [name, text] of [['modules', modules], ['app', app]]) {
 // Through functions: the sources may hold "$" sequences a string replacement reads.
 const page = html.replace(tags.modules, () => `<script>\n${modules}\n</script>`)
   .replace(tags.app, () => `<script>\n${app}\n</script>`)
-  // The watch fonts Google Fonts doesn't have, written by scripts/fonts.py.
+  // The watch fonts the preview draws with, written by scripts/fonts.py.
   .replace(tags.fonts, () => `<style>\n${read('src/pkjs/page/fonts.css')}</style>`);
 
 writeFileSync(new URL('../src/pkjs/page.js', import.meta.url),

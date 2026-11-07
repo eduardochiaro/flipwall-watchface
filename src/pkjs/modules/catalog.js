@@ -163,8 +163,8 @@ var LANGS = ['English', 'Español', 'Português', 'Français', 'Deutsch',
   'Italiano', 'Nederlands', 'Polski', 'Türkçe', 'Indonesia'];
 
 // The watch's vector fonts, in FONTS order in scripts/fonts.py (the index is
-// what's sent). `css` is the family the preview draws with: Google Fonts, or the
-// copy fonts.py inlines into the page. aplite has system fonts only.
+// what's sent). `css` is the family the preview draws with, inlined into the
+// page by fonts.py (its FAMILY names). aplite has system fonts only.
 var FONTS = [
   { name: 'Lekton', css: 'Lekton' },
   { name: 'Bricolage Grotesque', css: 'Bricolage Grotesque' },

@@ -78,8 +78,10 @@
   }
 
   function drawFace() {
-    $('face-preview').innerHTML = face.build(faceCfg(S, { sel: ui.sel, width: round ? 230 : 210 }));
-    $('style-preview').innerHTML = face.build(faceCfg(S, { overlays: false, width: round ? 120 : 110 }));
+    // One face, pinned above the tabs; only the Face tab edits it.
+    var editing = ui.tab === 'face';
+    $('face-preview').innerHTML = face.build(faceCfg(S, { sel: editing ? ui.sel : null, overlays: editing, width: round ? 150 : 130 }));
+    $('face-hint').hidden = !editing;
     $('face-hint').textContent = ui.sel ? slotName(ui.sel) + ' selected. Tap it again to close.'
       : 'Tap a block on the face to change it.';
   }
@@ -102,10 +104,22 @@
       swatch(draw, key, { scale: 1.9 }) + '<span>' + esc(label) + '</span></button>';
   }
 
+  // With no block picked, the Face tab lists what's on the face; a row picks
+  // its block, same as tapping it on the preview.
+  function slotList() {
+    return '<div class="stack"><h2>Blocks on this face</h2><div class="card">' +
+      catalog.liveSlots(S).map(function (key) {
+        return '<button type="button" class="row" data-slot="' + key + '">' +
+          '<span class="face-mini">' + swatch(S[key], key, { scale: 1 }) + '</span>' +
+          '<span class="grow"><b>' + esc(slotName(key)) + '</b><small>' + esc(catalog.BLOCKS[S[key]].label) + '</small></span>' +
+          CHEVRON + '</button>';
+      }).join('') + '</div></div>';
+  }
+
   function drawEditor() {
     var host = $('editor');
     var key = ui.sel;
-    if (!key) { host.innerHTML = ''; return; }
+    if (!key) { host.innerHTML = slotList(); return; }
     var allows = catalog.slotAllows(key, S, platform);
     var ids = catalog.ORDER.filter(function (v) {
       return allows(v) && !folded(v) && (ui.cat === 'all' || catalog.BLOCKS[v].cat === ui.cat);
@@ -343,6 +357,10 @@
     el.className = 'msg ' + (ok ? 'ok' : 'bad');
   }
 
+  // Back to the top of the page, with the pinned bar back to full size (a
+  // scroll that doesn't move fires no event to do it).
+  function toTop() { window.scrollTo(0, 0); pinBar(); }
+
   function closest(el, attr) {
     while (el && el.getAttribute) {
       if (el.getAttribute(attr) !== null) { return el; }
@@ -359,13 +377,14 @@
       drawAll();
       return;
     }
-    if ((n = closest(e.target, 'data-tab'))) { ui.tab = n.getAttribute('data-tab'); drawAll(); window.scrollTo(0, 0); return; }
+    if ((n = closest(e.target, 'data-tab'))) { ui.tab = n.getAttribute('data-tab'); drawAll(); toTop(); return; }
     if ((n = closest(e.target, 'data-slot'))) {
       var slot = n.getAttribute('data-slot');
       ui.sel = ui.sel === slot ? null : slot;
       ui.cat = 'all';
       drawFace();
       drawEditor();
+      toTop();
       return;
     }
     if ((n = closest(e.target, 'data-block'))) { placeBlock(parseInt(n.getAttribute('data-block'), 10)); drawAll(); return; }
@@ -386,7 +405,13 @@
   document.addEventListener('change', function (e) {
     var t = e.target;
     if (t.id === 'lang') { S.LANG = parseInt(t.value, 10); drawAll(); }
-    if (t.id === 'font') { S.FONT = parseInt(t.value, 10); drawAll(); }
+    if (t.id === 'font') {
+      S.FONT = parseInt(t.value, 10);
+      drawAll();
+      // Google Fonts only downloads a family once it's used, so the first draw
+      // measures with the fallback; redraw when the real one arrives.
+      if (document.fonts && document.fonts.load) { document.fonts.load('bold 20px "' + fontCss(S) + '"').then(drawAll); }
+    }
     if (t.getAttribute('data-zone') !== null) { S['TZ_ZONE[' + t.getAttribute('data-zone') + ']'] = t.value; drawAll(); }
   });
 
@@ -444,8 +469,26 @@
   $('font-block').hidden = platform === 'aplite';
   if (round) {
     $('face-bezel').className = 'bezel round';
-    $('style-bezel').className = 'bezel small round';
   }
+  // Past the top, the pinned face and tabs sit side by side to free up the
+  // screen. The bar keeps its full height in the flow as an empty margin, so
+  // nothing below it moves: a reflow (and a scroll fix-up for it) mid-scroll
+  // makes the page jump, worst under iOS momentum scrolling. It turns compact
+  // once scrolled past 120px and back to full only under 40px, and the scroll
+  // is clamped to the page, so iOS's bounce at either end can't flip it back and forth.
+  function pinBar() {
+    var top = $('top'), compact = top.classList.contains('compact');
+    var max = document.documentElement.scrollHeight - window.innerHeight;
+    var y = Math.max(0, Math.min(window.scrollY, max));
+    var want = compact ? y > 40 : y > 120;
+    if (want === compact) { return; }
+    top.style.marginBottom = '';
+    var full = top.getBoundingClientRect().height;
+    top.classList.toggle('compact', want);
+    if (want) { top.style.marginBottom = (full - top.getBoundingClientRect().height) + 'px'; }
+  }
+  window.addEventListener('scroll', pinBar, { passive: true });
+
   drawAll();
   // The face is measured to fit with the web font; redraw once it has loaded.
   if (document.fonts && document.fonts.ready) { document.fonts.ready.then(drawAll); }

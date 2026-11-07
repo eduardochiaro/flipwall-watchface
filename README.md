@@ -47,9 +47,9 @@ A digital watchface for Pebble smartwatches based on flip clock design.
 
 ## Configuration options
 
-Configure via the Pebble app settings page: a custom page (no Clay) with three tabs and a **Save to watch** button that stays at the bottom. Nothing changes on the watch until you save.
+Configure via the Pebble app settings page: a custom page (no Clay) with three tabs, a live preview of the face pinned above them, and a **Save** button that stays at the bottom. Nothing changes on the watch until you save.
 
-- **Face** — a live preview of your watch's face that doubles as the editor. **Tap a block** and the page shows what that block can be tuned to, then a catalog of every block the slot can take, big and short, each drawn as a miniature of itself and filterable by Time, Date, Activity, Weather and Other. Tap one to place it, or tap the face block again to close.
+- **Face** — a live preview of your watch's face that doubles as the editor, with a list of the blocks on it below. **Tap a block** (on the face or in the list) and the page shows what that block can be tuned to, then a catalog of every block the slot can take, big and short, each drawn as a miniature of itself and filterable by Time, Date, Activity, Weather and Other. Tap one to place it, or tap the face block again to close.
 - **Style** — layout (Classic or Columns), the face, panel and accent colors, the font, the display switches, language and units, with a small live preview on top.
 - **Presets** — every preset drawn as a real face thumbnail, plus the share code.
 
