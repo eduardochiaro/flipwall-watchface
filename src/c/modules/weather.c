@@ -125,12 +125,15 @@ void weather_minmax_str(char *buf, size_t n) {
 
 void weather_precip_str(char *buf, size_t n) {
   if (!s_have) { snprintf(buf, n, "--"); return; }
+  int t = s_precip;   // tenths of mm (the last 15 minutes)
   if (s_imperial) {
-    // Whole inches would read "0in" for anything under 13mm, so show tenths.
-    int tenths = (s_precip * 3937 + 5000) / 10000;   // mm -> inches * 10, rounded
-    snprintf(buf, n, "%d.%din", tenths / 10, tenths % 10);
+    // Rain this short reads 0.0in in tenths, so show hundredths.
+    int h = (t * 3937 + 5000) / 10000;   // tenths mm -> inches * 100, rounded
+    snprintf(buf, n, "%d.%02din", h / 100, h % 100);
+  } else if (t < 100) {
+    snprintf(buf, n, "%d.%dmm", t / 10, t % 10);
   } else {
-    snprintf(buf, n, "%dmm", s_precip);
+    snprintf(buf, n, "%dmm", (t + 5) / 10);
   }
 }
 

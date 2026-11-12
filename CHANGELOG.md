@@ -2,6 +2,10 @@
 
 Versions follow `package.json`. Dates are the commit that bumped the version.
 
+## 3.6.0 — 2026-11-12
+
+- **Fix:** the Precipitation block always read 0mm, even in rain. It shows the rain of the last 15 minutes, which is usually under 1mm, and that was rounded to a whole mm. It now shows tenths ("0.3mm", whole mm from 10mm up) and hundredths of an inch in imperial ("0.01in").
+
 ## 3.5.0 — 2026-11-07
 
 - **Fonts:** pick the face's typeface on the Style tab: Lekton (as before), Bricolage Grotesque, TeX Gyre Adventor, Nunito, Tektur, Aldrich, Quantico, Oxanium or Squada One. Digits are all one width in every font, so the time doesn't shift as it ticks. Shared codes carry the font; older codes and the presets read as Lekton, and applying a preset keeps your font. Not on Pebble Classic/Steel.

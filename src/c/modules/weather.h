@@ -24,7 +24,7 @@ void weather_humidity_str(char *buf, size_t n); // "45%"
 void weather_minmax_str(char *buf, size_t n);   // "12/24°"   / "54/75°"
 void weather_max_str(char *buf, size_t n);      // "24°"      / "75°"
 void weather_min_str(char *buf, size_t n);      // "12°"      / "54°"
-void weather_precip_str(char *buf, size_t n);   // "5mm"      / "0.2in"
+void weather_precip_str(char *buf, size_t n);   // "0.3mm"    / "0.01in"
 void weather_uv_str(char *buf, size_t n);       // "7" (current UV index)
 void weather_aqi_str(char *buf, size_t n);      // "42" (European or US AQI)
 void weather_wind_str(char *buf, size_t n);     // "12km/h"   / "7mph"

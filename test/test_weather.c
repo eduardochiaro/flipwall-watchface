@@ -88,13 +88,16 @@ int main(void) {
   group("metric display");
   EQ(s_wind = 12,  weather_wind_str,   "12km/h");
   EQ(s_temp = 20,  weather_temp_str,   "20°");
-  EQ(s_precip = 5, weather_precip_str, "5mm");
+  EQ(s_precip = 3,   weather_precip_str, "0.3mm");   // tenths of mm
+  EQ(s_precip = 0,   weather_precip_str, "0.0mm");
+  EQ(s_precip = 125, weather_precip_str, "13mm");
 
   group("imperial display");
   s_imperial = true;
   EQ(s_wind = 12,   weather_wind_str,   "7mph");    // 12 km/h = 7.46 mph
   EQ(s_temp = 20,   weather_temp_str,   "68°");
-  EQ(s_precip = 5,  weather_precip_str, "0.2in");   // 5 mm = 0.197 in
+  EQ(s_precip = 50, weather_precip_str, "0.20in");  // 5 mm = 0.197 in
+  EQ(s_precip = 3,  weather_precip_str, "0.01in");  // 0.3 mm = 0.012 in
   EQ(s_temp = -10,  weather_temp_str,   "14°");     // rounds away from zero
 
   // The phone already picked which day's event this is; the watch only turns

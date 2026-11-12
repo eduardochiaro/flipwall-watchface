@@ -174,7 +174,9 @@ function buildMessage(data) {
     msg.WEATHER_WIND_DIR = Math.round(current.wind_direction_10m); // deg, from
   }
   if (current.precipitation !== undefined) {
-    msg.WEATHER_PRECIPITATION = Math.round(current.precipitation);
+    // Tenths of mm: current precipitation is only the last 15 minutes, so
+    // ordinary rain (0.1..0.4mm) rounded to whole mm always read 0.
+    msg.WEATHER_PRECIPITATION = Math.round(current.precipitation * 10);
   }
   if (daily.temperature_2m_min) {
     msg.WEATHER_MIN_TEMP = Math.round(daily.temperature_2m_min[0]);
